@@ -1,0 +1,77 @@
+/* Home (both designs). */
+
+.home-tile {
+  transition: transform 0.18s ease-out, background-color 0.18s;
+}
+.home-tile:hover {
+  transform: translateY(-1px);
+}
+.home-play {
+  background: var(--glow);
+  color: var(--on-glow);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
+  transition: transform 0.15s, opacity 0.15s;
+}
+.home-play:hover {
+  transform: scale(1.06);
+}
+.home-card-cover {
+  transition: transform 0.2s ease-out;
+}
+.group:hover .home-card-cover {
+  transform: translateY(-2px);
+}
+
+html[data-design="studio"] .home-play {
+  background: var(--text);
+  color: #0b0b0d;
+}
+html[data-design="studio"] .home-tile:hover {
+  background: rgba(255, 255, 255, 0.09);
+}
+html[data-design="studio"] .home-greeting {
+  font-size: 2rem;
+}
+
+/* the messenger: a friend listening right now */
+.social-eq i {
+  display: block;
+  width: 2px;
+  border-radius: 1px;
+  background: var(--glow);
+  animation: social-eq 0.9s ease-in-out infinite alternate;
+}
+.social-eq i:nth-child(1) {
+  height: 60%;
+}
+.social-eq i:nth-child(2) {
+  height: 100%;
+  animation-delay: -0.3s;
+}
+.social-eq i:nth-child(3) {
+  height: 40%;
+  animation-delay: -0.6s;
+}
+@keyframes social-eq {
+  to {
+    transform: scaleY(0.35);
+  }
+}
+.social-eq i {
+  transform-origin: bottom;
+}
+html[data-activity="hidden"] .social-eq i,
+html[data-activity="blurred"] .social-eq i {
+  animation-play-state: paused;
+}
+
+/* the "plays only on SoundCloud" card: glass in studio, a paper card in og */
+.skip-notice {
+  background: rgba(16, 16, 20, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(18px);
+}
+html:not([data-design="studio"]) .skip-notice {
+  background: var(--card, #1a1530);
+  border-color: var(--card-edge, rgba(255, 255, 255, 0.15));
+}

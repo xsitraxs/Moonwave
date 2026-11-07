@@ -1,0 +1,655 @@
+import type { SearchKind } from "./provider";
+import type { Friends, Message, Room, RoomOp, RoomState, SocialStatus, SocialTrack, SocialUpdate, WsPage, WsReported, WsSort, WsThemeFull, SharedPlaylist } from "./social";
+import type { AppErrorInfo, ImportItem, ImportList, ImportMatch, Lyrics, LyricsHit, LyricsSyncStatus, Page, Playlist, QueueSource, Resolved, SavedProfile, StreamInfo, SyncRequest, SyncResult, Track, TrackDetails, User, LyricsForReview, LyricsSuggestionState, SteamWallpaper, BackupStatus, RestoreResult } from "./types";
+
+/**
+ * The one contract between main and renderer. main registers a handler for every InvokeMap channel, preload exposes
+ * them as typed methods on window.sky; events flow main → renderer through EventMap. Nothing else crosses the bridge.
+ */
+
+export type AuthMode = "session" | "public";
+export interface AuthStatus {
+  mode: AuthMode;
+  user: User | null;
+  /** SoundCloud ended the session just now (it refused the token): the page says so instead of quietly showing "Sign in" */
+  ended?: boolean;
+}
+
+/** active — visible and focused; blurred — visible, another app has focus; hidden — minimized, hidden or in the tray */
+export type WindowActivity = "active" | "blurred" | "hidden";
+
+export type QualityPref = "auto" | "0" | "1" | "2";
+export type RepeatMode = "off" | "all" | "one";
+
+export interface PlayerSnapshot {
+  queue: Track[];
+  /** the queue in its order before shuffle was turned on, null when shuffle is off */
+  original: Track[] | null;
+  index: number;
+  source: QueueSource;
+  position: number;
+  volume: number;
+  muted: boolean;
+  repeat: RepeatMode;
+}
+
+export type HotkeyAction = "playPause" | "next" | "previous" | "showWindow";
+export type PlayerCommand = "playPause" | "next" | "previous";
+
+/** What main needs to know about playback: tray menu and tooltip, notifications. */
+export interface PlayerInfo {
+  track: { id: number; title: string; artist: string; artworkUrl: string | null; permalinkUrl?: string } | null;
+  playing: boolean;
+  /** for Discord's time bar: when the track would have started at the current position (ms since 1970), and its length */
+  startedAt?: number;
+  durationMs?: number;
+}
+
+export type UpdateStatus =
+  | { state: "idle" | "checking" | "none" }
+  | { state: "available"; version: string; portable: boolean }
+  | { state: "downloading"; version: string; percent: number }
+  | { state: "ready"; version: string }
+  | { state: "error"; message: string };
+
+export interface NetCheck {
+  name: string;
+  ok: boolean;
+  ms: number | null;
+  detail: string;
+}
+
+export interface AppInfo {
+  version: string;
+  portable: boolean;
+  packaged: boolean;
+  logsDir: string;
+  /** the build carries sc player's own proxy */
+  builtinProxy: boolean;
+  /** in the "auto" proxy mode: SoundCloud goes over the user's own connection or through sc player's proxy */
+  proxyRoute: "own" | "ours" | null;
+  /** this run started without the graphics card (Memory saver as it was at start) */
+  memorySaver: boolean;
+}
+export type StreamQuality = "high" | "low";
+/** studio — the 2.0 look (dark glass over a living background); og — the hand-drawn night sky of 1.x */
+export type Design = "studio" | "og";
+/** what fills the window behind the studio design */
+export type BackgroundKind = "liquid" | "cover" | "file" | "none";
+/** The studio design's knobs. */
+export interface Look {
+  design: Design;
+  bg: BackgroundKind;
+  /** the picked image / GIF / video, copied into userData/backgrounds ("" = none) */
+  bgFile: string;
+  bgFileType: "image" | "video" | "";
+  /** px, 0..40 */
+  bgBlur: number;
+  /** how much the background is darkened under the interface, 0..100 */
+  bgDim: number;
+  /** how much the background moves with the music, 0..100 (40 = the calm default) */
+  bgReact: number;
+  /** how opaque the glass panels are, 10..100 */
+  panelOpacity: number;
+  /** px of blur behind the panels, 0..60 */
+  panelBlur: number;
+  /** no blur behind panels (for slow PCs) */
+  lite: boolean;
+  /** a fixed accent "#rrggbb" (a workshop theme can set one); "" = from the cover */
+  accent: string;
+  /** the interface's own colour "#rrggbb" — panels, menus, the window behind them — kept dark; "" = graphite */
+  surface: string;
+}
+export type PopupCorner = "bottom-right" | "top-right" | "bottom-left" | "top-left";
+
+/** Everything on the Settings screen. main reads the parts it acts on (tray, autostart, hotkeys, notifications). */
+export interface Prefs {
+  /** when the list runs out (repeat off), keep playing similar tracks */
+  autopilot: boolean;
+  /** the window's ✕ hides it to the tray instead of quitting */
+  closeToTray: boolean;
+  startWithWindows: boolean;
+  /** started with Windows: stay in the tray */
+  startMinimized: boolean;
+  /** a toast when the track changes while the window isn't in front */
+  notifications: boolean;
+  /** a small card with the cover, title and artist in a corner of the screen for a few seconds on a track change */
+  trackPopup: boolean;
+  /** "Listening to sc player" with the track on the Discord profile (the Discord app on this computer) */
+  discordPresence: boolean;
+  /** the night design's clouds drifting behind the window */
+  skyClouds: boolean;
+  /** stars twinkle with the top end, the edges flash on the kick (an analyser on the output) */
+  reactiveSky: boolean;
+  /** clouds and the glow take the colour of the cover */
+  coverTint: boolean;
+  popupCorner: PopupCorner;
+  /** global shortcuts, Electron accelerator strings; "" = off */
+  hotkeys: Record<HotkeyAction, string>;
+  streamQuality: StreamQuality;
+  /** seconds of overlap between tracks, 0 = off */
+  crossfade: number;
+  eq: { enabled: boolean; preset: string; gains: number[] };
+  /** audio output device id, "" = system default */
+  outputDevice: string;
+  blockedArtists: { id: number; username: string }[];
+  /** tracks whose title or artist contains one of these are hidden and skipped */
+  hiddenKeywords: string[];
+  /** check GitHub for a new version at start and every few hours */
+  checkUpdates: boolean;
+  /** play another SoundCloud upload of a track that is only streamed with DRM (or as a 30 s preview) */
+  substitute: boolean;
+  /** how close the other upload's length must be, seconds */
+  substituteTolerance: number;
+  /** tracks the user told not to substitute */
+  noSubstitute: number[];
+  /** proxy: system settings, none, an address (for everything), or sc player's own (SoundCloud only) */
+  proxy: { mode: "auto" | "system" | "direct" | "custom" | "builtin"; url: string; username: string; v?: number };
+  look: Look;
+  /** the full screen player's spectrum */
+  spectrum: SpectrumLook;
+  /** a pop-up when a friend sends a track while the window isn't in front */
+  socialPopups: boolean;
+  /** once a day: an anonymous "one more app is running" to sc player's server (a random install id + the version) */
+  countMe: boolean;
+  /** tracks played for a while go to sc player's server for everyone's "Listening on sc player" — the id only */
+  shareListening: boolean;
+  /** plain words (no times anywhere) are matched to the song on this computer (Whisper; the model is downloaded once) */
+  autoSyncLyrics: boolean;
+  /** Auto-sync with Whisper small instead of base: hears fast and mumbled rap better, about three times slower */
+  accurateSync: boolean;
+  /**
+   * The full screen player rests: with nothing to read (the visualizer, a track without lyrics) and no mouse or keys
+   * for a few seconds, its buttons and words fade back so the picture and the sound show
+   */
+  restingPlayer: boolean;
+  /** ♥ is kept on this computer (main/local-likes) instead of going to SoundCloud; its SoundCloud likes still show */
+  localLikes: boolean;
+  /** the interface's language; "auto" follows Windows (Russian for a Russian system, English otherwise) */
+  language: Language;
+  /**
+   * Memory saver: no graphics card (Chromium draws on the processor), lighter effects and the cover instead of the
+   * liquid background — about 100 MB less. The graphics card is chosen at start, so it takes a restart.
+   */
+  memorySaver: boolean;
+}
+
+export type Language = "auto" | "en" | "ru";
+
+export const EQ_BANDS = [32, 64, 125, 250, 500, 1000, 2000, 4000, 8000, 16000] as const;
+
+export const PREFS_DEFAULTS: Prefs = {
+  autopilot: true,
+  closeToTray: true,
+  startWithWindows: false,
+  startMinimized: true,
+  notifications: false,
+  trackPopup: false,
+  discordPresence: true,
+  skyClouds: true,
+  reactiveSky: true,
+  coverTint: true,
+  popupCorner: "bottom-right",
+  hotkeys: { playPause: "Control+Alt+Space", next: "Control+Alt+Right", previous: "Control+Alt+Left", showWindow: "Control+Alt+S" },
+  streamQuality: "high",
+  crossfade: 0,
+  eq: { enabled: false, preset: "flat", gains: EQ_BANDS.map(() => 0) },
+  outputDevice: "",
+  blockedArtists: [],
+  hiddenKeywords: [],
+  checkUpdates: true,
+  substitute: true,
+  substituteTolerance: 3,
+  noSubstitute: [],
+  proxy: { mode: "auto", url: "", username: "", v: 2 },
+  look: { design: "studio", bg: "liquid", bgFile: "", bgFileType: "", bgBlur: 14, bgDim: 72, bgReact: 40, panelOpacity: 58, panelBlur: 30, lite: false, accent: "", surface: "" },
+  spectrum: { place: "cover", style: "bars", height: 120, color: "accent", mirror: true },
+  socialPopups: true,
+  countMe: true,
+  shareListening: true,
+  autoSyncLyrics: false,
+  accurateSync: false,
+  restingPlayer: false,
+  localLikes: true,
+  language: "auto",
+  memorySaver: false,
+};
+
+/** Fills in anything missing from stored prefs (new options in a newer version). */
+export function withPrefDefaults(stored: Partial<Prefs> | undefined): Prefs {
+  const p = { ...PREFS_DEFAULTS, ...stored };
+  const proxy = { ...PREFS_DEFAULTS.proxy, ...stored?.proxy };
+  // "system" was the default before "auto" existed: such settings move to the new default once (v marks it done)
+  if (stored?.proxy && !stored.proxy.v) Object.assign(proxy, { v: 2, mode: proxy.mode === "system" ? "auto" : proxy.mode });
+  return { ...p, hotkeys: { ...PREFS_DEFAULTS.hotkeys, ...stored?.hotkeys }, eq: { ...PREFS_DEFAULTS.eq, ...stored?.eq }, proxy, look: { ...PREFS_DEFAULTS.look, ...stored?.look, design: "studio" }, spectrum: { ...PREFS_DEFAULTS.spectrum, ...stored?.spectrum } };
+}
+
+/** State the renderer keeps in main's store (settings.json in userData). */
+/** How the full screen player draws the sound. */
+export interface SpectrumLook {
+  /** around the cover, along the bottom of the window, both, or none */
+  place: "cover" | "bottom" | "both" | "off";
+  style: "bars" | "lines" | "dots";
+  /** the bottom one's height, px */
+  height: number;
+  color: "accent" | "white";
+  /** the bottom one: the lows in the middle, mirrored to both sides (else lows on the left) */
+  mirror: boolean;
+}
+
+export interface PinnedPlaylist {
+  id: string;
+  title: string;
+  artworkUrl: string | null;
+  trackCount: number;
+}
+
+export interface RendererState {
+  /** player volume 0..1 and mute, kept between runs */
+  volume: number;
+  muted: boolean;
+  quality: QualityPref;
+  savedProfiles: SavedProfile[];
+  /** playlists pinned to the sidebar */
+  pinnedPlaylists: PinnedPlaylist[];
+  history: Track[];
+  searchHistory: string[];
+  prefs: Prefs;
+  player: PlayerSnapshot | null;
+}
+
+export const RENDERER_DEFAULTS: RendererState = {
+  volume: 0.8,
+  muted: false,
+  quality: "auto",
+  savedProfiles: [],
+  pinnedPlaylists: [],
+  history: [],
+  searchHistory: [],
+  prefs: PREFS_DEFAULTS,
+  player: null,
+};
+
+export interface InvokeMap {
+  "auth:status": () => AuthStatus;
+  "auth:logout": () => AuthStatus;
+  /** sign in through the user's own browser: opens the helper page and waits for its link (15 min) */
+  "auth:browser": () => void;
+  /** Settings: show the track popup now, with the current track */
+  "popup:preview": () => void;
+  "auth:browserCancel": () => void;
+  /** the bot protection stopped an action: open this soundcloud.com page in the app's session; resolves on close */
+  "auth:check": (url: string) => void;
+
+  "data:me": () => User | null;
+  "data:likes": (cursor: string | null) => Page<Track>;
+  "data:playlists": (cursor: string | null) => Page<Playlist>;
+  "data:playlist": (id: string) => Playlist;
+  /** a cover for a playlist listed without one: its first track's (or that uploader's picture), null if none */
+  "data:playlistCover": (id: string) => string | null;
+  "data:playlistTracks": (id: string, cursor: string | null) => Page<Track>;
+  "data:user": (id: number) => User;
+  "data:userLikes": (userId: number, cursor: string | null) => Page<Track>;
+  "data:userTracks": (userId: number, cursor: string | null) => Page<Track>;
+  "data:userPlaylists": (userId: number, cursor: string | null) => Page<Playlist>;
+  "data:followings": (userId: number | "me", cursor: string | null) => Page<User>;
+  "data:resolve": (url: string) => Resolved;
+  "data:tracks": (ids: number[]) => Track[];
+  "data:sourceIds": (source: QueueSource) => number[];
+  "data:related": (trackId: number) => Track[];
+  "data:trackDetails": (trackId: number) => TrackDetails;
+  /** `deep`: read more search pages (the user asked for another upload and the first search found too few) */
+  "data:alternatives": (trackId: number, deep?: boolean) => Track[];
+  /** the words of a track (LRCLIB), null when none were found */
+  "lyrics:get": (q: { trackId: number; artist: string; title: string; durationMs: number }) => Lyrics | null;
+  "lyrics:search": (text: string) => LyricsHit[];
+  /** use this LRCLIB record for the track from now on */
+  "lyrics:pick": (trackId: number, lyricsId: number) => Lyrics | null;
+  /** the user's own words for a track (plain, or LRC with times); null takes them away. The words now, or null to look again */
+  "lyrics:setOwn": (track: { trackId: number; artist: string; title: string }, text: string | null) => Lyrics | null;
+  /** my own timed words for a track, sent for the moderator to approve for everyone */
+  "lyrics:suggest": (track: { trackId: number; artist: string; title: string; durationMs: number }) => LyricsSuggestionState;
+  "lyrics:suggestion": (trackId: number) => LyricsSuggestionState;
+  /** the moderator's queue (with the moderator's key) */
+  "lyrics:review": () => LyricsForReview[];
+  "lyrics:decide": (id: number, approve: boolean, trackId: number) => void;
+  "lyricsSync:status": () => LyricsSyncStatus;
+  /** starts the model download (progress comes as lyricsSync:status events) */
+  "lyricsSync:download": () => LyricsSyncStatus;
+  "lyricsSync:deleteModel": () => LyricsSyncStatus;
+  /** a song worked out before: its result, null when the words didn't fit it, undefined when not done yet */
+  "lyricsSync:before": (q: SyncRequest) => SyncResult | null | undefined;
+  /** matches the words to the sound (mono, 16 kHz); null when they don't fit it */
+  "lyricsSync:run": (q: SyncRequest, pcm: Float32Array) => SyncResult | null;
+  "data:feed": (cursor: string | null) => Page<Track>;
+  /** `refresh`: read them again from SoundCloud (after liking on the site) */
+  "data:likedIds": (refresh?: boolean) => number[];
+  "data:setLiked": (trackId: number, liked: boolean) => void;
+  /** albums and playlists ♥-ed in the app (kept on this computer) */
+  "data:savedPlaylists": () => string[];
+  /** ♥ / un-♥ an album or playlist (un-♥ also hides one the account liked on SoundCloud) */
+  "data:setPlaylistSaved": (playlistId: string, saved: boolean) => void;
+  "data:myPlaylists": () => Playlist[];
+  "data:addToPlaylist": (playlistId: string, trackId: number) => void;
+  /** a playlist of your own, kept on this computer (an id starting with "local-") */
+  "data:createPlaylist": (title: string, trackIds: number[]) => Playlist;
+  /**
+   * a SoundCloud playlist copied to this computer (parts of 500 when longer); copied before: those copies again,
+   * with existed true
+   */
+  "data:copyPlaylist": (playlistId: string) => { made: Playlist[]; existed: boolean };
+  /** an own playlist's whole track list in this order (reordered, or with tracks taken out) */
+  "data:setPlaylistTracks": (playlistId: string, trackIds: number[]) => void;
+  "data:renamePlaylist": (playlistId: string, title: string) => void;
+  "data:deletePlaylist": (playlistId: string) => void;
+  /** all own playlists to a file the person picks: how many, or null (cancelled) */
+  "data:exportPlaylists": () => number | null;
+  /** own playlists from such a file, added: how many, or null (none picked) */
+  "data:importPlaylists": () => number | null;
+  /** what a pasted link (a Yandex Music, Spotify, YouTube or VK playlist, album, tracks) or lines of "Artist — Title" hold */
+  "import:read": (text: string) => ImportList;
+  /** the VK window, to sign in and bring "My music" or a playlist (resolves when a page is read) */
+  "import:vk": () => ImportList;
+  /** the page in the browser with the VK bookmark */
+  "import:vkBookmark": () => void;
+  /** one of those tracks looked for on SoundCloud (a track link is read first) */
+  "import:match": (item: ImportItem) => ImportMatch;
+  "data:search": (query: string, kind: SearchKind, cursor: string | null) => Page<Track> | Page<Playlist> | Page<User>;
+  "data:suggest": (query: string) => string[];
+  "data:stream": (trackId: number) => StreamInfo;
+  "data:waveform": (url: string) => number[];
+
+  /** Settings → background: pick an image, GIF or video; main copies it into userData. null when cancelled */
+  "bg:pick": () => { file: string; type: "image" | "video" } | null;
+  "backup:status": () => BackupStatus;
+  /** the copy now (even unchanged) */
+  "backup:now": () => BackupStatus;
+  /** another computer's copy by its transfer key, merged in; `replaceCode`: its friend code replaces this one's */
+  "backup:restore": (key: string, replaceCode: boolean) => RestoreResult;
+  /** music from this computer (main/local-tracks), newest first */
+  "local:list": () => Track[];
+  /** files (or a folder) picked in a dialog; how many were added */
+  "local:add": (folder: boolean) => number;
+  /** files or folders dropped onto the window; how many were added */
+  "local:addPaths": (paths: string[]) => number;
+  "local:remove": (trackId: number) => void;
+  "local:show": (trackId: number) => void;
+  /** a Wallpaper Engine wallpaper by its Steam Workshop link, if Steam has it on this computer */
+  "bg:steamFind": (link: string) => SteamWallpaper;
+  /** the wallpaper's page in Steam (to subscribe, so Steam downloads it) */
+  "bg:steamOpen": (id: string) => void;
+  /** the imported video as it is (no 2K copy) */
+  "bg:keepImport": (url: string) => { file: string; type: "video" };
+  /** a video made here (the 2K copy) as the background */
+  "bg:saveVideo": (data: Uint8Array) => { file: string; type: "video" };
+  /** the current own background's size in bytes */
+  "bg:size": (file: string) => number;
+  "win:minimize": () => void;
+  "win:toggleMaximize": () => void;
+  "win:close": () => void;
+
+  "store:get": () => RendererState;
+  "store:set": (patch: Partial<RendererState>) => void;
+
+  "shell:open": (url: string) => void;
+  "clipboard:write": (text: string) => void;
+  "clipboard:read": () => string;
+
+  "player:state": (info: PlayerInfo) => void;
+  "hotkeys:suspend": (suspended: boolean) => void;
+  "app:info": () => AppInfo;
+  /** quit and start again (a setting that only takes effect at start) */
+  "app:relaunch": () => void;
+  "log:write": (message: string) => void;
+  "diag:openLogs": () => void;
+  "diag:netcheck": () => NetCheck[];
+  /** a report file the person saves (version, Windows, a few settings, the computer and the app's load, the end of the log), then the page to write on; false when cancelled */
+  "diag:report": () => boolean;
+  "diag:clearCache": () => void;
+  /** the proxy password, kept encrypted; "" removes it. Returns whether one is set. */
+  "proxy:setPassword": (password: string) => boolean;
+  "proxy:hasPassword": () => boolean;
+  "update:check": () => UpdateStatus;
+  "update:download": () => void;
+  "update:install": () => void;
+
+  /** sc player's own server: the messenger (friend codes, tracks only) */
+  "social:status": () => SocialStatus;
+  /** "Get my code": a new profile on the server with this name */
+  "social:join": (name: string) => SocialStatus;
+  "social:profile": (patch: { name?: string; shareNow?: boolean }) => SocialStatus;
+  /** the link that adds me as a friend (a page on sc player's server that opens the app); "" without a code */
+  "social:inviteLink": () => string;
+  /** forget the profile here and on the server (friends, tracks, themes) */
+  "social:leave": () => SocialStatus;
+  "social:friends": () => Friends;
+  "social:addFriend": (code: string) => Friends;
+  "social:accept": (code: string) => Friends;
+  /** decline, cancel or unfriend */
+  "social:removeFriend": (code: string) => Friends;
+  /** the new messages' ids, one per friend, in the order given */
+  "social:send": (codes: string[], track: SocialTrack) => number[];
+  /** one of my own playlists (kept on this computer) to friends: the new messages' ids, and what they carry */
+  "social:sendPlaylist": (codes: string[], playlistId: string) => { ids: number[]; track: SocialTrack; playlist: SharedPlaylist };
+  /** the conversation with one friend, oldest first; `before` = an older page */
+  "social:chat": (code: string, before?: number) => Message[];
+  "social:seen": (code: string) => void;
+  /** the newest tracks friends sent (empty without a profile) */
+  "social:recent": () => Message[];
+  "social:state": (messageId: number, state: "heard" | "liked" | "queued" | "saved") => void;
+  /** what is playing, for friends (sent only when sharing is on) */
+  "social:now": (track: SocialTrack | null) => void;
+  /** poll now (the inbox opened) */
+  "social:poll": () => void;
+  /** a track played for a while (sent anonymously when "Share what I play" is on) */
+  "social:listened": (trackId: number) => void;
+  /** what was played in sc player lately: SoundCloud ids, newest first */
+  "social:listening": () => { id: number; at: number; plays: number }[];
+  /** listening rooms (main/rooms.ts): the state now (after a reload of the page) */
+  "room:state": () => RoomState;
+  /** a room of my own, playing what plays now, and invitations to these friends */
+  "room:create": (o: { startTogether: boolean; invite: string[]; track: SocialTrack | null; position: number; playing: boolean }) => Room;
+  "room:invite": (codes: string[]) => void;
+  "room:join": (roomId: string) => Room;
+  "room:leave": () => void;
+  /** what happens in the room; "suggest" answers whether it was new */
+  "room:do": (op: RoomOp) => { result?: "suggested" | "already" };
+  /** everything that played in the room (the room carries only the latest few) */
+  "room:history": () => SocialTrack[];
+  /** the theme workshop */
+  "ws:list": (sort: WsSort, page: number, q: string, mine: boolean) => WsPage;
+  "ws:get": (id: string) => WsThemeFull;
+  /** publish the current look (with its own background when `withBackground`) and a picture of the window; the theme's id */
+  /** a picture of the window for the theme being published (taken while the page has stepped aside) */
+  "ws:capture": () => void;
+  /** `video`: the background fitted to the workshop's 25 MB here, sent in place of the file */
+  "ws:publish": (t: { name: string; description: string; withBackground: boolean; video?: Uint8Array }) => string;
+  /** download a theme (and its background): the look to apply */
+  "ws:install": (id: string) => Look;
+  "ws:like": (id: string) => { likes: number; liked: boolean };
+  "ws:report": (id: string, reason: string) => void;
+  /** `moderator`: someone else's theme, with the moderator's key */
+  "ws:delete": (id: string, moderator?: boolean) => void;
+  /** whether this computer holds the workshop moderator's key */
+  "ws:moderator": () => boolean;
+  /** checks the key with the server and keeps it (null forgets it) */
+  "ws:setModerator": (key: string | null) => boolean;
+  /** the moderator's list: reported and hidden themes, the most reported first (with the moderator's key) */
+  "ws:reports": () => WsReported[];
+  /** a reported theme hidden from the workshop, or kept (shown again, its reports cleared) */
+  "ws:moderate": (id: string, hide: boolean) => void;
+}
+
+export interface EventMap {
+  "win:activity": WindowActivity;
+  "win:maximized": boolean;
+  "auth:changed": AuthStatus;
+  /** the browser sign-in: its link arrived and SoundCloud refused the token */
+  "auth:browserRefused": null;
+  /** tray menu, global hotkeys */
+  "player:command": PlayerCommand;
+  /** global hotkeys that could not be registered (taken by another app) */
+  "hotkeys:failed": HotkeyAction[];
+  "update:status": UpdateStatus;
+  /** the messenger: new tracks, unread counts, friends — after every poll that brought something */
+  "social:update": SocialUpdate;
+  /** a pop-up about a sent track was clicked: open the inbox (at this friend) */
+  "social:open": string;
+  /** a friend link opened the app: the code to add (asked first) */
+  "social:friendLink": string;
+  "room:state": RoomState;
+  "lyricsSync:status": LyricsSyncStatus;
+}
+
+export type InvokeChannel = keyof InvokeMap;
+export type Result<T> = { ok: true; data: T } | { ok: false; error: AppErrorInfo };
+
+/** Runtime allowlist for preload; the check below fails to compile when a channel is missing. */
+export const INVOKE_CHANNELS = [
+  "social:status",
+  "social:join",
+  "social:profile",
+  "social:leave",
+  "social:inviteLink",
+  "social:friends",
+  "social:addFriend",
+  "social:accept",
+  "social:removeFriend",
+  "social:send",
+  "social:sendPlaylist",
+  "social:chat",
+  "social:seen",
+  "social:recent",
+  "social:state",
+  "social:now",
+  "social:poll",
+  "social:listened",
+  "social:listening",
+  "room:state",
+  "room:create",
+  "room:invite",
+  "room:join",
+  "room:leave",
+  "room:do",
+  "room:history",
+  "ws:list",
+  "ws:get",
+  "ws:capture",
+  "ws:publish",
+  "ws:install",
+  "ws:like",
+  "ws:report",
+  "ws:delete",
+  "ws:moderator",
+  "ws:setModerator",
+  "ws:reports",
+  "ws:moderate",
+  "bg:pick",
+  "backup:status",
+  "backup:now",
+  "backup:restore",
+  "local:list",
+  "local:add",
+  "local:addPaths",
+  "local:remove",
+  "local:show",
+  "bg:steamFind",
+  "bg:steamOpen",
+  "bg:keepImport",
+  "bg:saveVideo",
+  "bg:size",
+  "auth:status",
+  "auth:logout",
+  "auth:browser",
+  "auth:check",
+  "popup:preview",
+  "auth:browserCancel",
+  "data:me",
+  "data:likes",
+  "data:playlists",
+  "data:playlist",
+  "data:playlistCover",
+  "data:playlistTracks",
+  "data:user",
+  "data:userLikes",
+  "data:userTracks",
+  "data:userPlaylists",
+  "data:followings",
+  "data:resolve",
+  "data:tracks",
+  "data:sourceIds",
+  "data:related",
+  "data:trackDetails",
+  "data:alternatives",
+  "lyrics:get",
+  "lyrics:search",
+  "lyrics:pick",
+  "lyrics:setOwn",
+  "lyrics:suggest",
+  "lyrics:suggestion",
+  "lyrics:review",
+  "lyrics:decide",
+  "lyricsSync:status",
+  "lyricsSync:download",
+  "lyricsSync:deleteModel",
+  "lyricsSync:before",
+  "lyricsSync:run",
+  "data:feed",
+  "data:likedIds",
+  "data:setLiked",
+  "data:savedPlaylists",
+  "data:setPlaylistSaved",
+  "data:myPlaylists",
+  "data:addToPlaylist",
+  "data:createPlaylist",
+  "data:copyPlaylist",
+  "data:setPlaylistTracks",
+  "data:renamePlaylist",
+  "data:deletePlaylist",
+  "data:exportPlaylists",
+  "data:importPlaylists",
+  "import:read",
+  "import:vk",
+  "import:vkBookmark",
+  "import:match",
+  "data:search",
+  "data:suggest",
+  "data:stream",
+  "data:waveform",
+  "win:minimize",
+  "win:toggleMaximize",
+  "win:close",
+  "store:get",
+  "store:set",
+  "shell:open",
+  "clipboard:write",
+  "clipboard:read",
+  "player:state",
+  "hotkeys:suspend",
+  "app:info",
+  "app:relaunch",
+  "log:write",
+  "diag:openLogs",
+  "diag:report",
+  "diag:netcheck",
+  "diag:clearCache",
+  "proxy:setPassword",
+  "proxy:hasPassword",
+  "update:check",
+  "update:download",
+  "update:install",
+] as const satisfies readonly InvokeChannel[];
+export const EVENT_CHANNELS = ["win:activity", "win:maximized", "auth:changed", "auth:browserRefused", "player:command", "hotkeys:failed", "update:status", "social:update", "social:open", "social:friendLink", "lyricsSync:status", "room:state"] as const satisfies readonly (keyof EventMap)[];
+
+type MissingInvoke = Exclude<InvokeChannel, (typeof INVOKE_CHANNELS)[number]>;
+type MissingEvent = Exclude<keyof EventMap, (typeof EVENT_CHANNELS)[number]>;
+export const _channelsComplete: [MissingInvoke, MissingEvent] extends [never, never] ? true : never = true;
+
+/** What preload puts on window.sky. */
+export interface SkyBridge {
+  platform: string;
+  invoke<K extends InvokeChannel>(channel: K, ...args: Parameters<InvokeMap[K]>): Promise<Result<ReturnType<InvokeMap[K]>>>;
+  on<K extends keyof EventMap>(channel: K, listener: (payload: EventMap[K]) => void): () => void;
+  /** where a file dropped onto the window is on disk (to add music from this computer) */
+  pathOf(file: File): string;
+}

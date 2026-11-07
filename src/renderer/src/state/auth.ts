@@ -1,0 +1,59 @@
+import { create } from "zustand";
+import type { AuthStatus } from "@shared/ipc";
+import { tr as t } from "@/i18n";
+import { call, on } from "@/lib/sky";
+import { useUi } from "./ui";
+
+interface AuthStore {
+  status: AuthStatus | null;
+  /** the browser sign-in: waiting for its link, or SoundCloud refused what came */
+  browser: "idle" | "waiting" | "refused";
+  init(): Promise<void>;
+  loginWithBrowser(): Promise<void>;
+  cancelBrowser(): Promise<void>;
+  logout(): Promise<void>;
+}
+
+/** SoundCloud ended the session (it refused the token twice): said once, instead of a quiet "Sign in" */
+const said = (status: AuthStatus) => {
+  if (status.ended) useUi.getState().showToast(t.sessionEnded);
+  return status;
+};
+
+export const useAuth = create<AuthStore>((set) => ({
+  status: null,
+  browser: "idle",
+  init: async () => {
+    on("auth:changed", (status) => set((s) => ({ status, browser: status.mode === "session" ? "idle" : s.browser })));
+    on("auth:browserRefused", () => {
+      set({ browser: "refused" });
+      // seen on any screen, not only on the sign-in one
+      useUi.getState().showToast(t.browserRefused);
+    });
+    // signed in, but SoundCloud didn't answer at the start (offline, the route to it restarting): the account is asked
+    // for again every 15 s until it comes — the sign-in itself is kept, the page just showed no account meanwhile
+    window.setInterval(() => {
+      const st = useAuth.getState().status;
+      if (st?.mode !== "session" || st.user) return;
+      void call("auth:status")
+        .then((status) => set({ status: said(status) }))
+        .catch(() => undefined);
+    }, 15_000);
+    try {
+      set({ status: said(await call("auth:status")) });
+    } catch {
+      set({ status: { mode: "public", user: null } });
+    }
+  },
+  loginWithBrowser: async () => {
+    await call("auth:browser");
+    set({ browser: "waiting" });
+  },
+  cancelBrowser: async () => {
+    await call("auth:browserCancel");
+    set({ browser: "idle" });
+  },
+  logout: async () => {
+    set({ status: await call("auth:logout") });
+  },
+}));
