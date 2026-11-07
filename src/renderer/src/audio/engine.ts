@@ -2,7 +2,7 @@ import type HlsType from "hls.js";
 import type { ErrorData } from "hls.js";
 import { EQ_BANDS } from "@shared/ipc";
 import type { AudioHealth } from "@shared/audioHealth";
-import { MAX_REBUILDS, REBUILD_BUDGET_MS, canRouteAudio, chainLostAction, graphAction, isPolicyRefusal, recoveryStep, teardownIsCurrent } from "@shared/audioHealth";
+import { MAX_REBUILDS, REBUILD_BUDGET_MS, ROUTE_SILENCE_MS, canRouteAudio, chainLostAction, graphAction, isPolicyRefusal, recoveryStep, routeIsSilent, teardownIsCurrent } from "@shared/audioHealth";
 import type { GraphicsStatus } from "@shared/audioHealth";
 import type { ErrorCode, StreamInfo, Track } from "@shared/types";
 import { call, errorCode } from "@/lib/sky";
@@ -97,7 +97,9 @@ function fault(what: string) {
  * why the answer comes from the status main reports rather than from the setting alone, and why "not known yet" is a
  * no — routing once too often costs the sound, routing never costs only the decorative reaction.
  */
-const canRoute = () => canRouteAudio({ memorySaver, graphics });
+const canRoute = () => !routeGivenUp && canRouteAudio({ memorySaver, graphics });
+/** set after a route proved silent in this run: the graph may still exist for the equalizer, but it never takes the sound again */
+let routeGivenUp = false;
 
 function buildChain() {
   const c = new AudioContext({ latencyHint: "playback" });
@@ -328,11 +330,15 @@ class Deck {
   route() {
     if (!ctx || !bus || !canRoute()) return;
     if (routedElements.has(this.audio)) return;
+    // an element handed over while its own volume was still 0 is a suspect: the analyser may be silent because of that,
+    // so this route is never judged (a false "the graph is empty" would cost the person the graph for the whole run)
+    this.routeUnjudged = this.audio.volume === 0;
     const src = ctx.createMediaElementSource(this.audio);
     const gain = ctx.createGain();
     src.connect(gain).connect(bus);
     routedElements.set(this.audio, gain);
     this.gain = gain;
+    this.beginRouteCheck();
     this.applyLevel();
   }
 
@@ -340,6 +346,50 @@ class Deck {
    * The volume, wherever the sound actually leaves the app: the chain's gain while this deck is handed over, the
    * element's own volume otherwise (the crossfade slides whichever is in use).
    */
+  // ---- the route's own word (see routeIsSilent in @shared/audioHealth) ------------------------------------------
+  /** when the current attempt at routing began, 0 = not judging */
+  routeSince = 0;
+  /** the position, and the loudest the analyser heard, when this attempt began */
+  routeFrom = 0;
+  routePeak = 0;
+  /** the element was already silent when handed over: the analysis is unreliable and this route is not judged again */
+  routeUnjudged = false;
+
+  /** Starts (or restarts) judging whether the graph actually carries this deck's sound. */
+  beginRouteCheck() {
+    this.routeSince = performance.now();
+    this.routeFrom = this.audio.currentTime;
+    this.routePeak = 0;
+  }
+
+  /**
+   * A deck the graph holds plays with a muted element, so if the graph carries nothing there is no sound at all and
+   * no state that would say so: "playing" everywhere, silence at the speakers. That is what an element taken out of the
+   * speakers into a chain that cannot play it looks like — the GPU process dying mid-track, a recovery that rebuilt a
+   * graph with no input. A quiet passage is disproved by a few seconds of a moving position.
+   */
+  routeFailed(): boolean {
+    if (!this.gain || !chainCarries || this.routeUnjudged) return false;
+    if (!this.routeSince) this.beginRouteCheck();
+    // no analyser, no evidence: the sound-reactive sky is what attaches one, and without it silence here means nothing
+    const peak = measure();
+    if (peak === null) return false;
+    this.routePeak = Math.max(this.routePeak, peak);
+    if (this.routePeak > 0) {
+      // the graph carries: keep watching from here, so a later fault is not missed
+      this.beginRouteCheck();
+      return false;
+    }
+    if (this.audio.paused) {
+      this.routeSince = 0;
+      return false;
+    }
+    // a quiet passage is disproved by a position that moved while the analyser heard exact zero, for longer than a
+    // track's silence ever lasts (a fade, a gap between tracks)
+    if (performance.now() - this.routeSince <= ROUTE_SILENCE_MS) return false;
+    return routeIsSilent({ running: true, level: this.routePeak, progressedSeconds: this.audio.currentTime - this.routeFrom });
+  }
+
   applyLevel() {
     const v = muted ? 0 : volume * volume * this.level;
     const level = Math.max(0, Math.min(1, v));
@@ -633,6 +683,10 @@ function syncGraph() {
       }
     }
     // no hardware rendering: an element routed through Web Audio goes silent here, so the decks stay on their own output
+    if (routeGivenUp) {
+      fault("the graph stays off: this run's graph was found carrying no sound, so the decks keep their own output");
+      return;
+    }
     fault(
       memorySaver
         ? "the audio graph stays off: with the memory saver on, Chromium does not route an element's sound through Web Audio"
@@ -874,6 +928,26 @@ async function restartDecks() {
   if (!ok) events?.error("audio");
   else if (!wasPlaying) events?.paused();
 }
+
+// ---- a route that holds the sound and carries none of it -----------------------------------------------------------
+
+/**
+ * The last safety net, and the one the 16:13 log asked for: the graph says "running" and holds a deck, the deck's
+ * element is muted because of that, and the graph carries nothing at all. No other check can see this — every state
+ * is "playing". Handing the deck back to the speakers costs a reload of the stream (an element cannot leave a graph),
+ * which is why it happens once per run and only after minutes of silence would otherwise have gone unnoticed.
+ */
+function watchRoute() {
+  if (routeGivenUp || !chainCarries || inRebuild || recovering) return;
+  if (!decks.some((d) => d.routeFailed())) return;
+  routeGivenUp = true;
+  // the chain keeps existing for the equalizer and the sky, but it no longer takes the sound: every deck gets fresh
+  // elements and plays straight to the speakers (a suspended/dead graph is what restartDecks repairs)
+  fault("the graph held the sound but carried nothing — the decks go back to their own output");
+  void restartDecks();
+}
+
+setInterval(watchRoute, 2000);
 
 // a context can also be found dead later (it fell asleep and never came back): catch it whenever the report runs
 setInterval(() => {

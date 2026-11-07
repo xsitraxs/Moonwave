@@ -226,6 +226,24 @@ export function silenceVerdict(h: Pick<AudioHealth, "element" | "routed" | "leve
   return "silent-device";
 }
 
+/**
+ * How long a running graph may carry nothing while its deck plays on, before routing is given up for the run. A quiet
+ * passage still shows something in the analyser within a second or two; minutes of exact zero with the position
+ * advancing is a graph that took the sound out of the speakers and gave nothing back.
+ */
+export const ROUTE_SILENCE_MS = 6_000;
+
+/**
+ * Whether a route that is supposed to carry the sound has failed silently. This is the one fault no state can show:
+ * the context says "running", the element is handed over (and therefore muted), the player says "playing" — and the
+ * graph never carries a sample, which is what an element torn out of the graph *into* a chain that cannot play it
+ * looks like (a graphics process that died under the routing, a context that recovered into a graph with no input).
+ */
+export function routeIsSilent(s: { running: boolean; level: number | null; progressedSeconds: number }): boolean {
+  // a playing deck that has moved on by any real amount while the analyser heard exact zero
+  return s.running && s.level === 0 && s.progressedSeconds >= 0.5;
+}
+
 /** The crash tally a report prints. */
 export interface AudioCrashTally {
   audio: number;

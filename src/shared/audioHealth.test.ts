@@ -5,6 +5,8 @@ import {
   MAX_REBUILDS,
   audioReportLines,
   canRouteAudio,
+  ROUTE_SILENCE_MS,
+  routeIsSilent,
   silenceVerdict,
   audioUtilityRole,
   exitText,
@@ -291,4 +293,23 @@ test("report: it says where the sound leaves the app, so a silent route is visib
     }).join("\n");
   assert.match(line(true), /sound through the graph/);
   assert.match(line(false), /sound straight from the deck/);
+});
+
+// ---- a route that carries nothing while it holds the sound (the 16:13 log: routed, muted element, peak 0 for minutes) --
+
+test("route: a playing deck whose graph hears exact zero is a failed route, not a quiet passage", () => {
+  // the log's shape: element handed over (so muted), context running, position advancing, analyser silent
+  assert.equal(routeIsSilent({ running: true, level: 0, progressedSeconds: 5 }), true);
+});
+
+test("route: it needs a running graph and real progress before anything is concluded", () => {
+  // a paused or suspended graph is expected to be silent — the elements carry the sound there
+  assert.equal(routeIsSilent({ running: false, level: 0, progressedSeconds: 5 }), false);
+  // no analyser measured, or sound in the graph: nothing to repair
+  assert.equal(routeIsSilent({ running: true, level: null, progressedSeconds: 5 }), false);
+  assert.equal(routeIsSilent({ running: true, level: 89, progressedSeconds: 5 }), false);
+  // a deck that barely moved (a stall, a seek, a fade) is not evidence of anything yet
+  assert.equal(routeIsSilent({ running: true, level: 0, progressedSeconds: 0.2 }), false);
+  // and the window it is given is long enough not to fire between two tracks of a quiet passage
+  assert.ok(ROUTE_SILENCE_MS >= 3_000);
 });
