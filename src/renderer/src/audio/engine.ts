@@ -63,6 +63,12 @@ let chainCarries = false;
 
 /** the gain a deck was given in the current context; an element can be routed only once, so this also tells "already done" */
 const routedElements = new WeakMap<HTMLAudioElement, GainNode>();
+/**
+ * Elements whose chain let them go: handed to Web Audio once, with the chain closed or rebuilt under them since. They
+ * cannot return to the speakers, so they are silent until a fresh element replaces them. Kept so the report never
+ * claims a deck is "in the graph" on the strength of a record nothing can remove.
+ */
+const inLimbo = new WeakSet<HTMLAudioElement>();
 
 let ctx: AudioContext | null = null;
 let bus: GainNode | null = null;
@@ -198,8 +204,11 @@ function teardownChain(c: AudioContext | null) {
   analyserNode = null;
   chainCarries = false;
   c.close().catch(() => undefined);
-  // decks routed by that context hold a gain node that leads nowhere; the element's own output takes over
+  // decks routed by that context hold a gain node that leads nowhere and can never get their own output back: their
+  // sound is gone until fresh elements are made, which is what restartDecks does. The gain is cleared so applyLevel
+  // stops muting an element that no longer feeds anything.
   for (const d of decks) {
+    if (d.gain) inLimbo.add(d.audio);
     d.gain = null;
     d.applyLevel();
   }
@@ -329,6 +338,8 @@ class Deck {
    */
   route() {
     if (!ctx || !bus || !canRoute()) return;
+    // the record outlives the chain that took the element, so "it is marked" says nothing about now — the limbo flag
+    // below is what tells whether this element is inside the chain that exists
     if (routedElements.has(this.audio)) return;
     // an element handed over while its own volume was still 0 is a suspect: the analyser may be silent because of that,
     // so this route is never judged (a false "the graph is empty" would cost the person the graph for the whole run)
@@ -338,6 +349,7 @@ class Deck {
     src.connect(gain).connect(bus);
     routedElements.set(this.audio, gain);
     this.gain = gain;
+    inLimbo.delete(this.audio);
     this.beginRouteCheck();
     this.applyLevel();
   }
@@ -808,7 +820,7 @@ function health(): AudioHealth {
     muted,
     output: sinkId ? "custom" : "default",
     sinkError,
-    routed: chainCarries && routedElements.has(deck.audio),
+    routed: chainCarries && routedElements.has(deck.audio) && !inLimbo.has(deck.audio),
     level: measure(),
     rebuilds,
   };
