@@ -1,0 +1,169 @@
+import { analyser, setReactive } from "@/audio/engine";
+import { useSettings } from "@/state/settings";
+import { usePlayer } from "@/state/player";
+import { getActivity, subscribeActivity } from "./activity";
+
+/**
+ * Sound → sky. While music plays and the window is in front, the output is measured 25 times a second: the bass,
+ * the top end, the energy of the middle (voice, guitars, synths — slow to swell and slower to fade), and the kick
+ * drum's hits (a jump in the bass over its recent average). The numbers go to the few
+ * decorative elements that listen (stars, the edge glow) as CSS variables on those elements only — never on the
+ * root, which would restyle the whole page each frame. Nothing runs in the background, when paused, or when the
+ * "Sound-reactive sky" setting is off; the listeners then fall back to their resting look.
+ */
+export interface Levels {
+  /** 0..1 */
+  bass: number;
+  treble: number;
+  /** 1 on a hit, fading to 0 within ~0.4 s */
+  beat: number;
+  /** how loud the middle is against the track's loudest part of the last ~20 s, swelling in ~0.25 s, fading in ~0.9 s */
+  energy: number;
+}
+
+const listeners = new Set<HTMLElement>();
+const REST: Levels = { bass: 0, treble: 0, beat: 0, energy: 0 };
+
+/** An element whose --rx-bass / --rx-treble / --rx-beat / --rx-energy follow the music. */
+export function listen(el: HTMLElement | null): () => void {
+  if (!el) return () => undefined;
+  listeners.add(el);
+  write(el, current);
+  return () => {
+    listeners.delete(el);
+  };
+}
+
+let current: Levels = REST;
+const subscribers = new Set<(l: Levels) => void>();
+
+/** For canvas drawings (the studio background): called with the new levels whenever they change visibly. */
+export function onLevels(fn: (l: Levels) => void): () => void {
+  subscribers.add(fn);
+  fn(current);
+  return () => {
+    subscribers.delete(fn);
+  };
+}
+
+function write(el: HTMLElement, l: Levels) {
+  el.style.setProperty("--rx-bass", l.bass.toFixed(3));
+  el.style.setProperty("--rx-treble", l.treble.toFixed(3));
+  el.style.setProperty("--rx-beat", l.beat.toFixed(3));
+  el.style.setProperty("--rx-energy", l.energy.toFixed(3));
+}
+
+function publish(l: Levels) {
+  // skip invisible changes: each write restyles the listener's subtree
+  if (Math.abs(l.bass - current.bass) < 0.03 && Math.abs(l.treble - current.treble) < 0.03 && Math.abs(l.beat - current.beat) < 0.03 && Math.abs(l.energy - current.energy) < 0.03) return;
+  current = l;
+  for (const el of listeners) write(el, l);
+  for (const fn of subscribers) fn(l);
+}
+
+let frame = 0;
+let data: Uint8Array<ArrayBuffer> | null = null;
+let bass = 0;
+let treble = 0;
+let beat = 0;
+let lastHit = 0;
+let lastTick = 0;
+// loudness differs a lot between tracks: levels are taken against the track's own recent peak
+let bassPeak = 0.2;
+let treblePeak = 0.05;
+let energy = 0;
+// the middle's peak falls back slowly, so a quiet verse after a loud chorus stays quiet
+let midPeak = 0.1;
+// the kick: how much the low bins rose since the last look (spectral flux), against its own running average
+let prevLow: Float32Array | null = null;
+let fluxAvg = 0;
+let fluxDev = 0;
+
+/** the bins between two frequencies */
+function bins(node: AnalyserNode, from: number, to: number): [number, number] {
+  const hz = node.context.sampleRate / node.fftSize;
+  return [Math.max(1, Math.floor(from / hz)), Math.min(node.frequencyBinCount - 1, Math.ceil(to / hz))];
+}
+
+function level(buf: Uint8Array, [a, b]: [number, number]) {
+  let sum = 0;
+  for (let i = a; i <= b; i++) sum += buf[i]!;
+  return sum / ((b - a + 1) * 255);
+}
+
+/** 20 times a second on a timer: a requestAnimationFrame loop woke the page on every screen frame */
+function tick() {
+  const now = performance.now();
+  const dt = Math.min(0.1, (now - lastTick) / 1000);
+  lastTick = now;
+  const node = analyser();
+  // the chain is gone or asleep (the decks carry the sound themselves): nothing to read this tick
+  if (!node) return;
+  data ??= new Uint8Array(node.frequencyBinCount);
+  node.getByteFrequencyData(data);
+  const low = bins(node, 35, 130);
+  const b = level(data, low);
+  const t = level(data, bins(node, 6000, 14000));
+
+  // peaks fall back slowly (~5 s), so a quiet intro still moves the sky and a loud drop doesn't pin it
+  bassPeak = Math.max(b, bassPeak - dt * bassPeak * 0.2, 0.08);
+  treblePeak = Math.max(t, treblePeak - dt * treblePeak * 0.2, 0.02);
+  const bassRel = b / bassPeak;
+  // stars: only the top of the hi-hats lights them (curved), quick on, a little slower off
+  const trebleRel = Math.pow(t / treblePeak, 2.5);
+  bass = bassRel > bass ? bassRel : bass + (bassRel - bass) * Math.min(1, dt * 6);
+  treble = trebleRel > treble ? treble + (trebleRel - treble) * 0.7 : treble + (trebleRel - treble) * Math.min(1, dt * 7);
+
+  // kick: the low bins' rise this frame, compared with how much they usually rise
+  let flux = 0;
+  prevLow ??= new Float32Array(low[1] + 1);
+  for (let i = low[0]; i <= low[1]; i++) {
+    const v = data[i]! / 255;
+    flux += Math.max(0, v - prevLow[i]!);
+    prevLow[i] = v;
+  }
+  flux /= low[1] - low[0] + 1;
+  const k = Math.min(1, dt * 3);
+  fluxAvg += (flux - fluxAvg) * k;
+  fluxDev += (Math.abs(flux - fluxAvg) - fluxDev) * k;
+  if (flux > 0.015 && flux > fluxAvg + fluxDev * 1.8 && now - lastHit > 200) {
+    lastHit = now;
+    beat = 1;
+  } else beat = Math.max(0, beat - dt * 3.2);
+
+  // energy: the middle against its loudest part of the last ~20 s; only the louder part of the song lights up
+  const m = level(data, bins(node, 250, 4000));
+  midPeak = Math.max(m, midPeak - dt * midPeak * 0.05, 0.05);
+  const target = Math.max(0, Math.min(1, (m / midPeak - 0.65) / 0.35));
+  energy += (target - energy) * Math.min(1, dt / (target > energy ? 0.25 : 0.9));
+
+  publish({ bass: Math.min(1, bass), treble: Math.min(1, treble), beat, energy });
+}
+
+function update() {
+  // the night sky has its own switch; the studio background listens when its "reacts to sound" knob is up
+  const { reactiveSky, look } = useSettings.getState().prefs;
+  const on = look.design === "studio" ? look.bgReact > 0 && look.bg !== "none" : reactiveSky;
+  const s = usePlayer.getState().status;
+  const run = on && s === "playing" && getActivity() === "active";
+  // the sky is what asks for the Web Audio chain; it asks only while it will actually listen, so a paused or hidden
+  // window leaves the decks playing straight to the speakers (and the chain's thread asleep)
+  setReactive(run);
+  if (run && !frame) {
+    lastTick = performance.now();
+    frame = window.setInterval(tick, 50);
+  } else if (!run && frame) {
+    window.clearInterval(frame);
+    frame = 0;
+    bass = treble = beat = energy = 0;
+    prevLow = null;
+    publish(REST);
+  }
+}
+
+export function initReactive() {
+  usePlayer.subscribe((s, prev) => s.status !== prev.status && update());
+  useSettings.subscribe((s, prev) => (s.prefs.reactiveSky !== prev.prefs.reactiveSky || s.prefs.look !== prev.prefs.look) && update());
+  subscribeActivity(update);
+  update();
+}

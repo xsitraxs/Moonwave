@@ -1,0 +1,118 @@
+import { useMemo, useState } from "react";
+import { useShallow } from "zustand/react/shallow";
+import { usePlaylists } from "@/api/queries";
+import NewPlaylist from "@/components/playlists/NewPlaylist";
+import PlaylistGrid from "@/components/playlists/PlaylistGrid";
+import { PaperButton } from "@/components/ui/Buttons";
+import Icon from "@/components/ui/Icon";
+import Tabs from "@/components/ui/Tabs";
+import { Screen, ScreenTitle } from "@/components/ui/Screen";
+import { EmptyState, ErrorState, Loading } from "@/components/ui/States";
+import { useT } from "@/i18n";
+import { useAuth } from "@/state/auth";
+import { copyMine, exportPlaylists, importPlaylists } from "@/lib/playlists";
+import { useImport } from "@/state/import";
+import { useNav } from "@/state/nav";
+import { useUi } from "@/state/ui";
+import { useViewState } from "@/state/viewState";
+
+type Filter = "all" | "mine" | "liked" | "albums";
+
+/** Playlists and albums of a user, own and liked, filtered by torn-paper chips. */
+export function PlaylistsView({ userId }: { userId: number | "me" }) {
+  const t = useT();
+  const q = usePlaylists(userId);
+  const [filter, setFilter] = useViewState<Filter>(`filter:${userId}`, "all");
+  const all = useMemo(() => q.data?.pages.flatMap((p) => p.items) ?? [], [q.data]);
+  const shown = useMemo(
+    () => all.filter((p) => (filter === "all" ? true : filter === "mine" ? p.relation === "own" : filter === "liked" ? p.relation === "liked" : p.isAlbum)),
+    [all, filter],
+  );
+
+  if (q.isPending) return <Loading />;
+  if (q.isError && !all.length) return <ErrorState error={q.error} onRetry={() => void q.refetch()} />;
+  if (!all.length) return <EmptyState caption={t.emptyPlaylists} />;
+  const filters: [Filter, string][] = [
+    ["all", t.all],
+    ["mine", t.mine],
+    ["liked", t.liked],
+    ["albums", t.albums],
+  ];
+  return (
+    <>
+      <Tabs options={filters} value={filter} onChange={setFilter} className="mb-4" />
+      <PlaylistGrid playlists={shown} hasMore={q.hasNextPage} loadingMore={q.isFetchingNextPage} onLoadMore={() => void q.fetchNextPage()} />
+      {q.isFetchNextPageError && <ErrorState compact error={q.error} onRetry={() => void q.fetchNextPage()} />}
+    </>
+  );
+}
+
+/** Your playlists: SoundCloud's when signed in (and any kept on this computer), only this computer's otherwise. */
+export default function Playlists() {
+  const t = useT();
+  const go = useNav((s) => s.go);
+  const status = useAuth((s) => s.status);
+  const [making, setMaking] = useState(false);
+  // a search going on in the background shows on its button
+  const importing = useImport(useShallow((s) => (s.phase === "searching" ? { done: s.rows.filter((r) => r.state !== "waiting").length, all: s.rows.length } : null)));
+  const toast = useUi((s) => s.showToast);
+  const backup = async () => {
+    try {
+      const n = await exportPlaylists();
+      if (n !== null) toast(t.exportedPlaylists(n));
+    } catch {
+      toast(t.playlistFailed);
+    }
+  };
+  // signed in: SoundCloud's own playlists copied here in one go, to keep changing on this computer
+  const [moving, setMoving] = useState<{ done: number; all: number } | null>(null);
+  const moveMine = async () => {
+    setMoving({ done: 0, all: 0 });
+    try {
+      const r = await copyMine((done, all) => setMoving({ done, all }));
+      toast(t.movedPlaylists(r.copied, r.existed, r.failed));
+    } catch {
+      toast(t.playlistFailed);
+    } finally {
+      setMoving(null);
+    }
+  };
+  const restore = async () => {
+    try {
+      const n = await importPlaylists();
+      if (n !== null) toast(t.importedPlaylists(n));
+    } catch (err) {
+      toast(err instanceof Error && err.message ? err.message : t.playlistFailed);
+    }
+  };
+  if (!status) return <Loading />;
+  return (
+    <Screen label={t.playlists}>
+      <div className="mb-2 flex flex-wrap items-center gap-3">
+        <ScreenTitle>{t.playlists.toLowerCase()}</ScreenTitle>
+        <div className="ml-auto flex items-center gap-2">
+          {status.mode === "session" && status.user && (
+            <PaperButton title={t.moveFromSoundCloudHint} disabled={!!moving} onClick={() => void moveMine()}>
+              {moving ? t.movingPlaylists(moving.done, moving.all) : t.moveFromSoundCloud}
+            </PaperButton>
+          )}
+          <PaperButton title={t.exportPlaylistsHint} onClick={() => void backup()}>
+            {t.exportPlaylists}
+          </PaperButton>
+          <PaperButton title={t.importPlaylistsHint} onClick={() => void restore()}>
+            {t.importPlaylists}
+          </PaperButton>
+          <PaperButton title={t.importOpenHint} onClick={() => go({ name: "import" })}>
+            {importing ? t.importSearching(importing.done, importing.all) : t.importOpen}
+          </PaperButton>
+          <PaperButton aria-expanded={making} onClick={() => setMaking((v) => !v)}>
+            <Icon name="plus" size={16} /> {t.newPlaylist}
+          </PaperButton>
+        </div>
+      </div>
+      {making && <NewPlaylist className="mb-4 max-w-md" onMade={(p) => go({ name: "playlist", id: p.id })} />}
+      <p className="mb-4 max-w-xl text-sm text-muted">{t.localPlaylistsHint}</p>
+      <PlaylistsView userId="me" />
+    </Screen>
+  );
+}

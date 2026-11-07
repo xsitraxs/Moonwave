@@ -1,0 +1,205 @@
+{
+  "name": "sc-player",
+  "productName": "sc player",
+  "version": "2.3.0",
+  "private": true,
+  "description": "sc player — a SoundCloud desktop client for Windows, macOS and Linux",
+  "author": "waterlil",
+  "license": "GPL-3.0-only",
+  "main": "out/main/index.js",
+  "type": "module",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "npm run typecheck && electron-vite build",
+    "typecheck": "tsc -p tsconfig.node.json --noEmit && tsc -p tsconfig.web.json --noEmit",
+    "lint": "eslint .",
+    "start": "electron-vite preview",
+    "postinstall": "node node_modules/electron/install.js",
+    "dev:debug": "electron-vite dev --remoteDebuggingPort 9223",
+    "stats": "node scripts/stats.mjs",
+    "icon": "node scripts/make-icon.mjs",
+    "dist": "node scripts/dist.mjs",
+    "test": "node --test \"src/**/*.test.ts\""
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@fontsource/onest": "5.3.1",
+    "@fontsource/pt-mono": "5.3.0",
+    "@fontsource/rubik-wet-paint": "5.3.0",
+    "@fontsource/space-grotesk": "5.3.0",
+    "@fontsource/special-elite": "5.3.0",
+    "@huggingface/transformers": "4.3.1",
+    "@tailwindcss/vite": "4.3.3",
+    "@tanstack/react-query": "5.104.2",
+    "@tanstack/react-virtual": "3.14.19",
+    "@types/node": "26.6.5",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.1.2",
+    "electron": "44.7.2",
+    "electron-builder": "26.15.3",
+    "electron-updater": "6.8.9",
+    "electron-vite": "6.0.0",
+    "eslint": "10.12.0",
+    "eslint-plugin-react-hooks": "7.1.1",
+    "framer-motion": "14.2.0",
+    "globals": "17.13.0",
+    "hls.js": "1.7.3",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "sharp": "0.35.5",
+    "tailwindcss": "4.3.3",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.71.2",
+    "vite": "8.3.4",
+    "zustand": "5.0.15"
+  },
+  "build": {
+    "appId": "com.skythemontage.scplayer",
+    "productName": "sc player",
+    "copyright": "waterlil",
+    "protocols": [
+      {
+        "name": "sc-player",
+        "schemes": [
+          "scplayer"
+        ]
+      }
+    ],
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "out/**/*",
+      "resources/**/*",
+      "package.json",
+      "!node_modules/onnxruntime-node/{lib,script}/**"
+    ],
+    "asar": true,
+    "asarUnpack": [
+      "node_modules/onnxruntime-node/bin/**"
+    ],
+    "extraResources": [
+      {
+        "from": "LICENSE",
+        "to": "LICENSE.sc-player.txt"
+      }
+    ],
+    "mac": {
+      "icon": "build/icon.png",
+      "target": [
+        {
+          "target": "dmg"
+        },
+        {
+          "target": "zip"
+        }
+      ],
+      "category": "public.app-category.music",
+      "identity": "-",
+      "hardenedRuntime": false,
+      "gatekeeperAssess": false,
+      "notarize": false,
+      "electronLanguages": [
+        "en",
+        "ru"
+      ],
+      "files": [
+        "out/**/*",
+        "resources/**/*",
+        "package.json",
+        "!node_modules/onnxruntime-node/{lib,script}/**",
+        "!node_modules/onnxruntime-node/bin/napi-v6/{win32,linux}/**"
+      ]
+    },
+    "dmg": {
+      "contents": [
+        {
+          "x": 130,
+          "y": 220
+        },
+        {
+          "x": 410,
+          "y": 220,
+          "type": "link",
+          "path": "/Applications"
+        }
+      ],
+      "window": {
+        "width": 540,
+        "height": 380
+      }
+    },
+    "win": {
+      "icon": "build/icon.png",
+      "target": [
+        "nsis",
+        "portable"
+      ],
+      "files": [
+        "out/**/*",
+        "resources/**/*",
+        "package.json",
+        "!node_modules/onnxruntime-node/{lib,script}/**",
+        "!node_modules/onnxruntime-node/bin/napi-v6/{darwin,linux}/**",
+        "!node_modules/onnxruntime-node/bin/napi-v6/win32/arm64/**",
+        "!node_modules/onnxruntime-node/bin/napi-v6/win32/x64/{DirectML.dll,dxcompiler.dll,dxil.dll}"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "shortcutName": "sc player"
+    },
+    "linux": {
+      "icon": "build/icon.png",
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "executableName": "sc-player",
+      "category": "Audio",
+      "synopsis": "A SoundCloud player: no ads, lyrics word by word, friends to listen with",
+      "maintainer": "waterlilo <https://github.com/waterlilo/sc-player>",
+      "desktop": {
+        "entry": {
+          "Name": "sc player",
+          "Comment": "SoundCloud player",
+          "Categories": "AudioVideo;Audio;Player;"
+        }
+      },
+      "files": [
+        "out/**/*",
+        "resources/**/*",
+        "package.json",
+        "!node_modules/onnxruntime-node/{lib,script}/**",
+        "!node_modules/onnxruntime-node/bin/napi-v6/{win32,darwin}/**",
+        "!node_modules/onnxruntime-node/bin/napi-v6/linux/arm64/**"
+      ]
+    },
+    "electronLanguages": [
+      "en-US",
+      "ru"
+    ],
+    "compression": "maximum",
+    "toolsets": {
+      "appimage": "1.0.3"
+    },
+    "appImage": {
+      "compression": "zstd"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "waterlilo",
+      "repo": "sc-player"
+    }
+  },
+  "dependencies": {
+    "mediabunny": "^1.62.1",
+    "music-metadata": "12.2.1",
+    "onnxruntime-node": "1.30.0"
+  }
+}
