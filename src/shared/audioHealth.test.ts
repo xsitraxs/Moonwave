@@ -9,6 +9,9 @@ import {
   isPolicyRefusal,
   recoveryStep,
   sanitizeHealth,
+  graphAction,
+  chainLostAction,
+  teardownIsCurrent,
   type AudioHealth,
 } from "./audioHealth.ts";
 
@@ -201,4 +204,41 @@ test("sanitize: a device error message is truncated and stripped of links before
 
 test("sanitize: a missing level stays missing (no analyser) rather than becoming 0", () => {
   assert.equal(sanitizeHealth({ ...AUDIO_HEALTH_DEFAULTS, level: null }).level, null);
+});
+
+// ---- the chain's lifecycle (the three defects found by the audit, kept from coming back) ----------------------
+
+test("chain: a deck inside a graph nothing wants is never dropped — closing it would silence that deck", () => {
+  // the equalizer and the sky were switched off while a deck was routed: the graph must stay, the deck is moved off it
+  // by a restart instead (a closed graph is unrecoverable for a routed element)
+  assert.equal(graphAction({ wanted: 0, hasChain: true, stranded: true, canRoute: true }), "keep");
+});
+
+test("chain: nothing wants it and nothing is inside it, so it can be closed for real", () => {
+  assert.equal(graphAction({ wanted: 0, hasChain: true, stranded: false, canRoute: true }), "drop");
+});
+
+test("chain: something wants it — built once, then kept, and never built on a machine that cannot route", () => {
+  assert.equal(graphAction({ wanted: 1, hasChain: false, stranded: false, canRoute: true }), "build");
+  assert.equal(graphAction({ wanted: 2, hasChain: true, stranded: false, canRoute: true }), "keep");
+  // hardware acceleration off: routing an element there is silence, so no chain is built at all
+  assert.equal(graphAction({ wanted: 1, hasChain: false, stranded: false, canRoute: false }), "blocked");
+});
+
+test("chain: a closed context is detached first, and recovery is a separate step it cannot race", () => {
+  // a deck was stranded in it and the person is listening: detach, then recover on fresh elements
+  assert.equal(chainLostAction({ stranded: true, wanted: true }), "detach-and-recover");
+  // nothing is stranded, or nobody is listening: just detach, the elements carry the sound
+  assert.equal(chainLostAction({ stranded: false, wanted: true }), "detach");
+  assert.equal(chainLostAction({ stranded: true, wanted: false }), "detach");
+});
+
+test("chain: cleanup closes its own context and never the replacement recovery just built", () => {
+  const dead = {} as object;
+  const fresh = {} as object;
+  assert.equal(teardownIsCurrent(dead, dead), true);
+  // the crux of the race: recovery replaced ctx synchronously, so the old teardown must not touch the new context
+  assert.equal(teardownIsCurrent(dead, fresh), false);
+  assert.equal(teardownIsCurrent(null, fresh), false);
+  assert.equal(teardownIsCurrent(dead, null), false);
 });

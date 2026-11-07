@@ -15,6 +15,18 @@ import * as engine from "./engine";
  * second death the app falls back to the system default and says so in the log — silence is worse than a device reset.
  */
 export function initAudioRecovery() {
+  /**
+   * The helpers can die in a loop. The watchdog watches for that too: once the recovery budget for the last minute is
+   * spent, the player is told the sound is broken instead of every event buying another stream reload. Retry in the
+   * player is the person's own decision and resets the budget.
+   */
+  setInterval(() => {
+    const { spent, max } = engine.recoveryBudget();
+    if (spent < max) return;
+    if (usePlayer.getState().status !== "playing") return;
+    usePlayer.setState({ status: "error", error: "audio" });
+  }, 10_000);
+
   on("audio:crashed", (e) => {
     const chosen = useSettings.getState().prefs.outputDevice;
     const what = e.role === "audio" ? "the audio service" : "the video capture helper";

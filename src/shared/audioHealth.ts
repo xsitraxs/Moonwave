@@ -101,6 +101,48 @@ export function exitText(code: number): string {
   return `${name ? `0x${hex} ${name}` : `0x${hex}`} (${code})`;
 }
 
+/** What to do about the Web Audio chain, given what wants it and what is already inside it. */
+export type GraphAction =
+  /** nothing wants a chain, and none exists */
+  | "idle"
+  /** the chain stays as it is */
+  | "keep"
+  /** something wants it and none exists yet */
+  | "build"
+  /** nothing wants it and no deck is inside it, so it can be closed */
+  | "drop"
+  /** something wants it, but this machine cannot route an element (hardware acceleration off) */
+  | "blocked";
+
+/**
+ * The chain's fate. The one rule that matters: a deck whose element was handed to Web Audio cannot return to the
+ * speakers by itself, so the chain must never be closed while a deck is still inside it — that would be silence with a
+ * player that says "playing". Closing it is only safe when nothing was routed through it.
+ */
+export function graphAction(s: { wanted: number; hasChain: boolean; stranded: boolean; canRoute: boolean }): GraphAction {
+  if (s.wanted > 0) {
+    if (!s.canRoute) return "blocked";
+    return s.hasChain ? "keep" : "build";
+  }
+  if (!s.hasChain) return "idle";
+  return s.stranded ? "keep" : "drop";
+}
+
+/** What a context that closed leaves behind: the chain is dropped, and the sound rebuilt only if it was inside the graph. */
+export type ChainLostAction = "detach" | "detach-and-recover";
+
+export function chainLostAction(s: { stranded: boolean; wanted: boolean }): ChainLostAction {
+  return s.stranded && s.wanted ? "detach-and-recover" : "detach";
+}
+
+/**
+ * Whether a teardown may close the context it was made for. Recovery creates a new context synchronously, so the
+ * cleanup of the old one must be compared by identity: anything else would close the context recovery just built.
+ */
+export function teardownIsCurrent(dead: object | null, current: object | null): boolean {
+  return current !== null && current !== undefined && dead === current;
+}
+
 /** Whether a play() failure is the ordinary autoplay policy rather than a broken output. */
 export function isPolicyRefusal(err: unknown): boolean {
   const name = err && typeof err === "object" && "name" in err ? String((err as { name: unknown }).name) : "";
