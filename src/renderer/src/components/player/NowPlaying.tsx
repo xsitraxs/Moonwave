@@ -49,7 +49,9 @@ function Halo({ track, size }: { track: Track; size: number }) {
       if (!cv) return;
       const g = cv.getContext("2d")!;
       const s = 2;
+      // no analyser (no chain to listen to): the drawing keeps its resting look
       const node = analyser();
+      if (!node) return;
       buf.current ??= new Uint8Array(node.frequencyBinCount);
       spectrum(node, buf.current, levels.current);
       const lv = levels.current;

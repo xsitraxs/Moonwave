@@ -16,6 +16,7 @@ import { applyQuality } from "@/lib/quality";
 import { call } from "@/lib/sky";
 import { useAuth } from "@/state/auth";
 import { initAudioPrefs } from "@/audio/prefs";
+import { initAudioRecovery } from "@/audio/recovery";
 import { initSystemBridge } from "@/lib/system";
 import { initMediaSession } from "@/lib/media-session";
 import { initKeys } from "@/lib/keys";
@@ -45,6 +46,7 @@ async function boot() {
   applyQuality(useSettings.getState().quality);
   initVolume();
   initAudioPrefs();
+  initAudioRecovery();
   initSystemBridge();
   initMediaSession();
   initKeys();

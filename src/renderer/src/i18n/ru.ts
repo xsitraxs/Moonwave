@@ -742,6 +742,7 @@ export const ru: Dict = {
   checkDone: "Готово",
   errVerify: "SoundCloud хочет убедиться, что это вы, перед этим действием.",
   errUnknown: "Что-то пошло не так.",
+  errAudio: "Звук пропал: аудиовыход приложения отказал. Нажмите «Повторить», чтобы вернуть его.",
   retry: "Повторить",
   // login / empty
   loginTitle: "вход",

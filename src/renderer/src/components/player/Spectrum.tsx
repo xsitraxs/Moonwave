@@ -31,8 +31,9 @@ export function BottomSpectrum({ look }: { look: SpectrumLook }) {
       cv.height = h;
     }
     const g = cv.getContext("2d")!;
-    if (!silent) {
-      const node = analyser();
+    // without an analyser (no chain, or it is not carrying the sound) the bars fall back to their resting look
+    const node = silent ? null : analyser();
+    if (node) {
       buf.current ??= new Uint8Array(node.frequencyBinCount);
       spectrum(node, buf.current, levels.current);
     } else levels.current.fill(0);

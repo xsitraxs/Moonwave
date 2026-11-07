@@ -75,7 +75,9 @@ export default function CoverRing({ size }: { size: number }) {
     const pad = 22;
     const scale = 2;
     const draw = () => {
+      // no analyser (no chain to listen to): the ring draws its resting look, the music plays on regardless
       const node = analyser();
+      if (!node) return;
       buf ??= new Uint8Array(node.frequencyBinCount);
       spectrum(node, buf, levels);
       g.clearRect(0, 0, cv.width, cv.height);

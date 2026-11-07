@@ -94,7 +94,8 @@ export interface StreamInfo {
 export type Resolved = { kind: "user"; user: User } | { kind: "track"; track: Track } | { kind: "playlist"; playlist: Playlist };
 
 /** verify: SoundCloud's bot protection (DataDome) wants the person checked before an action (like, add to playlist) */
-export type ErrorCode = "offline" | "unauthorized" | "rate_limited" | "api_changed" | "not_found" | "unavailable" | "verify" | "unknown";
+/** "audio" is silence the app could hear was broken: a dead AudioContext, a dead audio helper, a refused output. */
+export type ErrorCode = "offline" | "unauthorized" | "rate_limited" | "api_changed" | "not_found" | "unavailable" | "verify" | "audio" | "unknown";
 
 export interface AppErrorInfo {
   code: ErrorCode;

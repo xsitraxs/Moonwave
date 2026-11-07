@@ -1,4 +1,4 @@
-import { analyser } from "@/audio/engine";
+import { analyser, setReactive } from "@/audio/engine";
 import { useSettings } from "@/state/settings";
 import { usePlayer } from "@/state/player";
 import { getActivity, subscribeActivity } from "./activity";
@@ -97,6 +97,8 @@ function tick() {
   const dt = Math.min(0.1, (now - lastTick) / 1000);
   lastTick = now;
   const node = analyser();
+  // the chain is gone or asleep (the decks carry the sound themselves): nothing to read this tick
+  if (!node) return;
   data ??= new Uint8Array(node.frequencyBinCount);
   node.getByteFrequencyData(data);
   const low = bins(node, 35, 130);
@@ -144,6 +146,9 @@ function update() {
   const on = look.design === "studio" ? look.bgReact > 0 && look.bg !== "none" : reactiveSky;
   const s = usePlayer.getState().status;
   const run = on && s === "playing" && getActivity() === "active";
+  // the sky is what asks for the Web Audio chain; it asks only while it will actually listen, so a paused or hidden
+  // window leaves the decks playing straight to the speakers (and the chain's thread asleep)
+  setReactive(run);
   if (run && !frame) {
     lastTick = performance.now();
     frame = window.setInterval(tick, 50);

@@ -49,6 +49,7 @@ export function errorText(t: Dict, code: ErrorCode) {
     not_found: t.errNotFound,
     unavailable: t.errUnavailable,
     verify: t.errVerify,
+    audio: t.errAudio,
     unknown: t.errUnknown,
   };
   return map[code];

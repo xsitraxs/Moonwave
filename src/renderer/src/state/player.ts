@@ -454,6 +454,11 @@ engine.bindEngine({
     void topUp();
     prefetchNextSub();
   },
+  /** what the person asked for: only then is a silent tract worth rebuilding (and retrying behind their back). */
+  wanted: () => {
+    const s = get().status;
+    return s === "playing" || s === "loading";
+  },
   error: (code) => {
     set({ status: "error", error: code });
     // a track SoundCloud won't stream to us (DRM, region): skip it; network trouble waits for "retry" (in a room it
@@ -652,8 +657,15 @@ export const player = {
     set({ queue: queue.slice(0, index + 1), pending: [], source: { kind: "static" }, autoFrom: -1 });
   },
   retry() {
-    const { index } = get();
-    if (index >= 0) start(index, { startAt: usePosition.getState().position });
+    const { index, error } = get();
+    if (index < 0) return;
+    // a sound failure is the tract's, not the track's: reset the budget and rebuild the output around the same track
+    if (error === "audio") {
+      set({ status: "loading", error: null });
+      void engine.retrySound();
+      return;
+    }
+    start(index, { startAt: usePosition.getState().position });
   },
   /** "Wrong version?": the next found upload for the current protected track, from the start. */
   /**

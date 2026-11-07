@@ -33,6 +33,7 @@ import { findWallpaper, workshopId } from "./system/steam-wallpaper";
 import { applyHotkeys, initHotkeys, suspendHotkeys } from "./system/hotkeys";
 import { log, logsDir } from "./system/log";
 import { loadReport, watchLoad } from "./system/diagnostics";
+import { audioReport, noteAudioHealth, noteChildProcessGone } from "./system/audio";
 import { netCheck } from "./system/netcheck";
 import { applyProxy, hasBuiltinProxy, initProxyAuth, initProxyAuto, proxyRoute } from "./system/proxy";
 import { setDiscordEnabled, updateDiscord } from "./system/discord";
@@ -98,7 +99,11 @@ if (memorySaver) app.disableHardwareAcceleration();
 const systemName = () => (process.platform === "darwin" ? `macOS ${process.getSystemVersion()}` : process.platform === "linux" ? `Linux ${release()}` : `Windows ${release()}`);
 // the graphics process failing is what leaves an empty window; Chromium retries and then draws without it
 app.on("child-process-gone", (_e, d) => {
-  if (d.reason !== "clean-exit") log("main", `${d.type}${d.name ? ` (${d.name})` : ""} process gone: ${d.reason} (exit ${d.exitCode})`);
+  if (d.reason === "clean-exit") return;
+  log("main", `${d.type}${d.name ? ` (${d.name})` : ""} process gone: ${d.reason} (exit ${d.exitCode})`);
+  // the sound's own service (or the device service a chosen output starts): the page has to rebuild and say so,
+  // because Chromium restarts the helper without telling the page that its decoders and context died
+  noteChildProcessGone(main, d);
 });
 
 // a second copy (a click on a scplayer:// link, the menu entry again) hands its arguments over and leaves — it must
@@ -561,6 +566,7 @@ function registerIpc() {
     await shell.openPath(logsDir());
   });
   handle("diag:netcheck", () => netCheck());
+  handle("audio:health", (_e, health) => noteAudioHealth(health, memorySaver));
   /**
    * "Report a problem": what the app knows that helps (version, Windows, a few settings, the computer and the app's
    * load over the last minutes, the end of the log) in a file the person saves and attaches; then the page to write on
@@ -575,6 +581,7 @@ function registerIpc() {
     const text = [
       `sc player ${version}${app.isPackaged ? "" : " (development)"}${process.env.PORTABLE_EXECUTABLE_DIR ? " portable" : ""}`,
       `${systemName()} (${process.arch})`,
+      ...audioReport(),
       `signed in to SoundCloud: ${signedIn() ? "yes" : "no"}; messenger: ${social.myCode() ? "yes" : "no"}`,
       `proxy: ${p.proxy.mode}${proxyRoute() ? ` (${proxyRoute()})` : ""}; stream quality: ${p.streamQuality}; lyrics auto-sync: ${p.autoSyncLyrics ? "on" : "off"}`,
       ...(await loadReport(p.look, memorySaver)),

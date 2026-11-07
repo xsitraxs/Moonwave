@@ -1,5 +1,6 @@
 import type { SearchKind } from "./provider";
 import type { Friends, Message, Room, RoomOp, RoomState, SocialStatus, SocialTrack, SocialUpdate, WsPage, WsReported, WsSort, WsThemeFull, SharedPlaylist } from "./social";
+import type { AudioHealth, AudioUtilityRole } from "./audioHealth";
 import type { AppErrorInfo, ImportItem, ImportList, ImportMatch, Lyrics, LyricsHit, LyricsSyncStatus, Page, Playlist, QueueSource, Resolved, SavedProfile, StreamInfo, SyncRequest, SyncResult, Track, TrackDetails, User, LyricsForReview, LyricsSuggestionState, SteamWallpaper, BackupStatus, RestoreResult } from "./types";
 
 /**
@@ -406,6 +407,8 @@ export interface InvokeMap {
   /** a report file the person saves (version, Windows, a few settings, the computer and the app's load, the end of the log), then the page to write on; false when cancelled */
   "diag:report": () => boolean;
   "diag:clearCache": () => void;
+  /** the engine's own account of its output, for "Report a problem" and the log (never a URL or a token) */
+  "audio:health": (health: AudioHealth) => void;
   /** the proxy password, kept encrypted; "" removes it. Returns whether one is set. */
   "proxy:setPassword": (password: string) => boolean;
   "proxy:hasPassword": () => boolean;
@@ -480,6 +483,15 @@ export interface InvokeMap {
   "ws:moderate": (id: string, hide: boolean) => void;
 }
 
+/** A Chromium media helper died: the sound's own service, or the device service a chosen output starts. */
+export interface AudioCrashEvent {
+  role: AudioUtilityRole;
+  /** how many times this helper has died this session, the one in this event included */
+  count: number;
+  reason: string;
+  exitCode: number;
+}
+
 export interface EventMap {
   "win:activity": WindowActivity;
   "win:maximized": boolean;
@@ -499,6 +511,8 @@ export interface EventMap {
   "social:friendLink": string;
   "room:state": RoomState;
   "lyricsSync:status": LyricsSyncStatus;
+  /** a Chromium media helper (the sound's, or the media device one setSinkId starts) died, and how many times */
+  "audio:crashed": AudioCrashEvent;
 }
 
 export type InvokeChannel = keyof InvokeMap;
@@ -633,13 +647,14 @@ export const INVOKE_CHANNELS = [
   "diag:report",
   "diag:netcheck",
   "diag:clearCache",
+  "audio:health",
   "proxy:setPassword",
   "proxy:hasPassword",
   "update:check",
   "update:download",
   "update:install",
 ] as const satisfies readonly InvokeChannel[];
-export const EVENT_CHANNELS = ["win:activity", "win:maximized", "auth:changed", "auth:browserRefused", "player:command", "hotkeys:failed", "update:status", "social:update", "social:open", "social:friendLink", "lyricsSync:status", "room:state"] as const satisfies readonly (keyof EventMap)[];
+export const EVENT_CHANNELS = ["win:activity", "win:maximized", "auth:changed", "auth:browserRefused", "player:command", "hotkeys:failed", "update:status", "social:update", "social:open", "social:friendLink", "lyricsSync:status", "room:state", "audio:crashed"] as const satisfies readonly (keyof EventMap)[];
 
 type MissingInvoke = Exclude<InvokeChannel, (typeof INVOKE_CHANNELS)[number]>;
 type MissingEvent = Exclude<keyof EventMap, (typeof EVENT_CHANNELS)[number]>;
