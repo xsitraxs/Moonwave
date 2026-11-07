@@ -2,7 +2,8 @@ import type HlsType from "hls.js";
 import type { ErrorData } from "hls.js";
 import { EQ_BANDS } from "@shared/ipc";
 import type { AudioHealth } from "@shared/audioHealth";
-import { MAX_REBUILDS, REBUILD_BUDGET_MS, isPolicyRefusal, recoveryStep } from "@shared/audioHealth";
+import { MAX_REBUILDS, REBUILD_BUDGET_MS, ROUTE_SILENCE_MS, canRouteAudio, chainLostAction, graphAction, isPolicyRefusal, recoveryStep, routeIsSilent, teardownIsCurrent } from "@shared/audioHealth";
+import type { GraphicsStatus } from "@shared/audioHealth";
 import type { ErrorCode, StreamInfo, Track } from "@shared/types";
 import { call, errorCode } from "@/lib/sky";
 
@@ -49,15 +50,25 @@ let sinkId = "";
  *
  * Handing a deck over is one-way and permanent for its element: createMediaElementSource moves the element's sound out
  * of the speakers and into the graph, and there is no way back — a routed element stays in the graph until the app is
- * reloaded. So a deck is handed over only while the chain is actually carrying sound ("running"), and never before:
- * while the chain is asleep, dead, or impossible on this machine (hardware acceleration off), the deck plays straight
- * to the speakers and Web Audio is not in the path at all. When the chain stops carrying, the rebuild puts fresh
- * elements in place (see replaceElement) and the sound starts over through them.
+ * reloaded. Everything here follows from that one fact:
+ *
+ * - a deck is handed over only while the context is running, and only on a machine that can route at all (with hardware
+ *   acceleration off Chromium does not route element media, and a routed element would simply be silent);
+ * - the chain is never closed while a deck is inside it (graphAction): switching the equalizer or the sky off keeps it
+ *   until a restart puts the decks on fresh elements, instead of silencing them;
+ * - a context that dies is cleaned up through its own identity (teardownIsCurrent), so cleaning up the old one can
+ *   never close the new one recovery just built.
  */
 let chainCarries = false;
 
 /** the gain a deck was given in the current context; an element can be routed only once, so this also tells "already done" */
 const routedElements = new WeakMap<HTMLAudioElement, GainNode>();
+/**
+ * Elements whose chain let them go: handed to Web Audio once, with the chain closed or rebuilt under them since. They
+ * cannot return to the speakers, so they are silent until a fresh element replaces them. Kept so the report never
+ * claims a deck is "in the graph" on the strength of a record nothing can remove.
+ */
+const inLimbo = new WeakSet<HTMLAudioElement>();
 
 let ctx: AudioContext | null = null;
 let bus: GainNode | null = null;
@@ -67,6 +78,8 @@ let eq = { enabled: false, gains: EQ_BANDS.map(() => 0) as number[] };
 let graphWanted = new Set<"eq" | "reactive">();
 /** the setting that turns hardware acceleration off: an element cannot be routed through Web Audio there */
 let memorySaver = false;
+/** what Chromium says about the graphics stack: no hardware rendering also means no element routing (see canRoute) */
+let graphics: GraphicsStatus = null;
 
 /** the muted error name, so a refusal that is normal is not logged as a fault */
 let lastChainError = "";
@@ -83,10 +96,16 @@ function fault(what: string) {
 /**
  * Whether an element's own output can be handed over to the chain. With hardware acceleration off (the memory saver on
  * a machine without a graphics card) Chromium keeps an element's media in software and routes none of it through Web
- * Audio: creating the source node empties the element without filling the chain. There the chain cannot carry, and the
- * decks stay on their own output — the visual reaction then simply has nothing to read.
+ * Audio: creating the source node empties the element without filling the chain.
+ *
+ * The memory saver is not the only way to get there: Chromium falls back to software rendering by itself when the
+ * graphics stack is unusable (`gpu_compositing disabled_software` in the log), and the same silence follows. That is
+ * why the answer comes from the status main reports rather than from the setting alone, and why "not known yet" is a
+ * no — routing once too often costs the sound, routing never costs only the decorative reaction.
  */
-const canRoute = () => !memorySaver;
+const canRoute = () => !routeGivenUp && canRouteAudio({ memorySaver, graphics });
+/** set after a route proved silent in this run: the graph may still exist for the equalizer, but it never takes the sound again */
+let routeGivenUp = false;
 
 function buildChain() {
   const c = new AudioContext({ latencyHint: "playback" });
@@ -145,41 +164,54 @@ function setChainCarries(next: boolean) {
   if (next) decks.forEach((d) => d.route());
   decks.forEach((d) => d.applyLevel());
   reportHealth();
-  // the chain died under a person who is listening: put the sound back on elements that never saw the graph
-  if (!next && graphWanted.size && canRoute() && (events?.wanted() ?? false)) {
-    void recoverSound("the audio chain stopped carrying sound");
-  }
 }
 
 function onContextState() {
-  if (!ctx) return;
-  if (stateOf(ctx) === "closed") {
+  const dead = ctx;
+  if (!dead) return;
+  if (stateOf(dead) === "closed") {
     fault("the audio context closed itself");
-    // this context can never come back; the same path as any other lost chain — fresh elements, a new context while
-    // recovery still may, and an honest error for the person when it may not
+    // The context is already gone; what is left is to detach it *by identity*. Recovery is not started from here:
+    // it builds a new context synchronously, and anything this handler did afterwards would race that new one. It is
+    // started from a timeout below, once this handler has finished and the old context is forgotten.
+    const stranded = decks.some((d) => routedElements.has(d.audio));
+    const wanted = events?.wanted() ?? false;
     setChainCarries(false);
-    forkChainOff();
+    teardownChain(dead);
+    if (chainLostAction({ stranded, wanted }) === "detach-and-recover") {
+      window.setTimeout(() => void recoverSound("the audio context closed itself"), 0);
+    }
     return;
   }
   // running: the chain carries the sound (and the elements are muted). Suspended: it does not, so the elements are
   // heard; play() and attach() wake it again. This is the whole safety property — never a muted element without a
   // chain that can be heard.
-  setChainCarries(stateOf(ctx) === "running");
+  // read the same reference the closed branch above used, so the compiler sees it cannot be null here
+  setChainCarries(stateOf(dead) === "running");
 }
 
 /**
- * Drops the current context and stops paying for a graph that can't work. What the person asked for (the equalizer,
- * the sky) is left alone: a rebuild makes a new context, and switching both off is what removes the chain for good.
+ * Forgets a specific context and lets its decks go back to their own output. The argument is the point: a context is
+ * closed only by a caller that holds it, and only while it is still the current one — recovery builds a new context
+ * synchronously, and closing "whatever `ctx` is now" would kill the replacement instead of the corpse.
  */
-function forkChainOff() {
-  chainCarries = false;
-  analyserNode = null;
-  const c = ctx;
+function teardownChain(c: AudioContext | null) {
+  // the identity gate: a corpse or an already-replaced context is left alone, so recovery's new one cannot be hit here
+  if (!c || !teardownIsCurrent(c, ctx)) return;
   ctx = null;
   bus = null;
   filters = [];
-  c?.close().catch(() => undefined);
-  for (const deck of decks) deck.applyLevel();
+  analyserNode = null;
+  chainCarries = false;
+  c.close().catch(() => undefined);
+  // decks routed by that context hold a gain node that leads nowhere and can never get their own output back: their
+  // sound is gone until fresh elements are made, which is what restartDecks does. The gain is cleared so applyLevel
+  // stops muting an element that no longer feeds anything.
+  for (const d of decks) {
+    if (d.gain) inLimbo.add(d.audio);
+    d.gain = null;
+    d.applyLevel();
+  }
   reportHealth();
 }
 
@@ -300,17 +332,25 @@ class Deck {
   }
 
   /**
-   * Hand this deck's sound to the Web Audio chain. Only while the chain is running — a routed element can't go back to
-   * the speakers, so it must never be handed to a graph that isn't carrying sound right now.
+   * Hand this deck's sound to the Web Audio chain. A routed element can't go back to the speakers, so this happens only
+   * while a live context exists and the machine can route; a context that is merely suspended is woken, and until it
+   * runs the element's own output stays audible (see applyLevel).
    */
   route() {
-    if (!ctx || !bus || !canRoute() || !chainCarries) return;
+    if (!ctx || !bus || !canRoute()) return;
+    // the record outlives the chain that took the element, so "it is marked" says nothing about now — the limbo flag
+    // below is what tells whether this element is inside the chain that exists
     if (routedElements.has(this.audio)) return;
+    // an element handed over while its own volume was still 0 is a suspect: the analyser may be silent because of that,
+    // so this route is never judged (a false "the graph is empty" would cost the person the graph for the whole run)
+    this.routeUnjudged = this.audio.volume === 0;
     const src = ctx.createMediaElementSource(this.audio);
     const gain = ctx.createGain();
     src.connect(gain).connect(bus);
     routedElements.set(this.audio, gain);
     this.gain = gain;
+    inLimbo.delete(this.audio);
+    this.beginRouteCheck();
     this.applyLevel();
   }
 
@@ -318,16 +358,57 @@ class Deck {
    * The volume, wherever the sound actually leaves the app: the chain's gain while this deck is handed over, the
    * element's own volume otherwise (the crossfade slides whichever is in use).
    */
+  // ---- the route's own word (see routeIsSilent in @shared/audioHealth) ------------------------------------------
+  /** when the current attempt at routing began, 0 = not judging */
+  routeSince = 0;
+  /** the position, and the loudest the analyser heard, when this attempt began */
+  routeFrom = 0;
+  routePeak = 0;
+  /** the element was already silent when handed over: the analysis is unreliable and this route is not judged again */
+  routeUnjudged = false;
+
+  /** Starts (or restarts) judging whether the graph actually carries this deck's sound. */
+  beginRouteCheck() {
+    this.routeSince = performance.now();
+    this.routeFrom = this.audio.currentTime;
+    this.routePeak = 0;
+  }
+
+  /**
+   * A deck the graph holds plays with a muted element, so if the graph carries nothing there is no sound at all and
+   * no state that would say so: "playing" everywhere, silence at the speakers. That is what an element taken out of the
+   * speakers into a chain that cannot play it looks like — the GPU process dying mid-track, a recovery that rebuilt a
+   * graph with no input. A quiet passage is disproved by a few seconds of a moving position.
+   */
+  routeFailed(): boolean {
+    if (!this.gain || !chainCarries || this.routeUnjudged) return false;
+    if (!this.routeSince) this.beginRouteCheck();
+    // no analyser, no evidence: the sound-reactive sky is what attaches one, and without it silence here means nothing
+    const peak = measure();
+    if (peak === null) return false;
+    this.routePeak = Math.max(this.routePeak, peak);
+    if (this.routePeak > 0) {
+      // the graph carries: keep watching from here, so a later fault is not missed
+      this.beginRouteCheck();
+      return false;
+    }
+    if (this.audio.paused) {
+      this.routeSince = 0;
+      return false;
+    }
+    // a quiet passage is disproved by a position that moved while the analyser heard exact zero, for longer than a
+    // track's silence ever lasts (a fade, a gap between tracks)
+    if (performance.now() - this.routeSince <= ROUTE_SILENCE_MS) return false;
+    return routeIsSilent({ running: true, level: this.routePeak, progressedSeconds: this.audio.currentTime - this.routeFrom });
+  }
+
   applyLevel() {
     const v = muted ? 0 : volume * volume * this.level;
     const level = Math.max(0, Math.min(1, v));
-    if (this.gain) {
-      this.gain.gain.value = level;
-      // handed over: the element's own copy would be a second, unequalized one
-      this.audio.volume = 0;
-    } else {
-      this.audio.volume = level;
-    }
+    if (this.gain) this.gain.gain.value = level;
+    // the element's own copy is muted only while the chain actually carries the sound; while it is asleep or lost, the
+    // element is the sound (and a suspended context can be woken by play())
+    this.audio.volume = this.gain && chainCarries ? 0 : level;
   }
 
   teardown() {
@@ -568,28 +649,70 @@ export function setEq(next: { enabled: boolean; gains: number[] }) {
   reportHealth();
 }
 
-/** Keeps the chain in step with what wants it: the equalizer, the sound-reactive sky, and this machine's ability to route. */
+/** how long a deck may sit inside a chain nothing wants before it is moved onto fresh elements */
+const STRANDED_RESTART_MS = 12_000;
+/** when a deck was first found stranded in a chain nothing wants (0 = not stranded) */
+let graphStrandedSince = 0;
+
+/** What currently asks the chain to hold the sound: the equalizer and/or the sound-reactive sky. */
 function syncGraph() {
   const wanted = new Set<"eq" | "reactive">();
   if (eq.enabled) wanted.add("eq");
   if (reactiveWanted) wanted.add("reactive");
   graphWanted = wanted;
-  if (!wanted.size) {
-    if (!ctx) return;
-    // an element already handed to the graph cannot go back to the speakers, so switching the equalizer and the sky off
-    // mid-track would silence it: the track is put on fresh elements and carried on there
-    const stranded = decks.some((d) => routedElements.has(d.audio));
-    forkChainOff();
-    if (stranded) void restartDecks();
+  const stranded = decks.some((d) => routedElements.has(d.audio));
+  const action = graphAction({ wanted: wanted.size, hasChain: !!ctx, stranded, canRoute: canRoute() });
+  if (action === "keep" && stranded) {
+    if (!graphStrandedSince) graphStrandedSince = performance.now();
+  } else if (action !== "keep" || !stranded) {
+    graphStrandedSince = 0;
+  }
+  if (action === "idle" || action === "keep") {
+    // "keep" can mean a deck is still inside a graph nothing wants any more. Closing it would silence that deck, and
+    // the only way out of a graph is fresh elements — so the track is reloaded once, on purpose. The window being
+    // hidden or minimised must not trigger that reload on its own, so a minimum listening time is required (a pause
+    // gives every deck a slow fade first, which keeps this floor from firing on the usual cases).
+    if (action === "keep" && stranded && (events?.wanted() ?? false) && graphStrandedSince > 0 && performance.now() - graphStrandedSince > STRANDED_RESTART_MS) {
+      graphStrandedSince = 0;
+      void restartDecks();
+    }
     return;
   }
-  if (!canRoute()) {
-    // hardware acceleration is off: an element routed through Web Audio goes silent here, so the decks stay on theirs
-    fault("the audio graph stays off: with the memory saver on, Chromium does not route an element's sound through Web Audio");
+  if (action === "blocked") {
+    // A deck already inside a chain that this machine cannot make carry is silence with a player saying "playing".
+    // Closing the chain would not help (a routed element cannot go back), so the only way out is fresh elements —
+    // the same repair as a lost chain, and bounded by the same budget so this can never become a reload loop.
+    if (stranded && (events?.wanted() ?? false) && !inRebuild) {
+      const { spent: used, max } = recoveryBudget();
+      if (used < max) {
+        inRebuild = true;
+        spent.push(performance.now());
+        rebuilds++;
+        void restartDecks().finally(() => {
+          inRebuild = false;
+          reportHealth();
+        });
+      }
+    }
+    // no hardware rendering: an element routed through Web Audio goes silent here, so the decks stay on their own output
+    if (routeGivenUp) {
+      fault("the graph stays off: this run's graph was found carrying no sound, so the decks keep their own output");
+      return;
+    }
+    fault(
+      memorySaver
+        ? "the audio graph stays off: with the memory saver on, Chromium does not route an element's sound through Web Audio"
+        : `the audio graph stays off: Chromium reports no hardware rendering (gpu_compositing ${graphics?.gpuCompositing ?? "unknown"}, webgl ${graphics?.webgl ?? "unknown"}), and there a routed element goes silent — the decks play on their own output`,
+    );
     return;
   }
-  if (!ctx) buildChain();
-  reportHealth();
+  if (action === "build") {
+    buildChain();
+    reportHealth();
+    return;
+  }
+  // "drop": nothing wants the chain and no deck is inside it, so closing it cannot silence anything
+  teardownChain(ctx);
 }
 
 /** the sound-reactive sky asked for the chain (or stopped asking) */
@@ -605,6 +728,19 @@ export function setMemorySaver(on: boolean) {
   if (memorySaver === on) return;
   memorySaver = on;
   syncGraph();
+}
+
+/**
+ * What Chromium reports about the graphics stack. Without hardware rendering `createMediaElementSource` empties a deck
+ * without filling the chain, so this changes whether the chain may carry the sound at all. Reported once at start.
+ */
+export function setGraphicsStatus(next: GraphicsStatus) {
+  const before = canRoute();
+  graphics = next ?? null;
+  // re-decide: the report often arrives after the first track is already playing, and a chain built on the old answer
+  // must not keep holding the sound
+  if (canRoute() !== before) syncGraph();
+  reportHealth();
 }
 
 let analyserNode: AnalyserNode | null = null;
@@ -684,6 +820,7 @@ function health(): AudioHealth {
     muted,
     output: sinkId ? "custom" : "default",
     sinkError,
+    routed: chainCarries && routedElements.has(deck.audio) && !inLimbo.has(deck.audio),
     level: measure(),
     rebuilds,
   };
@@ -708,6 +845,18 @@ export function reportHealth() {
 
 /** rebuilds spent on the current trouble, and when the first one came */
 let spent: number[] = [];
+/** set while a rebuild has already been decided: the steps it causes must not buy a second one */
+let inRebuild = false;
+
+/**
+ * The recovery budget, shared by every caller: a crash event, a context that died, the watchdog, Retry. Without one
+ * place to count, each trigger would get its own free rebuilds and a crash loop would reload the stream forever.
+ */
+export function recoveryBudget(): { spent: number; max: number } {
+  const now = performance.now();
+  spent = spent.filter((at) => now - at < REBUILD_BUDGET_MS);
+  return { spent: spent.length, max: MAX_REBUILDS };
+}
 /** the recovery in flight, so a burst of crash events rebuilds once */
 let recovering: Promise<void> | null = null;
 
@@ -720,6 +869,8 @@ let recovering: Promise<void> | null = null;
  */
 export function recoverSound(why: string): Promise<void> {
   recovering ??= (async () => {
+    // a rebuild in flight causes reloads of its own (element teardown, a deck pause): those are not new trouble
+    if (inRebuild) return;
     const now = performance.now();
     spent = spent.filter((at) => now - at < REBUILD_BUDGET_MS);
     const wanted = events?.wanted() ?? false;
@@ -739,7 +890,12 @@ export function recoverSound(why: string): Promise<void> {
     spent.push(now);
     rebuilds++;
     fault(`${why}; rebuilding the output (${spent.length}/${MAX_REBUILDS})`);
-    await restartDecks();
+    inRebuild = true;
+    try {
+      await restartDecks();
+    } finally {
+      inRebuild = false;
+    }
     reportHealth();
   })().finally(() => {
     recovering = null;
@@ -763,25 +919,47 @@ export function retrySound() {
  * was a half-finished transition.
  */
 async function restartDecks() {
-  const deck = active;
-  const track = deck.track;
-  const at = deck.audio.currentTime;
-  const wasPlaying = !deck.audio.paused;
+  const track = active.track;
+  const streamId = active.streamId;
+  const at = active.audio.currentTime;
+  const wasPlaying = !active.audio.paused;
   endFade();
   preparing = false;
-  for (const d of decks) d.hls?.destroy();
-  other().stop();
-  // the element first: the chain routes whatever element the deck has when it is built, and the old one must not be
-  // routed a second time into a context that is about to be replaced
-  deck.replaceElement();
+  // Both decks, not just the one playing: a deck left holding an element from the old graph answers no route() and
+  // keeps its own volume at 0, so the next crossfade into it would be silent — the very symptom this all exists to
+  // prevent. Fresh elements for both, the inactive one empty and ready for the next crossfade.
+  for (const d of decks) {
+    d.stop();
+    d.replaceElement();
+  }
   chainCarries = false;
   rebuildChain();
   if (!track) return;
   // load() re-asks main for a stream URL (the signed one may have expired too) and plays on the fresh element
-  const ok = await deck.load(track, { autoplay: wasPlaying, startAt: at > 0 ? at : undefined, streamId: deck.streamId });
+  const ok = await active.load(track, { autoplay: wasPlaying, startAt: at > 0 ? at : undefined, streamId });
   if (!ok) events?.error("audio");
   else if (!wasPlaying) events?.paused();
 }
+
+// ---- a route that holds the sound and carries none of it -----------------------------------------------------------
+
+/**
+ * The last safety net, and the one the 16:13 log asked for: the graph says "running" and holds a deck, the deck's
+ * element is muted because of that, and the graph carries nothing at all. No other check can see this — every state
+ * is "playing". Handing the deck back to the speakers costs a reload of the stream (an element cannot leave a graph),
+ * which is why it happens once per run and only after minutes of silence would otherwise have gone unnoticed.
+ */
+function watchRoute() {
+  if (routeGivenUp || !chainCarries || inRebuild || recovering) return;
+  if (!decks.some((d) => d.routeFailed())) return;
+  routeGivenUp = true;
+  // the chain keeps existing for the equalizer and the sky, but it no longer takes the sound: every deck gets fresh
+  // elements and plays straight to the speakers (a suspended/dead graph is what restartDecks repairs)
+  fault("the graph held the sound but carried nothing — the decks go back to their own output");
+  void restartDecks();
+}
+
+setInterval(watchRoute, 2000);
 
 // a context can also be found dead later (it fell asleep and never came back): catch it whenever the report runs
 setInterval(() => {

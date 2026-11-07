@@ -4,11 +4,18 @@ import {
   AUDIO_HEALTH_DEFAULTS,
   MAX_REBUILDS,
   audioReportLines,
+  canRouteAudio,
+  ROUTE_SILENCE_MS,
+  routeIsSilent,
+  silenceVerdict,
   audioUtilityRole,
   exitText,
   isPolicyRefusal,
   recoveryStep,
   sanitizeHealth,
+  graphAction,
+  chainLostAction,
+  teardownIsCurrent,
   type AudioHealth,
 } from "./audioHealth.ts";
 
@@ -201,4 +208,108 @@ test("sanitize: a device error message is truncated and stripped of links before
 
 test("sanitize: a missing level stays missing (no analyser) rather than becoming 0", () => {
   assert.equal(sanitizeHealth({ ...AUDIO_HEALTH_DEFAULTS, level: null }).level, null);
+});
+
+// ---- the chain's lifecycle (the three defects found by the audit, kept from coming back) ----------------------
+
+test("chain: a deck inside a graph nothing wants is never dropped — closing it would silence that deck", () => {
+  // the equalizer and the sky were switched off while a deck was routed: the graph must stay, the deck is moved off it
+  // by a restart instead (a closed graph is unrecoverable for a routed element)
+  assert.equal(graphAction({ wanted: 0, hasChain: true, stranded: true, canRoute: true }), "keep");
+});
+
+test("chain: nothing wants it and nothing is inside it, so it can be closed for real", () => {
+  assert.equal(graphAction({ wanted: 0, hasChain: true, stranded: false, canRoute: true }), "drop");
+});
+
+test("chain: something wants it — built once, then kept, and never built on a machine that cannot route", () => {
+  assert.equal(graphAction({ wanted: 1, hasChain: false, stranded: false, canRoute: true }), "build");
+  assert.equal(graphAction({ wanted: 2, hasChain: true, stranded: false, canRoute: true }), "keep");
+  // hardware acceleration off: routing an element there is silence, so no chain is built at all
+  assert.equal(graphAction({ wanted: 1, hasChain: false, stranded: false, canRoute: false }), "blocked");
+});
+
+test("chain: a closed context is detached first, and recovery is a separate step it cannot race", () => {
+  // a deck was stranded in it and the person is listening: detach, then recover on fresh elements
+  assert.equal(chainLostAction({ stranded: true, wanted: true }), "detach-and-recover");
+  // nothing is stranded, or nobody is listening: just detach, the elements carry the sound
+  assert.equal(chainLostAction({ stranded: false, wanted: true }), "detach");
+  assert.equal(chainLostAction({ stranded: true, wanted: false }), "detach");
+});
+
+test("chain: cleanup closes its own context and never the replacement recovery just built", () => {
+  const dead = {} as object;
+  const fresh = {} as object;
+  assert.equal(teardownIsCurrent(dead, dead), true);
+  // the crux of the race: recovery replaced ctx synchronously, so the old teardown must not touch the new context
+  assert.equal(teardownIsCurrent(dead, fresh), false);
+  assert.equal(teardownIsCurrent(null, fresh), false);
+  assert.equal(teardownIsCurrent(dead, null), false);
+});
+
+// ---- routing depends on the graphics stack, not only on a setting (the 13:51 log: software rendering, silent graph) --
+
+test("routing: a working graphics stack allows the chain, whatever the memory saver says", () => {
+  assert.equal(canRouteAudio({ memorySaver: false, graphics: { gpuCompositing: "enabled", webgl: "enabled" } }), true);
+});
+
+test("routing: software rendering is a no even with the memory saver off — the case the log showed", () => {
+  // gpu_compositing disabled_software: createMediaElementSource empties the element without filling the chain
+  assert.equal(canRouteAudio({ memorySaver: false, graphics: { gpuCompositing: "disabled_software", webgl: "disabled_off" } }), false);
+  // a card whose WebGL is blocked is just as unable to route an element's media
+  assert.equal(canRouteAudio({ memorySaver: false, graphics: { gpuCompositing: "disabled_software", webgl: "unavailable_software" } }), false);
+});
+
+test("routing: the memory saver still wins, and an unknown status is never a yes", () => {
+  assert.equal(canRouteAudio({ memorySaver: true, graphics: { gpuCompositing: "enabled", webgl: "enabled" } }), false);
+  // before main has answered there is nothing to build on; routing once too often costs the sound, never routing
+  // costs only the decorative reaction
+  assert.equal(canRouteAudio({ memorySaver: false, graphics: null }), false);
+  assert.equal(canRouteAudio({ memorySaver: false }), false);
+});
+
+test("silence: a playing deck routed into a graph nobody can hear is told apart from a silent device", () => {
+  const base = { element: "playing" as const, routed: true, level: 0 as number | null, context: "running" as const, sinkError: null };
+  // nothing reached the graph: the routing did not work (the software-rendering silence)
+  assert.equal(silenceVerdict(base), "silent-graph");
+  // samples are in the graph, yet the speakers stay quiet and a device already failed: the output, not the engine
+  assert.equal(silenceVerdict({ ...base, sinkError: "NotFoundError: gone" }), "silent-device");
+  // a graph that is loud is simply working, whatever the device did earlier
+  assert.equal(silenceVerdict({ ...base, level: 120 }), "playing-loud");
+  // not routed, paused, or no analyser at all: nothing to conclude
+  assert.equal(silenceVerdict({ ...base, routed: false }), "playing-loud");
+  assert.equal(silenceVerdict({ ...base, element: "paused" }), "playing-loud");
+  assert.equal(silenceVerdict({ ...base, level: null }), "playing-loud");
+});
+
+test("report: it says where the sound leaves the app, so a silent route is visible rather than implied", () => {
+  const crashed = { audio: 0, capture: 0, lastExit: null, lastAt: null };
+  const line = (routed: boolean) =>
+    audioReportLines({
+      health: { ...AUDIO_HEALTH_DEFAULTS, element: "playing", stream: "hls", context: "running", graph: "reactive", routed, level: routed ? 0 : null },
+      crashes: crashed,
+      runtime: { electron: "44.7.2", chrome: "140.0.0.0" },
+      webAudioInUse: true,
+    }).join("\n");
+  assert.match(line(true), /sound through the graph/);
+  assert.match(line(false), /sound straight from the deck/);
+});
+
+// ---- a route that carries nothing while it holds the sound (the 16:13 log: routed, muted element, peak 0 for minutes) --
+
+test("route: a playing deck whose graph hears exact zero is a failed route, not a quiet passage", () => {
+  // the log's shape: element handed over (so muted), context running, position advancing, analyser silent
+  assert.equal(routeIsSilent({ running: true, level: 0, progressedSeconds: 5 }), true);
+});
+
+test("route: it needs a running graph and real progress before anything is concluded", () => {
+  // a paused or suspended graph is expected to be silent — the elements carry the sound there
+  assert.equal(routeIsSilent({ running: false, level: 0, progressedSeconds: 5 }), false);
+  // no analyser measured, or sound in the graph: nothing to repair
+  assert.equal(routeIsSilent({ running: true, level: null, progressedSeconds: 5 }), false);
+  assert.equal(routeIsSilent({ running: true, level: 89, progressedSeconds: 5 }), false);
+  // a deck that barely moved (a stall, a seek, a fade) is not evidence of anything yet
+  assert.equal(routeIsSilent({ running: true, level: 0, progressedSeconds: 0.2 }), false);
+  // and the window it is given is long enough not to fire between two tracks of a quiet passage
+  assert.ok(ROUTE_SILENCE_MS >= 3_000);
 });
