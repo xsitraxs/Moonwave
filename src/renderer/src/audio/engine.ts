@@ -2,7 +2,8 @@ import type HlsType from "hls.js";
 import type { ErrorData } from "hls.js";
 import { EQ_BANDS } from "@shared/ipc";
 import type { AudioHealth } from "@shared/audioHealth";
-import { MAX_REBUILDS, REBUILD_BUDGET_MS, chainLostAction, graphAction, isPolicyRefusal, recoveryStep, teardownIsCurrent } from "@shared/audioHealth";
+import { MAX_REBUILDS, REBUILD_BUDGET_MS, canRouteAudio, chainLostAction, graphAction, isPolicyRefusal, recoveryStep, teardownIsCurrent } from "@shared/audioHealth";
+import type { GraphicsStatus } from "@shared/audioHealth";
 import type { ErrorCode, StreamInfo, Track } from "@shared/types";
 import { call, errorCode } from "@/lib/sky";
 
@@ -71,6 +72,8 @@ let eq = { enabled: false, gains: EQ_BANDS.map(() => 0) as number[] };
 let graphWanted = new Set<"eq" | "reactive">();
 /** the setting that turns hardware acceleration off: an element cannot be routed through Web Audio there */
 let memorySaver = false;
+/** what Chromium says about the graphics stack: no hardware rendering also means no element routing (see canRoute) */
+let graphics: GraphicsStatus = null;
 
 /** the muted error name, so a refusal that is normal is not logged as a fault */
 let lastChainError = "";
@@ -87,10 +90,14 @@ function fault(what: string) {
 /**
  * Whether an element's own output can be handed over to the chain. With hardware acceleration off (the memory saver on
  * a machine without a graphics card) Chromium keeps an element's media in software and routes none of it through Web
- * Audio: creating the source node empties the element without filling the chain. There the chain cannot carry, and the
- * decks stay on their own output — the visual reaction then simply has nothing to read.
+ * Audio: creating the source node empties the element without filling the chain.
+ *
+ * The memory saver is not the only way to get there: Chromium falls back to software rendering by itself when the
+ * graphics stack is unusable (`gpu_compositing disabled_software` in the log), and the same silence follows. That is
+ * why the answer comes from the status main reports rather than from the setting alone, and why "not known yet" is a
+ * no — routing once too often costs the sound, routing never costs only the decorative reaction.
  */
-const canRoute = () => !memorySaver;
+const canRoute = () => canRouteAudio({ memorySaver, graphics });
 
 function buildChain() {
   const c = new AudioContext({ latencyHint: "playback" });
@@ -585,7 +592,7 @@ const STRANDED_RESTART_MS = 12_000;
 /** when a deck was first found stranded in a chain nothing wants (0 = not stranded) */
 let graphStrandedSince = 0;
 
-/** Keeps the chain in step with what wants it: the equalizer, the sound-reactive sky, and this machine's ability to route. */
+/** What currently asks the chain to hold the sound: the equalizer and/or the sound-reactive sky. */
 function syncGraph() {
   const wanted = new Set<"eq" | "reactive">();
   if (eq.enabled) wanted.add("eq");
@@ -610,8 +617,27 @@ function syncGraph() {
     return;
   }
   if (action === "blocked") {
-    // hardware acceleration is off: an element routed through Web Audio goes silent here, so the decks stay on theirs
-    fault("the audio graph stays off: with the memory saver on, Chromium does not route an element's sound through Web Audio");
+    // A deck already inside a chain that this machine cannot make carry is silence with a player saying "playing".
+    // Closing the chain would not help (a routed element cannot go back), so the only way out is fresh elements —
+    // the same repair as a lost chain, and bounded by the same budget so this can never become a reload loop.
+    if (stranded && (events?.wanted() ?? false) && !inRebuild) {
+      const { spent: used, max } = recoveryBudget();
+      if (used < max) {
+        inRebuild = true;
+        spent.push(performance.now());
+        rebuilds++;
+        void restartDecks().finally(() => {
+          inRebuild = false;
+          reportHealth();
+        });
+      }
+    }
+    // no hardware rendering: an element routed through Web Audio goes silent here, so the decks stay on their own output
+    fault(
+      memorySaver
+        ? "the audio graph stays off: with the memory saver on, Chromium does not route an element's sound through Web Audio"
+        : `the audio graph stays off: Chromium reports no hardware rendering (gpu_compositing ${graphics?.gpuCompositing ?? "unknown"}, webgl ${graphics?.webgl ?? "unknown"}), and there a routed element goes silent — the decks play on their own output`,
+    );
     return;
   }
   if (action === "build") {
@@ -636,6 +662,19 @@ export function setMemorySaver(on: boolean) {
   if (memorySaver === on) return;
   memorySaver = on;
   syncGraph();
+}
+
+/**
+ * What Chromium reports about the graphics stack. Without hardware rendering `createMediaElementSource` empties a deck
+ * without filling the chain, so this changes whether the chain may carry the sound at all. Reported once at start.
+ */
+export function setGraphicsStatus(next: GraphicsStatus) {
+  const before = canRoute();
+  graphics = next ?? null;
+  // re-decide: the report often arrives after the first track is already playing, and a chain built on the old answer
+  // must not keep holding the sound
+  if (canRoute() !== before) syncGraph();
+  reportHealth();
 }
 
 let analyserNode: AnalyserNode | null = null;
@@ -715,6 +754,7 @@ function health(): AudioHealth {
     muted,
     output: sinkId ? "custom" : "default",
     sinkError,
+    routed: chainCarries && routedElements.has(deck.audio),
     level: measure(),
     rebuilds,
   };

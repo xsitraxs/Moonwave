@@ -95,8 +95,19 @@ const status = async (): Promise<AuthStatus> => (DEMO ? { mode: "session", user:
 const modulesLoadedMs = Math.round(process.uptime() * 1000);
 const memorySaver = prefs().memorySaver;
 if (memorySaver) app.disableHardwareAcceleration();
+/**
+ * How Chromium's graphics stack came up. `disabled_software` here means Chromium fell back to software rendering
+ * (no usable card, or the graphics process died) — the same condition that makes a Web Audio route silence a deck, so
+ * the page is told and the log carries it next to the start-up timings.
+ */
+const graphicsStatus = (): { gpuCompositing: string; webgl: string } => {
+  const s = app.getGPUFeatureStatus() as unknown as Record<string, string>;
+  return { gpuCompositing: s.gpu_compositing ?? "unknown", webgl: s.webgl ?? "unknown" };
+};
 /** the system for a report and the log: Windows 10.0.19045, macOS 15.1, Linux 6.8.0-49-generic */
 const systemName = () => (process.platform === "darwin" ? `macOS ${process.getSystemVersion()}` : process.platform === "linux" ? `Linux ${release()}` : `Windows ${release()}`);
+// which build wrote this file: without it two runs of different installers look like one app behaving inconsistently
+log("main", `start: sc player ${app.getVersion()}, Electron ${process.versions.electron}, ${systemName()}, ${process.arch}${process.env.PORTABLE_EXECUTABLE_DIR ? ", portable" : ""}`);
 // the graphics process failing is what leaves an empty window; Chromium retries and then draws without it
 app.on("child-process-gone", (_e, d) => {
   if (d.reason === "clean-exit") return;
@@ -556,7 +567,7 @@ function registerIpc() {
   handle("hotkeys:suspend", (_e, on) => {
     send(main, "hotkeys:failed", suspendHotkeys(on === true));
   });
-  handle("app:info", () => ({ version: app.getVersion(), portable: !!process.env.PORTABLE_EXECUTABLE_DIR, packaged: app.isPackaged, logsDir: logsDir(), builtinProxy: hasBuiltinProxy(), proxyRoute: proxyRoute(), memorySaver }));
+  handle("app:info", () => ({ version: app.getVersion(), portable: !!process.env.PORTABLE_EXECUTABLE_DIR, packaged: app.isPackaged, logsDir: logsDir(), builtinProxy: hasBuiltinProxy(), proxyRoute: proxyRoute(), memorySaver, graphics: graphicsStatus() }));
   handle("app:relaunch", () => {
     app.relaunch({ args: process.argv.slice(1).filter((a) => a !== "--updated") });
     app.quit();
@@ -842,8 +853,8 @@ void app.whenReady().then(async () => {
     if (isMain) log("main", `page didn't load: ${desc} (${code}) ${url}`);
   });
   main.webContents.once("did-finish-load", () => {
-    const status = app.getGPUFeatureStatus() as unknown as Record<string, string>;
-    log("main", `start: page loaded; ${systemName()}; gpu_compositing ${status.gpu_compositing}, webgl ${status.webgl}${memorySaver ? "; memory saver on" : ""}`);
+    const status = graphicsStatus();
+    log("main", `start: page loaded; ${systemName()}; gpu_compositing ${status.gpuCompositing}, webgl ${status.webgl}${memorySaver ? "; memory saver on" : ""}`);
   });
   onSyncStatus((s) => send(main, "lyricsSync:status", s));
   main.on("closed", () => (main = null));

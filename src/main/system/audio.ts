@@ -39,8 +39,11 @@ export function noteAudioHealth(next: AudioHealth, memorySaver: boolean) {
 }
 
 function describe(h: AudioHealth): string {
-  const chain = h.context === "none" ? "off" : `${h.graph} ${h.context}`;
-  return `${h.element}, stream ${h.stream}, ${h.output === "default" ? "system default" : "chosen device"}${h.sinkError ? ` (sink error: ${h.sinkError})` : ""}, graph ${chain}, ${h.muted ? "muted" : `volume ${Math.round(h.volume * 100)}%`}, rebuilds ${h.rebuilds}`;
+  const chain = h.context === "none" ? "off" : `${h.graph} ${h.context}${h.routed ? " (decks in it)" : ""}`;
+  // the peak is what makes a silent line readable: routed + peak 0 means the sound never reached the graph,
+  // routed + a peak above 0 with silence at the speakers points at the output device instead
+  const peak = h.level === null ? "" : `, peak ${h.level}`;
+  return `${h.element}, stream ${h.stream}, ${h.output === "default" ? "system default" : "chosen device"}${h.sinkError ? ` (sink error: ${h.sinkError})` : ""}, graph ${chain}, ${h.muted ? "muted" : `volume ${Math.round(h.volume * 100)}%`}${peak}, rebuilds ${h.rebuilds}`;
 }
 
 /**

@@ -71,6 +71,12 @@ export interface AppInfo {
   proxyRoute: "own" | "ours" | null;
   /** this run started without the graphics card (Memory saver as it was at start) */
   memorySaver: boolean;
+  /**
+   * What Chromium says about the graphics stack in this run. An element's sound can be routed through Web Audio only
+   * while hardware rendering works, so the page needs this to decide whether the chain may hold the sound; the
+   * memory saver setting alone does not cover a driver that fell back to software.
+   */
+  graphics: { gpuCompositing: string; webgl: string };
 }
 export type StreamQuality = "high" | "low";
 /** studio — the 2.0 look (dark glass over a living background); og — the hand-drawn night sky of 1.x */

@@ -19,6 +19,13 @@ export interface AudioHealth {
   output: "default" | "custom";
   /** why the last setSinkId failed (a device that is gone), null when it worked */
   sinkError: string | null;
+  /**
+   * Whether the decks are handed to the chain right now, so the sound leaves through Web Audio instead of the
+   * element's own output. This is the pair that decides most silences, and it is the one thing a level cannot show:
+   * "playing, graph running, routed, and the analyser hears nothing" is a different fault from "routed, and it is
+   * loud in the graph but nobody hears it" (the output device), which is why both are reported.
+   */
+  routed: boolean;
   /** the loudest the analyser heard in the last second, 0..255; null without an analyser */
   level: number | null;
   /** rebuilds of the output this session (each one reloads the stream) */
@@ -46,6 +53,7 @@ export function sanitizeHealth(raw: AudioHealth): AudioHealth {
     muted: raw.muted === true,
     output: raw.output === "custom" ? "custom" : "default",
     sinkError: short(raw.sinkError),
+    routed: raw.routed === true,
     level: raw.level === null || raw.level === undefined ? null : Math.round(n(raw.level, 0, 255, 0)),
     rebuilds: Math.round(n(raw.rebuilds, 0, 999, 0)),
   };
@@ -61,6 +69,7 @@ export const AUDIO_HEALTH_DEFAULTS: AudioHealth = {
   muted: false,
   output: "default",
   sinkError: null,
+  routed: false,
   level: null,
   rebuilds: 0,
 };
@@ -101,7 +110,12 @@ export function exitText(code: number): string {
   return `${name ? `0x${hex} ${name}` : `0x${hex}`} (${code})`;
 }
 
-/** What to do about the Web Audio chain, given what wants it and what is already inside it. */
+/**
+ * What to do about the Web Audio chain, given what wants it and what is already inside it. `canRoute` is not only a
+ * setting: when Chromium ends up in software rendering (no graphics card, a blocked or crashed driver process), it does
+ * not route an element's media through Web Audio either, and a routed element goes silent — so the answer to "does this
+ * machine route" comes from the graphics status main reports, not from the memory saver alone.
+ */
 export type GraphAction =
   /** nothing wants a chain, and none exists */
   | "idle"
@@ -111,7 +125,7 @@ export type GraphAction =
   | "build"
   /** nothing wants it and no deck is inside it, so it can be closed */
   | "drop"
-  /** something wants it, but this machine cannot route an element (hardware acceleration off) */
+  /** something wants it, but this machine cannot route an element (hardware acceleration off, or no hardware rendering) */
   | "blocked";
 
 /**
@@ -180,6 +194,38 @@ export function recoveryStep(s: {
   return "rebuild";
 }
 
+/** How the page's graphics stack is doing, as Chromium reports it (electron's GPUFeatureStatus values are strings). */
+export type GraphicsStatus = { gpuCompositing?: string; webgl?: string } | null | undefined;
+
+/**
+ * Whether an element's sound may be handed to Web Audio here.
+ *
+ * Hardware acceleration being off is only one way to end up unable to route; the other is Chromium falling back to
+ * software rendering on its own — no usable graphics card, or a graphics process that died (the log then says
+ * `gpu_compositing disabled_software`). In both cases `createMediaElementSource` takes the element's sound out of the
+ * speakers without filling the chain, and the player plays silently while every state says "playing". So the chain is
+ * built only when Chromium itself reports a working graphics stack, and a deck is never handed over when the answer
+ * is unknown (no report yet).
+ */
+export function canRouteAudio(input: { memorySaver: boolean; graphics?: GraphicsStatus }): boolean {
+  if (input.memorySaver) return false;
+  const status = input.graphics;
+  if (!status) return false;
+  return status.gpuCompositing === "enabled" || status.webgl === "enabled";
+}
+
+/**
+ * What a "playing" deck with a live route and a silent analyser means. The level is the only evidence of whether
+ * samples ever reached the graph, so it separates the two silences that looked identical in every log so far:
+ * nothing fed into the graph at all, or a graph that carries fine but whose output goes to a device nobody hears.
+ */
+export function silenceVerdict(h: Pick<AudioHealth, "element" | "routed" | "level" | "context" | "sinkError">): "playing-loud" | "silent-graph" | "silent-device" {
+  if (h.element !== "playing" || !h.routed || h.level === null || h.level > 0) return "playing-loud";
+  // nothing is in the graph: it was never fed (routing that did not work) or its context is not really running
+  if (h.context !== "running" || !h.sinkError) return "silent-graph";
+  return "silent-device";
+}
+
 /** The crash tally a report prints. */
 export interface AudioCrashTally {
   audio: number;
@@ -211,7 +257,10 @@ export function audioReportLines(input: {
     const chain = health.context === "none" ? "off (decks play straight to the speakers)" : `${health.graph}, context ${health.context}`;
     const device = health.output === "default" ? "system default" : "chosen in Settings";
     lines.push(`audio: ${health.element}, stream ${health.stream}; output ${device}${health.sinkError ? ` (last setSinkId failed: ${health.sinkError})` : ""}`);
-    lines.push(`audio: Web Audio chain ${chain}${health.muted ? ", muted" : `, volume ${Math.round(health.volume * 100)}%`}${health.level === null ? "" : `, analyser peak ${health.level}/255`}; rebuilds ${health.rebuilds}`);
+    // where the sound actually leaves the app: the graph (and then the analyser can say whether anything is in it) or
+    // the element's own output. Without this line a report could not tell a silent graph from a silent device.
+    const path = health.routed ? "sound through the graph" : "sound straight from the deck";
+    lines.push(`audio: Web Audio chain ${chain}, ${path}${health.muted ? ", muted" : `, volume ${Math.round(health.volume * 100)}%`}${health.level === null ? "" : `, analyser peak ${health.level}/255`}; rebuilds ${health.rebuilds}`);
     if (input.webAudioInUse && health.context !== "none") {
       lines.push("audio: the sound is routed through Web Audio for the equalizer or the sound-reactive sky, so a dead context silences it while <audio> still reports playing");
     }
