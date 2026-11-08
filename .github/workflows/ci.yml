@@ -45,9 +45,10 @@ jobs:
       - name: Install dependencies
         shell: bash
         run: |
-          set -o pipefail
+          set +e
           ( npm ci || npm ci ) 2>&1 | tee npmci.log
           ec=$?
+          set -e
           if [ "$ec" -ne 0 ]; then
             tail -c 2500 npmci.log \
               | sed -E -e 's#(//)[^/@" '"'"']+:[^/@" '"'"']+@#\1***:***@#g' -e 's/[[:cntrl:]]/ /g' \
@@ -98,9 +99,10 @@ jobs:
       - name: Install dependencies
         shell: bash
         run: |
-          set -o pipefail
+          set +e
           ( npm ci || npm ci ) 2>&1 | tee npmci.log
           ec=$?
+          set -e
           if [ "$ec" -ne 0 ]; then
             tail -c 2500 npmci.log \
               | sed -E -e 's#(//)[^/@" '"'"']+:[^/@" '"'"']+@#\1***:***@#g' -e 's/[[:cntrl:]]/ /g' \
@@ -126,9 +128,10 @@ jobs:
       - name: Package and verify the update metadata
         shell: bash
         run: |
-          set -o pipefail
+          set +e
           node scripts/dist.mjs 2>&1 | tee package.log
           ec=$?
+          set -e
           if [ "$ec" -ne 0 ]; then
             tail -c 2500 package.log \
               | sed -E -e 's#(//)[^/@" '"'"']+:[^/@" '"'"']+@#\1***:***@#g' -e 's/[[:cntrl:]]/ /g' \
