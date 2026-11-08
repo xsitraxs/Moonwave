@@ -1,6 +1,6 @@
 import { app, type BrowserWindow } from "electron";
 import electronUpdater from "electron-updater";
-import type { UpdateStatus } from "@shared/ipc";
+import { UPDATE_REPO, type UpdateStatus } from "@shared/ipc";
 import { log } from "./log";
 import { isPortableRelease } from "./updater-check";
 
@@ -8,9 +8,12 @@ const { autoUpdater } = electronUpdater;
 const EVERY = 6 * 3600 * 1000;
 
 /**
- * Updates from GitHub Releases (waterlilo/sc-player). The installed app downloads the new version when asked and
- * installs it on restart. A portable .exe can't replace itself, so it is only told that a new version exists (with a
- * link to the release). Off in development.
+ * Updates from this project's own GitHub Releases (xsitraxs/scplayer-fix). The installed app downloads the new version
+ * when asked and installs it on restart. A portable .exe can't replace itself, so it is only told that a new version
+ * exists (with a link to the release). Off in development.
+ *
+ * The repository is named in one place, `UPDATE_REPO` in @shared/ipc, so the feed and the "open the release" button
+ * can never drift apart again: they did, and the check looked at a repository this build does not come from.
  */
 let status: UpdateStatus = { state: "idle" };
 let send: (s: UpdateStatus) => void = () => {};
@@ -29,7 +32,7 @@ export function initUpdater(win: () => BrowserWindow | null, enabled: () => bool
   if (!app.isPackaged) return;
   // the feed itself, not resources/app-update.yml: the portable .exe has no such file, so it never heard of a new
   // version ("update: ENOENT … app-update.yml"). Same as package.json → build.publish.
-  autoUpdater.setFeedURL({ provider: "github", owner: "waterlilo", repo: "sc-player" });
+  autoUpdater.setFeedURL({ provider: "github", owner: UPDATE_REPO.owner, repo: UPDATE_REPO.repo });
   autoUpdater.autoDownload = false;
   autoUpdater.autoInstallOnAppQuit = true;
   autoUpdater.on("checking-for-update", () => setStatus({ state: "checking" }));

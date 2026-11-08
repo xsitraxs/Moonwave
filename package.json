@@ -193,8 +193,8 @@
     },
     "publish": {
       "provider": "github",
-      "owner": "waterlilo",
-      "repo": "sc-player"
+      "owner": "xsitraxs",
+      "repo": "scplayer-fix"
     }
   },
   "dependencies": {

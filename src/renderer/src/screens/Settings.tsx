@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { PREFS_DEFAULTS, type AppInfo, type HotkeyAction, type NetCheck } from "@shared/ipc";
+import { PREFS_DEFAULTS, RELEASES_URL, type AppInfo, type HotkeyAction, type NetCheck } from "@shared/ipc";
 import Appearance from "@/components/settings/Appearance";
 import Equalizer from "@/components/settings/Equalizer";
 import HotkeyRecorder from "@/components/settings/HotkeyRecorder";
@@ -21,7 +21,7 @@ import { useSettings } from "@/state/settings";
 import { useUi } from "@/state/ui";
 import { useViewState } from "@/state/viewState";
 
-const RELEASES = "https://github.com/waterlilo/sc-player/releases/latest";
+const RELEASES = RELEASES_URL;
 
 function OutputDevice() {
   const t = useT();

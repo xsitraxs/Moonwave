@@ -46,6 +46,15 @@ export interface PlayerInfo {
   durationMs?: number;
 }
 
+/**
+ * Where this build's releases live. One place, because the update feed and the "open the release" button have to name
+ * the same repository — they used to be written out separately, and a build could download from one project while
+ * pointing its users at another. `package.json` → build.publish names it too, for electron-builder's own metadata.
+ */
+export const UPDATE_REPO = { owner: "xsitraxs", repo: "scplayer-fix" } as const;
+/** The releases page the app opens (a portable build can only be told a new version exists). */
+export const RELEASES_URL = `https://github.com/${UPDATE_REPO.owner}/${UPDATE_REPO.repo}/releases/latest`;
+
 export type UpdateStatus =
   | { state: "idle" | "checking" | "none" }
   | { state: "available"; version: string; portable: boolean }
