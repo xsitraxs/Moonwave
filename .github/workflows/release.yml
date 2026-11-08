@@ -80,6 +80,12 @@ jobs:
           fi
 
       # optional: the built-in proxy and the server address are not in git (see server/README.md)
+      # the asset CDN behind github.com's release downloads returns 504s today — pre-fetch the big immutable files
+      # with curl (resume + checksums) so the packaging step finds them already cached
+      - name: Pre-fetch the build tools
+        shell: bash
+        run: bash scripts/prefetch-tools.sh
+
       - name: The built-in proxy and the server address
         shell: bash
         env:
