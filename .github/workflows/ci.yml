@@ -61,7 +61,7 @@ jobs:
           set +e
           ( npm ci --ignore-scripts || npm ci --ignore-scripts ) 2>&1 | tee npmci.log
           ec=$?
-          set -e
+          set -eo pipefail
           if [ "$ec" -ne 0 ]; then
             tail -c 2500 npmci.log \
               | sed -E -e 's#(//)[^/@" '"'"']+:[^/@" '"'"']+@#\1***:***@#g' -e 's/[[:cntrl:]]/ /g' \
@@ -115,7 +115,7 @@ jobs:
           set +e
           ( npm ci --ignore-scripts || npm ci --ignore-scripts ) 2>&1 | tee npmci.log
           ec=$?
-          set -e
+          set -eo pipefail
           if [ "$ec" -ne 0 ]; then
             tail -c 2500 npmci.log \
               | sed -E -e 's#(//)[^/@" '"'"']+:[^/@" '"'"']+@#\1***:***@#g' -e 's/[[:cntrl:]]/ /g' \
@@ -136,17 +136,26 @@ jobs:
           if [ -n "$SERVER_JSON" ]; then printf '%s' "$SERVER_JSON" > server.local.json; echo "server: yes"; else echo "server: none"; fi
 
       # lint + typecheck + electron-vite build + electron-builder + verify-dist (fails if the update metadata is missing).
-      # On failure the tail of the log goes into a scrubbed '::error' annotation (readable via the check-runs API) so
-      # the failure can be diagnosed from anywhere — raw logs often can't leave the runner's storage zone.
+      # GitHub's release downloads (the Electron dist, the NSIS toolchain, the AppImage tools) flap 504 today — every
+      # failed download poisoned this job until the cache existed. Downloads resume from the per-job cache on retry, so
+      # three attempts ride out a gateway flap without hiding a real failure: the last attempt's exit code decides, and
+      # the tail of the log (stack frames stripped, credentials scrubbed) goes into the check-run as an annotation.
       - name: Package and verify the update metadata
         shell: bash
         run: |
-          set +e
-          node scripts/dist.mjs 2>&1 | tee package.log
-          ec=$?
-          set -e
+          set -eo pipefail
+          ec=0
+          for attempt in 1 2 3; do
+            set +e
+            node scripts/dist.mjs 2>&1 | tee package.log
+            ec=$?
+            set -e
+            if [ "$ec" -eq 0 ]; then break; fi
+            echo "packaging attempt $attempt failed (exit $ec) — retrying in 25 s"
+            sleep 25
+          done
           if [ "$ec" -ne 0 ]; then
-            tail -c 2500 package.log \
+            grep -vE '^\s+at ' package.log | tail -c 2500 \
               | sed -E -e 's#(//)[^/@" '"'"']+:[^/@" '"'"']+@#\1***:***@#g' -e 's/[[:cntrl:]]/ /g' \
               | base64 | tr -d '\n' > tail.b64
             echo "::error title=package-log-tail-b64::$(cat tail.b64)"
