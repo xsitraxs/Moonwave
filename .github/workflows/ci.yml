@@ -42,11 +42,24 @@ jobs:
 
       # a transient registry/GitHub blip must not kill the job silently — the tail of the log is attached as a
       # scrubbed annotation (readable via the check-runs API); the install is retried once first
+      # cache the Electron dist and the electron-builder tool archives (NSIS, AppImage tools, …) between runs —
+      # GitHub's release downloads throttle/504 under simultaneous CI load (linux won the race once and passed; every
+      # other job hit 504). Both caches are content-addressed and checksum-verified by electron-builder itself.
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/electron
+            ~/.cache/electron-builder
+            ~/Library/Caches/electron
+            ~/Library/Caches/electron-builder
+            ~/AppData/Local/electron/Cache
+            ~/AppData/Local/electron-builder/Cache
+          key: builder-cache-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
       - name: Install dependencies
         shell: bash
         run: |
           set +e
-          ( npm ci || npm ci ) 2>&1 | tee npmci.log
+          ( npm ci --ignore-scripts || npm ci --ignore-scripts ) 2>&1 | tee npmci.log
           ec=$?
           set -e
           if [ "$ec" -ne 0 ]; then
@@ -100,7 +113,7 @@ jobs:
         shell: bash
         run: |
           set +e
-          ( npm ci || npm ci ) 2>&1 | tee npmci.log
+          ( npm ci --ignore-scripts || npm ci --ignore-scripts ) 2>&1 | tee npmci.log
           ec=$?
           set -e
           if [ "$ec" -ne 0 ]; then
