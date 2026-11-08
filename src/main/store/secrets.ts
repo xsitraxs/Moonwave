@@ -1,11 +1,18 @@
-import { chmodSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { app, safeStorage } from "electron";
 import { log } from "../system/log";
+import { SECRETS_DISABLED_SUFFIX, looksLikeSecretsFile, planForBackend, type StoragePlan } from "@shared/secureStorage";
 
 /**
- * Tokens and secrets, encrypted with the OS (DPAPI on Windows) through safeStorage. If encryption is unavailable they
- * stay in memory for this run only (Linux without a keyring: see prepare()).
+ * Tokens and secrets, encrypted with the OS (DPAPI on Windows, Keychain on macOS, libsecret/kwallet on Linux) through
+ * safeStorage.
+ *
+ * On a desktop with no secure storage (a Linux window manager Chromium doesn't know, so safeStorage picks "basic_text")
+ * nothing is written at rest at all: secrets stay in memory for this run, the SoundCloud session is an in-memory
+ * partition (see soundcloud/session.ts), and the user is told the sign-in won't survive a restart (app:info →
+ * secretsPersist, shown on the sign-in screen). Sealing with basic_text's built-in key would only be obfuscation, and
+ * a silent one — the sign-in screen must not imply a password was saved when it only lived in memory.
  *
  * A secret that can't be opened is not the same as no secret: a run whose encryption key never reached the disk (seen
  * after installing over a running app) writes values the next run can't open, and the older value it overwrote was
@@ -19,22 +26,79 @@ const KEEP_OLD = 4;
 const GUARDED = new Set<Key>(["sessionToken", "officialRefreshToken", "socialSecret", "backupKey"]);
 const memory = new Map<Key, string>();
 const path = () => join(app.getPath("userData"), "secrets.bin");
+const quarantine = () => `${path()}${SECRETS_DISABLED_SUFFIX}`;
 
 /**
- * Linux without a keyring (a window manager like Hyprland or i3, or a desktop Chromium doesn't know): safeStorage has
- * no key there and every sign-in would last one run. Like Chrome and VS Code on such systems, the values are then
- * sealed with Chromium's built-in key — the file is readable by this user only. Asked once, after the app is ready.
+ * Decided once per run, after the app is ready. "basic_text" can never be trusted, and neither can a file a previous
+ * version sealed with it: that file is moved aside (never read, never overwritten in place, never deleted) so a later
+ * run on a desktop that does get a keyring starts clean instead of "restoring" an unsealed session token from disk.
  */
-let prepared = false;
+let plan: StoragePlan | null = null;
 function prepare() {
-  if (prepared || process.platform !== "linux" || !app.isReady()) return;
-  prepared = true;
+  if (plan || !app.isReady()) return;
   const backend = safeStorage.getSelectedStorageBackend();
-  if (backend === "basic_text") {
-    safeStorage.setUsePlainTextEncryption(true);
-    log("main", "secrets: no keyring on this desktop — kept in a file only this user can read");
-  } else log("main", `secrets: ${backend}`);
+  plan = planForBackend(backend, safeStorage.isEncryptionAvailable());
+  if (plan === "ephemeral") {
+    log("main", `secrets: no secure storage on this desktop (${backend || "unavailable"}) — secrets are kept for this run only`);
+    quarantineStaleSecrets();
+    quarantineStaleSession();
+  } else {
+    log("main", `secrets: ${backend}`);
+  }
 }
+
+/**
+ * A secrets.bin a previous, less careful version may have left: it is only ever moved aside (next to itself), and only
+ * after it is recognized as ours by shape — unrecognized files are left completely alone and noted in the log.
+ */
+function quarantineStaleSecrets() {
+  let raw: string;
+  try {
+    raw = readFileSync(path(), "utf8");
+  } catch {
+    return; // nothing stored — nothing to quarantine
+  }
+  let ours: boolean;
+  try {
+    ours = looksLikeSecretsFile(JSON.parse(raw));
+  } catch {
+    ours = false;
+  }
+  if (!ours) {
+    log("main", "secrets.bin exists but is not in this app's format — left untouched");
+    return;
+  }
+  try {
+    renameSync(path(), quarantine());
+    log("main", "secrets.bin was sealed without secure storage — moved aside, never read (your sign-in will be asked for again)");
+  } catch (err) {
+    // keep the file but never read it this run; a later run tries again
+    log("main", `secrets.bin could not be moved aside (${(err as Error).message}) — it will be ignored anyway`);
+  }
+}
+
+/**
+ * The cookie jar the SoundCloud session always used (persist:soundcloud, created before storage was conditional). In
+ * an ephemeral run it is never read again — but if it is simply left there, a later run on a sealed desktop would
+ * resurrect the old token without the person doing anything. Moved aside next to where Electron would keep it.
+ */
+function quarantineStaleSession() {
+  const dir = join(app.getPath("userData"), "Partitions", "soundcloud");
+  try {
+    renameSync(dir, `${dir}.disabled`);
+    log("main", "the stored SoundCloud web session was moved aside (no secure storage on this desktop)");
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code !== "ENOENT") log("main", `the stored SoundCloud web session could not be moved aside (${(err as Error).message}) — it will not be used this run`);
+  }
+}
+
+/** True while this run is on a desktop with no secure storage: nothing is persisted, the sign-in lasts one run. */
+export function secretsEphemeral(): boolean {
+  prepare();
+  return plan === "ephemeral";
+}
+
 const save = (all: Sealed) => {
   writeFileSync(path(), JSON.stringify(all), { mode: 0o600 });
   // a file written before keeps its mode: this user only (no-op on Windows)
@@ -67,10 +131,15 @@ const keepOld = (all: Sealed, key: Key, sealed: string, drop?: string) => {
   all[`${key}~old`] = [sealed, ...olds(all, key).filter((s) => s !== sealed && s !== drop)].slice(0, KEEP_OLD);
 };
 
+const sealing = () => {
+  prepare();
+  return plan === "system" && safeStorage.isEncryptionAvailable();
+};
+
 export function getSecret(key: Key): string | null {
   prepare();
   if (memory.has(key)) return memory.get(key) ?? null;
-  if (!safeStorage.isEncryptionAvailable()) return null;
+  if (!sealing()) return null;
   const all = load();
   const sealed = all[key];
   if (typeof sealed !== "string" || !sealed) return null;
@@ -96,16 +165,14 @@ export function getSecret(key: Key): string | null {
 
 /** The stored values this run can't open (nothing is changed): a sign that it started with another encryption key. */
 export function unopenedSecrets(): string[] {
-  prepare();
-  if (!safeStorage.isEncryptionAvailable()) return [];
+  if (!sealing()) return [];
   return Object.entries(load()).flatMap(([k, v]) => (!k.includes("~") && typeof v === "string" && v && open(v) === null ? [v] : []));
 }
 
 export function setSecret(key: Key, value: string | null) {
   if (value === null) memory.delete(key);
   else memory.set(key, value);
-  prepare();
-  if (!safeStorage.isEncryptionAvailable()) return;
+  if (!sealing()) return; // ephemeral: kept for this run, never written
   const all = load();
   const was = all[key];
   if (GUARDED.has(key) && typeof was === "string" && was && open(was) !== value) keepOld(all, key, was);
@@ -114,7 +181,12 @@ export function setSecret(key: Key, value: string | null) {
   save(all);
 }
 
+/**
+ * Sign out and forget: the in-memory copies, the on-disk file, and the quarantine this build made (all of it is only
+ * this app's credentials). User data — playlists, history, settings — is untouched.
+ */
 export function clearSecrets() {
   memory.clear();
   rmSync(path(), { force: true });
+  rmSync(quarantine(), { force: true });
 }

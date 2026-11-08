@@ -83,6 +83,8 @@ export interface AppInfo {
   proxyRoute: "own" | "ours" | null;
   /** this run started without the graphics card (Memory saver as it was at start) */
   memorySaver: boolean;
+  /** false when this desktop has no secure storage: secrets stay in memory, the sign-in dies with the app (Settings → Account says so) */
+  secretsPersist: boolean;
   /**
    * What Chromium says about the graphics stack in this run. An element's sound can be routed through Web Audio only
    * while hardware rendering works, so the page needs this to decide whether the chain may hold the sound; the
@@ -531,6 +533,8 @@ export interface EventMap {
   "lyricsSync:status": LyricsSyncStatus;
   /** a Chromium media helper (the sound's, or the media device one setSinkId starts) died, and how many times */
   "audio:crashed": AudioCrashEvent;
+  /** the graphics process died (or Chromium fell back to software rendering): what it reports now — the page re-decides whether routing is safe */
+  "graphics:status": { gpuCompositing: string; webgl: string };
 }
 
 export type InvokeChannel = keyof InvokeMap;
@@ -672,7 +676,7 @@ export const INVOKE_CHANNELS = [
   "update:download",
   "update:install",
 ] as const satisfies readonly InvokeChannel[];
-export const EVENT_CHANNELS = ["win:activity", "win:maximized", "auth:changed", "auth:browserRefused", "player:command", "hotkeys:failed", "update:status", "social:update", "social:open", "social:friendLink", "lyricsSync:status", "room:state", "audio:crashed"] as const satisfies readonly (keyof EventMap)[];
+export const EVENT_CHANNELS = ["win:activity", "win:maximized", "auth:changed", "auth:browserRefused", "player:command", "hotkeys:failed", "update:status", "social:update", "social:open", "social:friendLink", "lyricsSync:status", "room:state", "audio:crashed", "graphics:status"] as const satisfies readonly (keyof EventMap)[];
 
 type MissingInvoke = Exclude<InvokeChannel, (typeof INVOKE_CHANNELS)[number]>;
 type MissingEvent = Exclude<keyof EventMap, (typeof EVENT_CHANNELS)[number]>;

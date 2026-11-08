@@ -1,0 +1,110 @@
+# What every pull request to main runs — and pushes to main as well. If any of this fails, the PR is not ready.
+# Packaging runs too (on the same three platforms the release builds on), so a PR cannot pass while the installers
+# or their update metadata are broken. Nothing here downloads or publishes a release; the release is made by pushing
+# a vX.Y.Z tag (see .github/workflows/release.yml).
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # onnxruntime-node's postinstall downloads the CUDA execution provider from the NuGet feed; the app only uses the
+  # CPU Whisper runtime, whose binaries ship inside the npm package, so the download is unnecessary. Skipping it
+  # keeps the install reproducible and is not a TLS/proxy bypass of any kind.
+  ONNXRUNTIME_NODE_INSTALL: skip
+
+jobs:
+  check:
+    name: Tests · typecheck · lint · build · scans
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      - name: Tests (unit, incl. the link and update-repository guards)
+        run: npm test
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Production build
+        run: npm run build
+
+      - name: No secrets in the built files (and none tracked in git)
+        run: node scripts/scan-dist.mjs
+
+  package:
+    name: Package · ${{ matrix.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            name: windows
+          - os: macos-14
+            name: macos
+          - os: ubuntu-24.04
+            name: linux
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      # optional: the built-in proxy and the server address are not in git (see server/README.md); a build without
+      # them simply ships without those. Never present for forks, only for this repository's own runs.
+      - name: The built-in proxy and the server address
+        shell: bash
+        env:
+          PROXY_JSON: ${{ secrets.SC_PROXY_JSON }}
+          SERVER_JSON: ${{ secrets.SC_SERVER_JSON }}
+        run: |
+          if [ -n "$PROXY_JSON" ]; then printf '%s' "$PROXY_JSON" > proxy.local.json; echo "proxy: yes"; else echo "proxy: none"; fi
+          if [ -n "$SERVER_JSON" ]; then printf '%s' "$SERVER_JSON" > server.local.json; echo "server: yes"; else echo "server: none"; fi
+
+      # lint + typecheck + electron-vite build + electron-builder + verify-dist (fails if the update metadata is missing)
+      - name: Package and verify the update metadata
+        run: node scripts/dist.mjs
+
+      - name: No secrets in the built files
+        run: node scripts/scan-dist.mjs dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ci-${{ matrix.name }}
+          path: |
+            dist/*.exe
+            dist/*.dmg
+            dist/*.zip
+            dist/*.AppImage
+            dist/*.deb
+            dist/*.blockmap
+            dist/latest*.yml
+          if-no-files-found: warn
+          retention-days: 3

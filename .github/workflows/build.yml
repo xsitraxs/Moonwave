@@ -1,6 +1,7 @@
 # sc player for macOS (Apple Silicon + Intel: .dmg, .zip) and Linux (x64: .AppImage, .deb), built on GitHub's
-# machines — nobody here has a Mac. Windows is still built locally (npm run dist). The files come out as the run's
-# artifacts and are attached to the release by hand, with latest-mac.yml and latest-linux.yml (the update check).
+# machines — nobody here has a Mac. Windows is built the same way. This workflow is for test builds: the files come
+# out as the run's artifacts. Official releases (installers + update metadata attached to a GitHub Release) are made
+# by pushing a vX.Y.Z tag — see .github/workflows/release.yml; pull requests run .github/workflows/ci.yml.
 #
 # The built-in proxy and the server address are not in git: the repository secrets SC_PROXY_JSON and SC_SERVER_JSON
 # hold proxy.local.json and server.local.json (a build without them simply has neither).

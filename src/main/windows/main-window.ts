@@ -1,15 +1,29 @@
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { app, BrowserWindow, shell } from "electron";
 import type { EventMap, WindowActivity } from "@shared/ipc";
+import { isOwnIndexFile } from "@shared/appUrl";
 import { appIcon } from "../system/tray";
 
 /** Windows' own window buttons: as tall as the page's title bars (the main one's 52 px box, the full screen player's 48),
  * so their hover squares sit around the page's drawn icons (WindowButtons draws them in this same strip) */
 export const TITLEBAR_HEIGHT = 48;
 const DEV_URL = process.env.ELECTRON_RENDERER_URL;
+/** the dev server's origin, so http://localhost:5173.evil.com is not "starts with the dev url" */
+const DEV_ORIGIN = DEV_URL ? new URL(DEV_URL).origin : null;
+/** the one file the window may ever show: the page this build shipped (never any other file on disk) */
+const INDEX_HREF = pathToFileURL(join(import.meta.dirname, "../renderer/index.html")).href;
 
 export function isAppUrl(url: string) {
-  return DEV_URL ? url.startsWith(DEV_URL) : url.startsWith("file://");
+  // in development the page comes from the dev server; in a packaged build it is exactly this one file
+  if (DEV_ORIGIN) {
+    try {
+      return new URL(url).origin === DEV_ORIGIN;
+    } catch {
+      return false;
+    }
+  }
+  return isOwnIndexFile(url, INDEX_HREF);
 }
 
 export function send<K extends keyof EventMap>(win: BrowserWindow | null, channel: K, payload: EventMap[K]) {

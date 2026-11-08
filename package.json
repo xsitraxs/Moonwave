@@ -19,7 +19,9 @@
     "stats": "node scripts/stats.mjs",
     "icon": "node scripts/make-icon.mjs",
     "dist": "node scripts/dist.mjs",
-    "test": "node --test \"src/**/*.test.ts\""
+    "scan": "node scripts/scan-dist.mjs",
+    "verify-dist": "node scripts/verify-dist.mjs",
+    "test": "node --test \"src/**/*.test.ts\" \"scripts/**/*.test.mjs\""
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",

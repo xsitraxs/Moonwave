@@ -7,17 +7,31 @@ import type { Plugin } from "vite";
 
 const shared = { "@shared": resolve("src/shared") };
 
-/** Strict CSP in the built page only: the dev server needs inline scripts (React refresh) and a websocket. */
+/**
+ * Strict CSP in the built page only: the dev server needs inline scripts (React refresh) and a websocket.
+ *
+ * The hosts are the ones the app actually talks to from the page — everything else goes through main:
+ * - api-v2.soundcloud.com is the API's host for direct fetches kept for completeness; the page reads streams and the
+ *   lyrics-sync decoder pulls the HLS segments/playlists itself, so the CDNs matter most:
+ * - *.sndcdn.com (artwork, streams) and *.soundcloud.cloud (media streaming) are SoundCloud's real media hosts;
+ * - our own server never appears in the page: every social/room/workshop call goes through main (src/main/social.ts),
+ *   which is why __SC_API__ is not interpolated here;
+ * - data:/blob: under img-src/media-src are the workshop's locally chosen background and capture previews;
+ *   data: under media-src is the dev demo tone (src/main/demo.ts). If SoundCloud grows a new media domain, streams
+ *   break loudly (not silently) — add the domain here, never a blanket https:.
+ */
 function csp(): Plugin {
   const policy = [
     "default-src 'self'",
     "script-src 'self'",
     "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data: blob: https:",
-    // data: only for the dev demo tone (src/main/demo.ts); it can't reach the network
-    "media-src 'self' blob: data: https:",
-    "connect-src 'self' https:",
+    "img-src 'self' data: blob: https://*.sndcdn.com",
+    "media-src 'self' blob: data: https://*.sndcdn.com https://*.soundcloud.cloud",
+    "connect-src 'self' https://api-v2.soundcloud.com https://*.sndcdn.com https://*.soundcloud.cloud",
     "font-src 'self' data:",
+    "worker-src 'self' blob:",
+    "frame-src 'none'",
+    "manifest-src 'self'",
     "object-src 'none'",
     "base-uri 'none'",
     "form-action 'none'",

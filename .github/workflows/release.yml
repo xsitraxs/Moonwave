@@ -1,0 +1,101 @@
+# Builds the installers for Windows, macOS and Linux and attaches them, with the auto-updater's metadata
+# (latest.yml / latest-mac.yml / latest-linux.yml), to the GitHub Release for the pushed tag.
+#
+# To make a release, on your machine:
+#   1. bump "version" in package.json (the updater and the files are built from it)
+#   2. commit, push to main, wait for the CI workflow to go green
+#   3. git tag vX.Y.Z && git push origin vX.Y.Z     (or: gh release create vX.Y.Z --generate-notes)
+# This workflow then builds the three platforms and uploads everything to the release.
+# It never runs on pull requests and never creates a tag by itself.
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  ONNXRUNTIME_NODE_INSTALL: skip
+
+jobs:
+  release:
+    name: Release · ${{ matrix.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            name: windows
+          - os: macos-14
+            name: macos
+          - os: ubuntu-24.04
+            name: linux
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      # optional: the built-in proxy and the server address are not in git (see server/README.md)
+      - name: The built-in proxy and the server address
+        shell: bash
+        env:
+          PROXY_JSON: ${{ secrets.SC_PROXY_JSON }}
+          SERVER_JSON: ${{ secrets.SC_SERVER_JSON }}
+        run: |
+          if [ -n "$PROXY_JSON" ]; then printf '%s' "$PROXY_JSON" > proxy.local.json; echo "proxy: yes"; else echo "proxy: none"; fi
+          if [ -n "$SERVER_JSON" ]; then printf '%s' "$SERVER_JSON" > server.local.json; echo "server: yes"; else echo "server: none"; fi
+
+      # lint + typecheck + build + electron-builder + verify-dist. If the update metadata is missing, this fails
+      # before anything reaches the release.
+      - name: Package and verify the update metadata
+        run: node scripts/dist.mjs
+
+      - name: No secrets in the built files
+        run: node scripts/scan-dist.mjs dist
+
+      # the tag must be the version in package.json (modulo a missing patch: v2.4 means 2.4.0)
+      - name: The tag matches the package version
+        shell: bash
+        run: |
+          node -e 'const v=require("./package.json").version;const t=process.env.GITHUB_REF_NAME.replace(/^v/,"");const n=(s)=>s.split(".").concat(["0","0","0"]).slice(0,3).join(".");if(n(t)!==n(v)){console.error("tag "+t+" != package.json version "+v+" — refusing to attach");process.exit(1)}console.log("tag matches package.json:",v)'
+
+      - name: Attach the installers and the update metadata to the release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME}"
+          shopt -s nullglob
+          files=(dist/*.exe dist/*.dmg dist/*.zip dist/*.AppImage dist/*.deb dist/latest*.yml dist/*.blockmap)
+          if [ ${#files[@]} -eq 0 ]; then echo "nothing to attach — verify-dist should have failed first"; exit 1; fi
+          printf 'attaching:\n%s\n' "${files[@]}"
+          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "sc player $TAG" --generate-notes
+          gh release upload "$TAG" "${files[@]}" --clobber
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.name }}
+          path: |
+            dist/*.exe
+            dist/*.dmg
+            dist/*.zip
+            dist/*.AppImage
+            dist/*.deb
+            dist/*.blockmap
+            dist/latest*.yml
+          retention-days: 30

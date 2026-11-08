@@ -16,6 +16,8 @@ import {
   graphAction,
   chainLostAction,
   teardownIsCurrent,
+  contextEventAction,
+  wantedGraph,
   type AudioHealth,
 } from "./audioHealth.ts";
 
@@ -312,4 +314,57 @@ test("route: it needs a running graph and real progress before anything is concl
   assert.equal(routeIsSilent({ running: true, level: 0, progressedSeconds: 0.2 }), false);
   // and the window it is given is long enough not to fire between two tracks of a quiet passage
   assert.ok(ROUTE_SILENCE_MS >= 3_000);
+});
+
+// ---- who asks for the chain (the equalizer without the sky is the case the silence hid in) -----------------------
+
+test("wantedGraph: the equalizer alone asks for the chain — the sky is not required to carry the sound", () => {
+  const only = wantedGraph(true, false);
+  assert.deepEqual([...only], ["eq"]);
+  // both, in whatever order the user switched them
+  assert.deepEqual([...wantedGraph(true, true)].sort(), ["eq", "reactive"]);
+  assert.deepEqual([...wantedGraph(false, true)], ["reactive"]);
+  assert.deepEqual([...wantedGraph(false, false)], []);
+});
+
+// ---- a context's word about itself, and whether it is still the context we own ------------------------------------
+
+test("context events: a late 'closed' from the old context is ignored — the replacement it tore down is not", () => {
+  // recovery closed the old context after building the new one; its statechange still fires
+  assert.equal(contextEventAction({ isCurrent: false, state: "closed" }), "ignore");
+  assert.equal(contextEventAction({ isCurrent: false, state: "running" }), "ignore");
+  assert.equal(contextEventAction({ isCurrent: false, state: "suspended" }), "ignore");
+});
+
+test("context events: the current context, suspended or interrupted — the elements carry the sound", () => {
+  assert.equal(contextEventAction({ isCurrent: true, state: "suspended" }), "asleep");
+  // Windows' "interrupted" (another app has the device) is asleep too, not a death
+  assert.equal(contextEventAction({ isCurrent: true, state: "interrupted" }), "asleep");
+  assert.equal(contextEventAction({ isCurrent: true, state: "running" }), "carry");
+});
+
+test("context events: the current context, closed — detach now, recovery is a separate step", () => {
+  assert.equal(contextEventAction({ isCurrent: true, state: "closed" }), "closed");
+  // and the engine maps that into: fresh elements for anything stranded in the graph, then rebuild if wanted
+  assert.equal(chainLostAction({ stranded: true, wanted: true }), "detach-and-recover");
+  assert.equal(chainLostAction({ stranded: true, wanted: false }), "detach");
+});
+
+// ---- the route-failure guard must work with the sky off (EQ-only runs were invisible to it before) -----------------
+
+test("route: EQ on and the sky off still builds the chain, so the route check has something to measure", () => {
+  // the chain is wanted by the equalizer alone; this is what makes the analyser — and therefore routeIsSilent's
+  // input — available without any visualizer running
+  assert.equal(graphAction({ wanted: wantedGraph(true, false).size, hasChain: false, stranded: false, canRoute: true }), "build");
+  assert.equal(graphAction({ wanted: wantedGraph(true, false).size, hasChain: true, stranded: true, canRoute: true }), "keep");
+  // and a route that stops carrying while the deck plays on is caught by the level, not by a missing analyser
+  assert.equal(routeIsSilent({ running: true, level: 0, progressedSeconds: 5 }), true);
+});
+
+test("route: after fresh elements are made the graph may take them again — recovery is not one-way", () => {
+  // elements were replaced (restartDecks): nothing is stranded, something still wants the chain → build, then keep
+  assert.equal(graphAction({ wanted: wantedGraph(true, false).size, hasChain: false, stranded: false, canRoute: true }), "build");
+  assert.equal(graphAction({ wanted: wantedGraph(true, false).size, hasChain: true, stranded: false, canRoute: true }), "keep");
+  // a chain that carries is not flagged as silent even with the position advancing
+  assert.equal(routeIsSilent({ running: true, level: 140, progressedSeconds: 9 }), false);
 });

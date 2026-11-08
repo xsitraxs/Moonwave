@@ -2,7 +2,7 @@ import type HlsType from "hls.js";
 import type { ErrorData } from "hls.js";
 import { EQ_BANDS } from "@shared/ipc";
 import type { AudioHealth } from "@shared/audioHealth";
-import { MAX_REBUILDS, REBUILD_BUDGET_MS, ROUTE_SILENCE_MS, canRouteAudio, chainLostAction, graphAction, isPolicyRefusal, recoveryStep, routeIsSilent, teardownIsCurrent } from "@shared/audioHealth";
+import { MAX_REBUILDS, REBUILD_BUDGET_MS, ROUTE_SILENCE_MS, canRouteAudio, chainLostAction, contextEventAction, graphAction, isPolicyRefusal, recoveryStep, routeIsSilent, teardownIsCurrent, wantedGraph } from "@shared/audioHealth";
 import type { GraphicsStatus } from "@shared/audioHealth";
 import type { ErrorCode, StreamInfo, Track } from "@shared/types";
 import { call, errorCode } from "@/lib/sky";
@@ -122,7 +122,8 @@ function buildChain() {
   ctx = c;
   bus = b;
   filters = next;
-  c.addEventListener("statechange", onContextState);
+  // the handler gets its own context: a "closed" from a torn-down context is news to nobody, it must not touch the replacement
+  c.addEventListener("statechange", () => onContextState(c));
   for (const deck of decks) deck.route();
   applyEq();
   if (sinkId) void applySink();
@@ -166,10 +167,11 @@ function setChainCarries(next: boolean) {
   reportHealth();
 }
 
-function onContextState() {
-  const dead = ctx;
-  if (!dead) return;
-  if (stateOf(dead) === "closed") {
+function onContextState(dead: AudioContext) {
+  // a statechange from a context that is no longer ours (torn down, replaced by recovery) is ignored entirely
+  const action = contextEventAction({ isCurrent: dead === ctx, state: stateOf(dead) });
+  if (action === "ignore") return;
+  if (action === "closed") {
     fault("the audio context closed itself");
     // The context is already gone; what is left is to detach it *by identity*. Recovery is not started from here:
     // it builds a new context synchronously, and anything this handler did afterwards would race that new one. It is
@@ -183,11 +185,10 @@ function onContextState() {
     }
     return;
   }
-  // running: the chain carries the sound (and the elements are muted). Suspended: it does not, so the elements are
-  // heard; play() and attach() wake it again. This is the whole safety property — never a muted element without a
-  // chain that can be heard.
-  // read the same reference the closed branch above used, so the compiler sees it cannot be null here
-  setChainCarries(stateOf(dead) === "running");
+  // carry: the chain carries the sound (and the elements are muted). asleep (suspended / interrupted): it does not,
+  // so the elements are heard; play() and attach() wake it again. This is the whole safety property — never a muted
+  // element without a chain that can be heard.
+  setChainCarries(action === "carry");
 }
 
 /**
@@ -383,7 +384,7 @@ class Deck {
   routeFailed(): boolean {
     if (!this.gain || !chainCarries || this.routeUnjudged) return false;
     if (!this.routeSince) this.beginRouteCheck();
-    // no analyser, no evidence: the sound-reactive sky is what attaches one, and without it silence here means nothing
+    // no chain to measure (it is down, or this machine cannot route), no evidence: silence here means nothing
     const peak = measure();
     if (peak === null) return false;
     this.routePeak = Math.max(this.routePeak, peak);
@@ -534,6 +535,7 @@ function maybeCrossfade() {
   preparing = true;
   const from = active;
   const to = other();
+  if (inLimbo.has(to.audio)) to.replaceElement();
   const length = Math.max(0.5, left);
   to.level = 0;
   to.applyLevel();
@@ -576,8 +578,10 @@ export function bindEngine(handlers: EngineEvents) {
 }
 
 export async function load(track: Track, opts: { autoplay: boolean; startAt?: number; streamId?: number }) {
-  endFade();
-  preparing = false;
+  if (!healDeadElements()) {
+    endFade();
+    preparing = false;
+  }
   other().stop();
   active.level = 1;
   active.applyLevel();
@@ -593,6 +597,12 @@ export function stop() {
 
 export function play() {
   if (!active.track) return;
+  // the person asked for sound: if the active element was left in a closed graph it can never output again, so
+  // rebuild the tract on fresh elements and start the track there rather than believe the play() call
+  if (inLimbo.has(active.audio)) {
+    void restartDecks(true);
+    return;
+  }
   void wakeChain();
   void active.audio.play().catch((err: unknown) => {
     if (isPolicyRefusal(err)) {
@@ -656,9 +666,7 @@ let graphStrandedSince = 0;
 
 /** What currently asks the chain to hold the sound: the equalizer and/or the sound-reactive sky. */
 function syncGraph() {
-  const wanted = new Set<"eq" | "reactive">();
-  if (eq.enabled) wanted.add("eq");
-  if (reactiveWanted) wanted.add("reactive");
+  const wanted = wantedGraph(eq.enabled, reactiveWanted);
   graphWanted = wanted;
   const stranded = decks.some((d) => routedElements.has(d.audio));
   const action = graphAction({ wanted: wanted.size, hasChain: !!ctx, stranded, canRoute: canRoute() });
@@ -746,12 +754,14 @@ export function setGraphicsStatus(next: GraphicsStatus) {
 let analyserNode: AnalyserNode | null = null;
 
 /**
- * The sound-reactive sky's ear: an analyser listening to the chain's output, after the equalizer, or null when there
- * is no chain to listen to (the sky then keeps its resting look).
+ * The one analyser on the chain's output (after the equalizer), made the first time anyone needs one and kept while
+ * the chain lives. Creating it is cheap and nothing is read until somebody polls, so the route-failure watchdog gets
+ * the same ear the sky has — an EQ-only run used to have no analyser at all, which made that watchdog blind exactly
+ * when the sky was off. Never a second node, never one without a chain.
  */
-export function analyser(): AnalyserNode | null {
+function ensureAnalyser(): AnalyserNode | null {
   const c = ctx;
-  if (!c || !chainCarries) return null;
+  if (!c || !bus) return null;
   if (!analyserNode) {
     analyserNode = c.createAnalyser();
     analyserNode.fftSize = 1024;
@@ -759,6 +769,14 @@ export function analyser(): AnalyserNode | null {
     filters[filters.length - 1]!.connect(analyserNode);
   }
   return analyserNode;
+}
+
+/**
+ * The sound-reactive sky's ear, or null when there is no chain to listen to (the sky then keeps its resting look).
+ */
+export function analyser(): AnalyserNode | null {
+  if (!chainCarries) return null;
+  return ensureAnalyser();
 }
 
 /**
@@ -796,12 +814,13 @@ async function applySink() {
 let sinkError: string | null = null;
 let rebuilds = 0;
 
-/** The analyser's loudest bin, sampled by the reporter below; null while there is no analyser. */
+/** The analyser's loudest bin, sampled by the reporter below; null while the chain is down. */
 let peak: Uint8Array<ArrayBuffer> | null = null;
 
 function measure(): number | null {
-  const node = analyserNode;
-  if (!node || !ctx || !chainCarries) return null;
+  if (!ctx || !chainCarries) return null;
+  const node = ensureAnalyser();
+  if (!node) return null;
   peak ??= new Uint8Array(node.frequencyBinCount);
   node.getByteFrequencyData(peak);
   let loudest = 0;
@@ -913,16 +932,13 @@ export function retrySound() {
 }
 
 /**
- * Starts the current track over on fresh elements: an element handed to Web Audio can never play to the speakers
- * again, so this is the way back from a graph that stopped carrying (and the repair after a dead helper). The
- * position and the person's intention are kept; the crossfade's other deck is dropped rather than restored, since it
- * was a half-finished transition.
+ * True when every element of this process is deaf and they were just replaced. This is the only way back after a
+ * context closed with a deck inside it: such an element outputs nothing ever again, no matter what its volume or
+ * readyState says — so the moment anything wants sound (a track load, a play press), fresh elements are made first.
+ * Nothing is fetched eagerly while the person isn't listening; the next thing that asks gets a working tract.
  */
-async function restartDecks() {
-  const track = active.track;
-  const streamId = active.streamId;
-  const at = active.audio.currentTime;
-  const wasPlaying = !active.audio.paused;
+function healDeadElements(): boolean {
+  if (!decks.some((d) => inLimbo.has(d.audio))) return false;
   endFade();
   preparing = false;
   // Both decks, not just the one playing: a deck left holding an element from the old graph answers no route() and
@@ -934,6 +950,24 @@ async function restartDecks() {
   }
   chainCarries = false;
   rebuildChain();
+  return true;
+}
+
+/**
+ * Starts the current track over on fresh elements: an element handed to Web Audio can never play to the speakers
+ * again, so this is the way back from a graph that stopped carrying (and the repair after a dead helper). The
+ * position and the person's intention are kept; the crossfade's other deck is dropped rather than restored, since it
+ * was a half-finished transition.
+ */
+async function restartDecks(forceAutoplay = false) {
+  const track = active.track;
+  const streamId = active.streamId;
+  const at = active.audio.currentTime;
+  const wasPlaying = forceAutoplay || !active.audio.paused;
+  if (!healDeadElements()) {
+    endFade();
+    preparing = false;
+  }
   if (!track) return;
   // load() re-asks main for a stream URL (the signed one may have expired too) and plays on the fresh element
   const ok = await active.load(track, { autoplay: wasPlaying, startAt: at > 0 ? at : undefined, streamId });

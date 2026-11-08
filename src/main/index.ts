@@ -25,7 +25,7 @@ import { openVkBookmark, readVk } from "./import/vk";
 import * as rooms from "./rooms";
 import * as social from "./social";
 import { patchRenderer, prefs, store } from "./store";
-import { getSecret, setSecret, unopenedSecrets } from "./store/secrets";
+import { getSecret, secretsEphemeral, setSecret, unopenedSecrets } from "./store/secrets";
 import { applyAutostart, startedHidden } from "./system/autostart";
 import { integrateLinux } from "./system/linux";
 import { backgroundSize, dropBackgrounds, keepImport, pickBackground, registerBackgroundScheme, saveBackground, serveBackgrounds } from "./system/background";
@@ -115,6 +115,15 @@ app.on("child-process-gone", (_e, d) => {
   // the sound's own service (or the device service a chosen output starts): the page has to rebuild and say so,
   // because Chromium restarts the helper without telling the page that its decoders and context died
   noteChildProcessGone(main, d);
+  if (d.type === "GPU") {
+    // Chromium falls back to software rendering and restarts the process on its own — the window survives, but the
+    // page's own answer to "can a deck be routed through Web Audio?" has to be re-asked, or it keeps handing the
+    // sound to a chain that can no longer carry it. Tell it what the stack reports now, and again once Chromium
+    // settles (the status query lags the crash by a moment).
+    const report = () => send(main, "graphics:status", graphicsStatus());
+    report();
+    setTimeout(report, 5000);
+  }
 });
 
 // a second copy (a click on a scplayer:// link, the menu entry again) hands its arguments over and leaves — it must
@@ -567,7 +576,7 @@ function registerIpc() {
   handle("hotkeys:suspend", (_e, on) => {
     send(main, "hotkeys:failed", suspendHotkeys(on === true));
   });
-  handle("app:info", () => ({ version: app.getVersion(), portable: !!process.env.PORTABLE_EXECUTABLE_DIR, packaged: app.isPackaged, logsDir: logsDir(), builtinProxy: hasBuiltinProxy(), proxyRoute: proxyRoute(), memorySaver, graphics: graphicsStatus() }));
+  handle("app:info", () => ({ version: app.getVersion(), portable: !!process.env.PORTABLE_EXECUTABLE_DIR, packaged: app.isPackaged, logsDir: logsDir(), builtinProxy: hasBuiltinProxy(), proxyRoute: proxyRoute(), memorySaver, secretsPersist: !secretsEphemeral(), graphics: graphicsStatus() }));
   handle("app:relaunch", () => {
     app.relaunch({ args: process.argv.slice(1).filter((a) => a !== "--updated") });
     app.quit();

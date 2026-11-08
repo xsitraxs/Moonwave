@@ -1,5 +1,5 @@
 import { useSettings } from "@/state/settings";
-import { call } from "@/lib/sky";
+import { call, on } from "@/lib/sky";
 import * as engine from "./engine";
 
 /**
@@ -29,4 +29,7 @@ export function initAudioPrefs() {
       engine.setGraphicsStatus(info.graphics);
     })
     .catch(() => undefined);
+  // the GPU process died since the start (or Chromium fell back to software on its own): re-decide whether routing
+  // is safe instead of handing the sound to a chain that can no longer carry it
+  on("graphics:status", (graphics) => engine.setGraphicsStatus(graphics));
 }

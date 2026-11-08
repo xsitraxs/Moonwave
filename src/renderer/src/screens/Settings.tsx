@@ -530,6 +530,11 @@ export default function Settings() {
             <Row label={status?.user ? t.signedInAs(status.user.username) : t.notSignedIn}>
               {status?.mode === "session" ? <PaperButton onClick={() => void logout()}>{t.logout}</PaperButton> : <PaperButton onClick={() => useNav.getState().open("signin", { name: "signin" })}>{t.signIn}</PaperButton>}
             </Row>
+            {info && !info.secretsPersist && (
+              <Row label={t.secretsNoStore} hint={t.secretsNoStoreHint}>
+                <span aria-hidden="true" className="text-lg text-blood">⚠</span>
+              </Row>
+            )}
           </Section>
 
           <Backup />
