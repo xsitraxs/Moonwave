@@ -76,7 +76,7 @@ fetch() { # fetch <url> <dest> [expected-sha256] — for the tool archives (pinn
   fi
   echo "fetching $(basename "$dest")"
   for attempt in 1 2 3 4 5; do
-    curl -fL -C - --retry 8 --retry-delay 4 --retry-all-errors --connect-timeout 20 --max-time 1200 \
+    curl -fL --retry 6 --retry-delay 4 --retry-all-errors --connect-timeout 20 --max-time 1200 \
       -o "$dest" "$url" && break
     echo "attempt $attempt for $(basename "$dest") failed — resuming"
     sleep 5
@@ -116,7 +116,7 @@ if [ -n "$ELECTRON_VERSION" ]; then
   zip_pids=""
   for arch in $REQUIRED_ARCHES; do
     ( for attempt in 1 2 3 4 5 6; do
-        curl -fL -C - --retry 3 --retry-delay 2 --retry-all-errors --connect-timeout 15 --max-time 900 \
+        curl -fL --retry 4 --retry-delay 2 --retry-all-errors --connect-timeout 20 --max-time 900 \
           -o "$STAGE/electron-v${ELECTRON_VERSION}-${arch}.zip" "$BASE/electron-v${ELECTRON_VERSION}-${arch}.zip" && exit 0
         echo "zip attempt $attempt for $arch failed — resuming"
         sleep 3
@@ -232,3 +232,10 @@ case "$(uname -s)" in
       cdaec7154dda7cc31f88d886e2489379a0625a737d610b5ae7f62a12f16743a4
     ;;
 esac
+
+# the icon conversion toolset (Windows exe icon, ICNS/PNG conversion wherever electron-builder needs it) — the
+# release that serves icons-bundle.tar.gz, pinned checksum from electron-builder's toolsets/icons.js; without it
+# packaging dies AFTER the electron step with a 504 on this file
+fetch "$BINARIES/icons@1.1.0/icons-bundle.tar.gz" \
+  "$CACHE_TOOLS/icons@1.1.0/icons-bundle.tar.gz" \
+  2241c9501aa5ddd19317956449f50a1bc311df2c34058aae9bf8bfe62081eaec
