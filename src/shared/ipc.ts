@@ -46,6 +46,18 @@ export interface PlayerInfo {
   durationMs?: number;
 }
 
+/**
+ * Where this build's releases live. One place, because the update feed and the "open the release" button have to name
+ * the same repository — they used to be written out separately, and a build could download from one project while
+ * pointing its users at another. `package.json` → build.publish names it too, for electron-builder's own metadata.
+ */
+export const UPDATE_REPO = { owner: "xsitraxs", repo: "scplayer-fix" } as const;
+/** The releases page the app opens (a portable build can only be told a new version exists). */
+export const RELEASES_URL = `https://github.com/${UPDATE_REPO.owner}/${UPDATE_REPO.repo}/releases/latest`;
+/** The project's own pages, so a report or a link never sends someone to the project this one was forked from. */
+export const REPO_URL = `https://github.com/${UPDATE_REPO.owner}/${UPDATE_REPO.repo}`;
+export const ISSUES_URL = `${REPO_URL}/issues`;
+
 export type UpdateStatus =
   | { state: "idle" | "checking" | "none" }
   | { state: "available"; version: string; portable: boolean }
@@ -71,6 +83,8 @@ export interface AppInfo {
   proxyRoute: "own" | "ours" | null;
   /** this run started without the graphics card (Memory saver as it was at start) */
   memorySaver: boolean;
+  /** false when this desktop has no secure storage: secrets stay in memory, the sign-in dies with the app (Settings → Account says so) */
+  secretsPersist: boolean;
   /**
    * What Chromium says about the graphics stack in this run. An element's sound can be routed through Web Audio only
    * while hardware rendering works, so the page needs this to decide whether the chain may hold the sound; the
@@ -519,6 +533,8 @@ export interface EventMap {
   "lyricsSync:status": LyricsSyncStatus;
   /** a Chromium media helper (the sound's, or the media device one setSinkId starts) died, and how many times */
   "audio:crashed": AudioCrashEvent;
+  /** the graphics process died (or Chromium fell back to software rendering): what it reports now — the page re-decides whether routing is safe */
+  "graphics:status": { gpuCompositing: string; webgl: string };
 }
 
 export type InvokeChannel = keyof InvokeMap;
@@ -660,7 +676,7 @@ export const INVOKE_CHANNELS = [
   "update:download",
   "update:install",
 ] as const satisfies readonly InvokeChannel[];
-export const EVENT_CHANNELS = ["win:activity", "win:maximized", "auth:changed", "auth:browserRefused", "player:command", "hotkeys:failed", "update:status", "social:update", "social:open", "social:friendLink", "lyricsSync:status", "room:state", "audio:crashed"] as const satisfies readonly (keyof EventMap)[];
+export const EVENT_CHANNELS = ["win:activity", "win:maximized", "auth:changed", "auth:browserRefused", "player:command", "hotkeys:failed", "update:status", "social:update", "social:open", "social:friendLink", "lyricsSync:status", "room:state", "audio:crashed", "graphics:status"] as const satisfies readonly (keyof EventMap)[];
 
 type MissingInvoke = Exclude<InvokeChannel, (typeof INVOKE_CHANNELS)[number]>;
 type MissingEvent = Exclude<keyof EventMap, (typeof EVENT_CHANNELS)[number]>;

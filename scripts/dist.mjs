@@ -1,8 +1,13 @@
 // Builds the app for the system it runs on. Releases are called v1, v1.1, v2.2.1 … : package.json keeps a semver
-// version (2.3.0) for Electron, the files get the short name (sc-player-setup-v2.3.exe).
+// version (2.3.2) for Electron, the files get the short name (sc-player-setup-v2.3.exe).
 //   Windows: the installer and the portable .exe        (npm run dist, on Windows)
-//   macOS:   .dmg and .zip, Apple Silicon and Intel     (on a Mac — the GitHub workflow "Build macOS and Linux")
+//   macOS:   .dmg and .zip, Apple Silicon and Intel     (on a Mac — the GitHub workflow "Release")
 //   Linux:   .AppImage and .deb, x64                    (on Linux — the same workflow)
+//
+// --publish never keeps this script safe to run by hand and in checks: electron-builder still WRITES the update
+// metadata next to the installers (latest.yml / latest-mac.yml / latest-linux.yml — it only skips uploading it).
+// The upload happens in .github/workflows/release.yml. After the build, scripts/verify-dist.mjs proves the metadata
+// is really there — a build without it must never reach the release.
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 
@@ -28,4 +33,6 @@ if (process.platform === "darwin") {
 } else {
   builder("--win", "nsis", "portable", `-c.nsis.artifactName=sc-player-setup-${short}.\${ext}`, `-c.portable.artifactName=sc-player-portable-${short}.\${ext}`);
 }
+// a release is not done when the installers exist — it is done when the update metadata exists too (see verify-dist.mjs)
+run("node", ["scripts/verify-dist.mjs"]);
 console.log(`\nsc player ${short} (${version}) → dist/`);

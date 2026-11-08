@@ -1,8 +1,14 @@
 import { session } from "electron";
+import { secretsEphemeral } from "../store/secrets";
+import { scPartitionFor } from "@shared/secureStorage";
 
-/** The persistent browser session the SoundCloud website (login window) and every api-v2 request share. */
-export const SC_PARTITION = "persist:soundcloud";
-export const scSession = () => session.fromPartition(SC_PARTITION);
+/**
+ * The SoundCloud web session (the login window, and every api-v2 request). Persistent on a desktop with secure
+ * storage; an in-memory partition without one — the cookie that brings a session back must not outlive the secrets
+ * that were supposed to protect it (see store/secrets.ts). Decided once per run.
+ */
+export const scPartition = () => scPartitionFor(secretsEphemeral() ? "ephemeral" : "system");
+export const scSession = () => session.fromPartition(scPartition());
 
 /**
  * Exactly the user agent Chrome on Windows sends (Chrome reports only its major version). Electron's own one carries

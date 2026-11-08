@@ -19,7 +19,9 @@
     "stats": "node scripts/stats.mjs",
     "icon": "node scripts/make-icon.mjs",
     "dist": "node scripts/dist.mjs",
-    "test": "node --test \"src/**/*.test.ts\""
+    "scan": "node scripts/scan-dist.mjs",
+    "verify-dist": "node scripts/verify-dist.mjs",
+    "test": "node --test \"src/**/*.test.ts\" \"scripts/**/*.test.mjs\""
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
@@ -36,7 +38,7 @@
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
     "@vitejs/plugin-react": "6.1.2",
-    "electron": "44.7.2",
+    "electron": "44.10.2",
     "electron-builder": "26.15.3",
     "electron-updater": "6.8.9",
     "electron-vite": "6.0.0",
@@ -188,13 +190,22 @@
     "toolsets": {
       "appimage": "1.0.3"
     },
+    "electronDownload": {
+      "unsafelyDisableChecksums": false,
+      "checksums": {
+        "electron-v44.10.2-linux-x64.zip": "d2f9319dc81d6786c684a80f63d728421761f55a27a3ae3bd373250f0f40fdca",
+        "electron-v44.10.2-darwin-x64.zip": "846033297c88ec2f9f90cd88cf2d6fc12c52ba4a1797d230c20806dff21a21bb",
+        "electron-v44.10.2-darwin-arm64.zip": "1ef6142549160fe8572ca989212cb5fc3efd5fade445b5ac25639bfa9408a80d",
+        "electron-v44.10.2-win32-x64.zip": "7af18e85a1537b832924ae3b0e5146602f2f4f4b0c77c74e4ae0dc251ca338f9"
+      }
+    },
     "appImage": {
       "compression": "zstd"
     },
     "publish": {
       "provider": "github",
-      "owner": "waterlilo",
-      "repo": "sc-player"
+      "owner": "xsitraxs",
+      "repo": "scplayer-fix"
     }
   },
   "dependencies": {

@@ -1,7 +1,7 @@
 import { BrowserWindow, shell } from "electron";
 import { getSecret, setSecret } from "../store/secrets";
 import { log } from "../system/log";
-import { presentAsChrome, scSession } from "./session";
+import { presentAsChrome, scPartition, scSession } from "./session";
 
 /**
  * The SoundCloud sign-in: its token, stored encrypted (safeStorage), comes from the browser sign-in (the window inside
@@ -58,7 +58,7 @@ export class SessionAuth {
       title: "SoundCloud — check",
       autoHideMenuBar: true,
       backgroundColor: "#07050d",
-      webPreferences: { partition: "persist:soundcloud", sandbox: true, contextIsolation: true, nodeIntegration: false },
+      webPreferences: { partition: scPartition(), sandbox: true, contextIsolation: true, nodeIntegration: false },
     });
     this.checkWindow = win;
     log("main", "check: window opened");

@@ -1,6 +1,7 @@
 # sc player for macOS (Apple Silicon + Intel: .dmg, .zip) and Linux (x64: .AppImage, .deb), built on GitHub's
-# machines — nobody here has a Mac. Windows is still built locally (npm run dist). The files come out as the run's
-# artifacts and are attached to the release by hand, with latest-mac.yml and latest-linux.yml (the update check).
+# machines — nobody here has a Mac. Windows is built the same way. This workflow is for test builds: the files come
+# out as the run's artifacts. Official releases (installers + update metadata attached to a GitHub Release) are made
+# by pushing a vX.Y.Z tag — see .github/workflows/release.yml; pull requests run .github/workflows/ci.yml.
 #
 # The built-in proxy and the server address are not in git: the repository secrets SC_PROXY_JSON and SC_SERVER_JSON
 # hold proxy.local.json and server.local.json (a build without them simply has neither).
@@ -14,6 +15,11 @@ on:
 permissions:
   contents: read
 
+env:
+  ONNXRUNTIME_NODE_INSTALL: skip
+  ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+
+
 concurrency:
   group: build-${{ github.ref }}
   cancel-in-progress: true
@@ -24,7 +30,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: macos-14
+          - os: macos-15
             name: macos
           - os: ubuntu-24.04
             name: linux
@@ -38,7 +44,59 @@ jobs:
           node-version: 24
           cache: npm
 
-      - run: npm ci
+      # cache the Electron dist and the electron-builder tool archives between runs (GitHub's release downloads
+      # throttle and 504 under simultaneous CI load)
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/electron
+            ~/.cache/electron-builder
+            ~/Library/Caches/electron
+            ~/Library/Caches/electron-builder
+            ~/AppData/Local/electron/Cache
+            ~/AppData/Local/electron-builder/Cache
+          key: builder-cache-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
+      - run: npm ci --ignore-scripts
+
+      # the asset CDN behind github.com's release downloads returns 504s today — pre-fetch the big immutable files
+      # with curl (resume + checksums) so the packaging step finds them already cached, then serve them on loopback
+      - name: Pre-fetch the build tools
+        shell: bash
+        timeout-minutes: 15
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bash scripts/prefetch-tools.sh
+
+      # If the pre-fetch verified every dist file for this platform, serve them on loopback and point electron-builder at the
+      # mirror via ELECTRON_MIRROR. @electron/get always re-fetches SHASUMS256.txt — even on a full cache hit — so merely
+      # populating its cache cannot survive a CDN outage; loopback can. Official files, verified against the official
+      # SHASUMS256.txt by the pre-fetch and re-validated by sumchecker on every download; 127.0.0.1 only, no TLS involved.
+      - name: Serve the verified Electron dist on loopback (if ready)
+        shell: bash
+        run: |
+          M_ROOT="${RUNNER_TEMP:-${TMPDIR:-/tmp}}/ci-electron-mirror"
+          if [ -f "$M_ROOT/READY" ]; then
+            ELECTRON_VERSION="$(node -p "require('./node_modules/electron/package.json').version")"
+            nohup node scripts/serve-static.mjs --root "$M_ROOT" --port 8137 > "$M_ROOT/server.log" 2>&1 &
+            echo $! > "$M_ROOT/server.pid"
+            ok=0
+            i=0
+            while [ "$i" -lt 50 ]; do
+              if curl -fsS -o /dev/null "http://127.0.0.1:8137/v${ELECTRON_VERSION}/SHASUMS256.txt"; then ok=1; break; fi
+              sleep 0.2
+              i=$((i+1))
+            done
+            if [ "$ok" = 1 ]; then
+              echo "ELECTRON_MIRROR=http://127.0.0.1:8137/" >> "$GITHUB_ENV"
+              echo "loopback mirror is up — electron-builder will not touch the release CDN"
+            else
+              echo "loopback mirror did not come up — leaving ELECTRON_MIRROR unset; electron-builder uses the network"
+              kill "$(cat "$M_ROOT/server.pid")" 2>/dev/null || true
+            fi
+          else
+            echo "no complete mirror — electron-builder will use its seeded cache or the network"
+          fi
 
       - name: The built-in proxy and the server address
         shell: bash
@@ -51,7 +109,10 @@ jobs:
 
       - run: npm test
 
-      - run: node scripts/dist.mjs
+      - name: Package the app
+        shell: bash
+        timeout-minutes: 25
+        run: node scripts/dist.mjs
 
       # the built app starts and is still running 25 s later (a crash on start fails the run)
       - name: The app starts (macOS)
@@ -97,3 +158,10 @@ jobs:
             dist/latest-*.yml
           if-no-files-found: error
           retention-days: 14
+
+      - name: Stop the loopback mirror
+        if: always()
+        shell: bash
+        run: |
+          M_ROOT="${RUNNER_TEMP:-${TMPDIR:-/tmp}}/ci-electron-mirror"
+          if [ -f "$M_ROOT/server.pid" ]; then kill "$(cat "$M_ROOT/server.pid")" 2>/dev/null || true; echo "mirror stopped"; else echo "no mirror to stop"; fi

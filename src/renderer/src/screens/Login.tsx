@@ -3,7 +3,7 @@ import { MarkerButton, PaperButton } from "@/components/ui/Buttons";
 import { EmptyState } from "@/components/ui/States";
 import { errorText, useT } from "@/i18n";
 import { openLink } from "@/lib/links";
-import { errorCode } from "@/lib/sky";
+import { call, errorCode } from "@/lib/sky";
 import { useAuth } from "@/state/auth";
 import { useNav } from "@/state/nav";
 
@@ -11,6 +11,10 @@ import { useNav } from "@/state/nav";
 export default function Login() {
   const t = useT();
   const { status, browser, loginWithBrowser, cancelBrowser } = useAuth();
+  const [secretsPersist, setSecretsPersist] = useState(true);
+  useEffect(() => {
+    void call("app:info").then((i) => setSecretsPersist(i.secretsPersist)).catch(() => undefined);
+  }, []);
   const onSignIn = useNav((s) => s.route.name === "signin");
   // the sign-in page of its own (Sidebar, Settings): once signed in, on to the account's likes
   useEffect(() => {
@@ -39,6 +43,11 @@ export default function Login() {
       <div className="flex w-full max-w-lg flex-col items-center">
         <h1 className="display-heading -rotate-2 text-6xl text-text">{t.loginTitle}</h1>
         <EmptyState caption={t.loginHint}>
+          {!secretsPersist && (
+            <p role="note" className="mb-4 w-full rounded-md border border-glow/40 bg-glow/5 px-4 py-3 text-center font-type text-sm leading-relaxed text-text">
+              {t.secretsNoStoreHint}
+            </p>
+          )}
           {browser === "idle" ? (
             <MarkerButton onClick={() => void loginWithBrowser()} className="text-lg">
               {t.loginWithBrowser}

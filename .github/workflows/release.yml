@@ -1,0 +1,200 @@
+# Builds the installers for Windows, macOS and Linux and attaches them, with the auto-updater's metadata
+# (latest.yml / latest-mac.yml / latest-linux.yml), to the GitHub Release for the pushed tag.
+#
+# To make a release, on your machine:
+#   1. bump "version" in package.json (the updater and the files are built from it)
+#   2. commit, push to main, wait for the CI workflow to go green
+#   3. git tag vX.Y.Z && git push origin vX.Y.Z     (or: gh release create vX.Y.Z --generate-notes)
+# This workflow then builds the three platforms and uploads everything to the release.
+# It never runs on pull requests and never creates a tag by itself.
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  ONNXRUNTIME_NODE_INSTALL: skip
+  ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+
+jobs:
+  release:
+    name: Release · ${{ matrix.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            name: windows
+          - os: macos-15
+            name: macos
+          - os: ubuntu-24.04
+            name: linux
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      # a transient registry/GitHub blip must not kill the job silently — the tail of the log is attached as a
+      # scrubbed annotation (readable via the check-runs API); the install is retried once first
+      # cache the Electron dist and the electron-builder tool archives (NSIS, AppImage tools, …) between runs —
+      # GitHub's release downloads throttle/504 under simultaneous CI load (linux won the race once and passed; every
+      # other job hit 504). Both caches are content-addressed and checksum-verified by electron-builder itself.
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/electron
+            ~/.cache/electron-builder
+            ~/Library/Caches/electron
+            ~/Library/Caches/electron-builder
+            ~/AppData/Local/electron/Cache
+            ~/AppData/Local/electron-builder/Cache
+          key: builder-cache-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+      - name: Install dependencies
+        shell: bash
+        run: |
+          set +e
+          ( npm ci --ignore-scripts || npm ci --ignore-scripts ) 2>&1 | tee npmci.log
+          ec=$?
+          set -eo pipefail
+          if [ "$ec" -ne 0 ]; then
+            tail -c 2500 npmci.log \
+              | sed -E -e 's#(//)[^/@" '"'"']+:[^/@" '"'"']+@#\1***:***@#g' -e 's/[[:cntrl:]]/ /g' \
+              | base64 | tr -d '\n' > tail.b64
+            echo "::error title=release-npm-ci-tail-b64::$(cat tail.b64)"
+            exit "$ec"
+          fi
+
+      # optional: the built-in proxy and the server address are not in git (see server/README.md)
+      # the asset CDN behind github.com's release downloads returns 504s today — pre-fetch the big immutable files
+      # with curl (resume + checksums) so the packaging step finds them already cached, then serve them on loopback
+      - name: Pre-fetch the build tools
+        shell: bash
+        timeout-minutes: 15
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bash scripts/prefetch-tools.sh
+
+      # If the pre-fetch verified every dist file for this platform, serve them on loopback and point electron-builder at the
+      # mirror via ELECTRON_MIRROR. @electron/get always re-fetches SHASUMS256.txt — even on a full cache hit — so merely
+      # populating its cache cannot survive a CDN outage; loopback can. Official files, verified against the official
+      # SHASUMS256.txt by the pre-fetch and re-validated by sumchecker on every download; 127.0.0.1 only, no TLS involved.
+      - name: Serve the verified Electron dist on loopback (if ready)
+        shell: bash
+        run: |
+          M_ROOT="${RUNNER_TEMP:-${TMPDIR:-/tmp}}/ci-electron-mirror"
+          if [ -f "$M_ROOT/READY" ]; then
+            ELECTRON_VERSION="$(node -p "require('./node_modules/electron/package.json').version")"
+            nohup node scripts/serve-static.mjs --root "$M_ROOT" --port 8137 > "$M_ROOT/server.log" 2>&1 &
+            echo $! > "$M_ROOT/server.pid"
+            ok=0
+            i=0
+            while [ "$i" -lt 50 ]; do
+              if curl -fsS -o /dev/null "http://127.0.0.1:8137/v${ELECTRON_VERSION}/SHASUMS256.txt"; then ok=1; break; fi
+              sleep 0.2
+              i=$((i+1))
+            done
+            if [ "$ok" = 1 ]; then
+              echo "ELECTRON_MIRROR=http://127.0.0.1:8137/" >> "$GITHUB_ENV"
+              echo "loopback mirror is up — electron-builder will not touch the release CDN"
+            else
+              echo "loopback mirror did not come up — leaving ELECTRON_MIRROR unset; electron-builder uses the network"
+              kill "$(cat "$M_ROOT/server.pid")" 2>/dev/null || true
+            fi
+          else
+            echo "no complete mirror — electron-builder will use its seeded cache or the network"
+          fi
+
+      - name: The built-in proxy and the server address
+        shell: bash
+        env:
+          PROXY_JSON: ${{ secrets.SC_PROXY_JSON }}
+          SERVER_JSON: ${{ secrets.SC_SERVER_JSON }}
+        run: |
+          if [ -n "$PROXY_JSON" ]; then printf '%s' "$PROXY_JSON" > proxy.local.json; echo "proxy: yes"; else echo "proxy: none"; fi
+          if [ -n "$SERVER_JSON" ]; then printf '%s' "$SERVER_JSON" > server.local.json; echo "server: yes"; else echo "server: none"; fi
+
+      # lint + typecheck + electron-vite build + electron-builder + verify-dist (fails if the update metadata is missing).
+      # GitHub's release downloads (the Electron dist, the NSIS toolchain, the AppImage tools) flap 504 today — every
+      # failed download poisoned this job until the cache existed. Downloads resume from the per-job cache on retry, so
+      # three attempts ride out a gateway flap without hiding a real failure: the last attempt's exit code decides, and
+      # the tail of the log (stack frames stripped, credentials scrubbed) goes into the check-run as an annotation.
+      - name: Package and verify the update metadata
+        shell: bash
+        timeout-minutes: 25
+        run: |
+          set -eo pipefail
+          ec=0
+          for attempt in 1 2 3; do
+            set +e
+            node scripts/dist.mjs 2>&1 | tee dist.log
+            ec=$?
+            set -e
+            if [ "$ec" -eq 0 ]; then break; fi
+            echo "packaging attempt $attempt failed (exit $ec) — retrying in 25 s"
+            sleep 25
+          done
+          if [ "$ec" -ne 0 ]; then
+            grep -vE '^\s+at ' dist.log | tail -c 2500 \
+              | sed -E -e 's#(//)[^/@" '"'"']+:[^/@" '"'"']+@#\1***:***@#g' -e 's/[[:cntrl:]]/ /g' \
+              | base64 | tr -d '\n' > tail.b64
+            echo "::error title=package-log-tail-b64::$(cat tail.b64)"
+            exit "$ec"
+          fi
+
+      - name: No secrets in the built files
+        run: node scripts/scan-dist.mjs dist
+
+      # the tag must be the version in package.json (modulo a missing patch: v2.4 means 2.4.0)
+      - name: The tag matches the package version
+        shell: bash
+        run: |
+          node -e 'const v=require("./package.json").version;const t=process.env.GITHUB_REF_NAME.replace(/^v/,"");const n=(s)=>s.split(".").concat(["0","0","0"]).slice(0,3).join(".");if(n(t)!==n(v)){console.error("tag "+t+" != package.json version "+v+" — refusing to attach");process.exit(1)}console.log("tag matches package.json:",v)'
+
+      - name: Attach the installers and the update metadata to the release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME}"
+          shopt -s nullglob
+          files=(dist/*.exe dist/*.dmg dist/*.zip dist/*.AppImage dist/*.deb dist/latest*.yml dist/*.blockmap)
+          if [ ${#files[@]} -eq 0 ]; then echo "nothing to attach — verify-dist should have failed first"; exit 1; fi
+          printf 'attaching:\n%s\n' "${files[@]}"
+          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "sc player $TAG" --generate-notes
+          gh release upload "$TAG" "${files[@]}" --clobber
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.name }}
+          path: |
+            dist/*.exe
+            dist/*.dmg
+            dist/*.zip
+            dist/*.AppImage
+            dist/*.deb
+            dist/*.blockmap
+            dist/latest*.yml
+          retention-days: 30
+
+      - name: Stop the loopback mirror
+        if: always()
+        shell: bash
+        run: |
+          M_ROOT="${RUNNER_TEMP:-${TMPDIR:-/tmp}}/ci-electron-mirror"
+          if [ -f "$M_ROOT/server.pid" ]; then kill "$(cat "$M_ROOT/server.pid")" 2>/dev/null || true; echo "mirror stopped"; else echo "no mirror to stop"; fi

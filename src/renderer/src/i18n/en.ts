@@ -735,6 +735,8 @@ export const en = {
   orPaste: "or open a public profile",
   open: "Open",
   logout: "Sign out",
+  secretsNoStore: "No secure storage on this computer",
+  secretsNoStoreHint: "Your sign-in is kept for this run only — sign in again after the app closes. Passwords are never stored unencrypted; enable a keyring (gnome-keyring, KDE Wallet) to keep the sign-in between runs.",
   emptyLikes: "no likes yet",
   likesSignedOut: "Not signed in — sign in to see your SoundCloud likes here too.",
   emptyPlaylists: "no playlists yet",

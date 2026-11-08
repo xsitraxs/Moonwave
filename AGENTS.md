@@ -75,8 +75,14 @@ npm run typecheck && npm run lint && npm test
 - **Branches.** `main` is what users get. `v2` and `platforms` track it. Feature work goes in its own branch or
   worktree.
 - **Pushing.** Push with `refs/heads/<branch>`: a tag named `v2` also exists.
-- **Release names.** Releases are short: v2.3, v2.3.1. `package.json` keeps semver (2.3.0). `npm run dist` builds
-  Windows. macOS and Linux come from the GitHub workflow "Build macOS and Linux".
+- **CI and releases.** A pull request to `main` runs `.github/workflows/ci.yml`: tests (including the link and
+  update-repository guards), typecheck, lint, production build, a secrets scan of the built files, and packaging on
+  Windows, macOS and Linux. Push a `vX.Y.Z` tag and `.github/workflows/release.yml` builds the three platforms and
+  attaches the installers together with the auto-updater metadata (`latest.yml`, `latest-mac.yml`, `latest-linux.yml`)
+  to the GitHub Release. The tag must match `package.json`'s version.
+- **Release names.** Releases are short: v2.3, v2.3.1. `package.json` keeps semver (2.3.2). `npm run dist` builds for
+  the machine it runs on — it refuses to finish if the update metadata is missing (`scripts/verify-dist.mjs`), so a
+  release can never ship without the files the updater reads. macOS and Linux come from the release workflow.
 - **Release notes** are bilingual (English, then "### На русском") and end with the community credit link used in
   previous releases.
 - **`gh release create --target`** needs a branch name or a full commit SHA.

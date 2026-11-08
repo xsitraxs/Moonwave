@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { PREFS_DEFAULTS, type AppInfo, type HotkeyAction, type NetCheck } from "@shared/ipc";
+import { PREFS_DEFAULTS, RELEASES_URL, REPO_URL, type AppInfo, type HotkeyAction, type NetCheck } from "@shared/ipc";
 import Appearance from "@/components/settings/Appearance";
 import Equalizer from "@/components/settings/Equalizer";
 import HotkeyRecorder from "@/components/settings/HotkeyRecorder";
@@ -21,7 +21,7 @@ import { useSettings } from "@/state/settings";
 import { useUi } from "@/state/ui";
 import { useViewState } from "@/state/viewState";
 
-const RELEASES = "https://github.com/waterlilo/sc-player/releases/latest";
+const RELEASES = RELEASES_URL;
 
 function OutputDevice() {
   const t = useT();
@@ -144,7 +144,7 @@ function Updates({ info }: { info: AppInfo | null }) {
 }
 
 const ZAPRET_GUIDE = "https://github.com/Flowseal/zapret-discord-youtube/issues/7449";
-const REPO = "https://github.com/waterlilo/sc-player";
+const REPO = REPO_URL;
 const PROXY_RE = /^(?:(https?|socks[45]?):\/\/)?(?:[^@/\s]*@)?([\w.-]+|\[[0-9a-f:]+\]):(\d{1,5})\/?$/i;
 
 /** Proxy: Windows settings / none / an address; an HTTP proxy's username and password (kept encrypted by main). */
@@ -530,6 +530,11 @@ export default function Settings() {
             <Row label={status?.user ? t.signedInAs(status.user.username) : t.notSignedIn}>
               {status?.mode === "session" ? <PaperButton onClick={() => void logout()}>{t.logout}</PaperButton> : <PaperButton onClick={() => useNav.getState().open("signin", { name: "signin" })}>{t.signIn}</PaperButton>}
             </Row>
+            {info && !info.secretsPersist && (
+              <Row label={t.secretsNoStore} hint={t.secretsNoStoreHint}>
+                <span aria-hidden="true" className="text-lg text-blood">⚠</span>
+              </Row>
+            )}
           </Section>
 
           <Backup />

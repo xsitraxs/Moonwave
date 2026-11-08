@@ -1,6 +1,6 @@
 import { connect, type Socket } from "node:net";
 import { join } from "node:path";
-import type { PlayerInfo } from "@shared/ipc";
+import { RELEASES_URL, type PlayerInfo } from "@shared/ipc";
 import { artwork, isLocalTrack } from "@shared/types";
 import { log } from "./log";
 
@@ -176,7 +176,7 @@ function activity(info: PlayerInfo): object | null {
     state: field(t.artist || "Unknown artist"),
     ...(start ? { timestamps: { start, ...(end ? { end } : {}) } } : {}),
     ...(cover ? { assets: { large_image: cover, large_text: field(t.title) } } : {}),
-    buttons: [...(link ? [{ label: "Listen on SoundCloud", url: link }] : []), { label: "Get sc player", url: "https://github.com/waterlilo/sc-player/releases/latest" }],
+    buttons: [...(link ? [{ label: "Listen on SoundCloud", url: link }] : []), { label: "Get sc player", url: RELEASES_URL }],
   };
 }
 

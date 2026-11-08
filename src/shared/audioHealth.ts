@@ -293,3 +293,27 @@ export function audioReportLines(input: {
   }
   return lines;
 }
+
+/** What a context's statechange event means, given whether that context is still the current one. */
+export type ContextEvent = "ignore" | "closed" | "carry" | "asleep";
+
+/**
+ * A context can change after it has been torn down — recovery closes the old one itself, and the "closed" that
+ * produces is really news to nobody; a late event from it must not touch the replacement's state. Only events from
+ * the context that is current may be acted on, and only "closed" is a loss; anything else that is not "running"
+ * (suspended, or Windows' "interrupted") simply means the chain cannot carry right now and the elements must.
+ */
+export function contextEventAction(s: { isCurrent: boolean; state: string }): ContextEvent {
+  if (!s.isCurrent) return "ignore";
+  if (s.state === "closed") return "closed";
+  if (s.state === "running") return "carry";
+  return "asleep";
+}
+
+/** What currently asks for a Web Audio chain: the equalizer and the sound-reactive sky, in either order. */
+export function wantedGraph(eqEnabled: boolean, reactiveWanted: boolean): Set<"eq" | "reactive"> {
+  const wanted = new Set<"eq" | "reactive">();
+  if (eqEnabled) wanted.add("eq");
+  if (reactiveWanted) wanted.add("reactive");
+  return wanted;
+}

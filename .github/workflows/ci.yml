@@ -1,0 +1,241 @@
+# What every pull request to main runs — and pushes to main as well. If any of this fails, the PR is not ready.
+# Packaging runs too (on the same three platforms the release builds on), so a PR cannot pass while the installers
+# or their update metadata are broken. Nothing here downloads or publishes a release; the release is made by pushing
+# a vX.Y.Z tag (see .github/workflows/release.yml).
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # onnxruntime-node's postinstall downloads the CUDA execution provider from the NuGet feed; the app only uses the
+  # CPU Whisper runtime, whose binaries ship inside the npm package, so the download is unnecessary. Skipping it
+  # keeps the install reproducible and is not a TLS/proxy bypass of any kind.
+  ONNXRUNTIME_NODE_INSTALL: skip
+  # node_modules/electron's postinstall pulls a ~100 MB Electron binary per job that nothing in CI uses (no step runs
+  # the app). electron-builder downloads the Electron artifact it packages into the installers by itself, so this only
+  # removes a redundant, failure-prone download. TLS verification is untouched.
+  ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+
+jobs:
+  check:
+    name: Tests · typecheck · lint · build · scans
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      # a transient registry/GitHub blip must not kill the job silently — the tail of the log is attached as a
+      # scrubbed annotation (readable via the check-runs API); the install is retried once first
+      # cache the Electron dist and the electron-builder tool archives (NSIS, AppImage tools, …) between runs —
+      # GitHub's release downloads throttle/504 under simultaneous CI load (linux won the race once and passed; every
+      # other job hit 504). Both caches are content-addressed and checksum-verified by electron-builder itself.
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/electron
+            ~/.cache/electron-builder
+            ~/Library/Caches/electron
+            ~/Library/Caches/electron-builder
+            ~/AppData/Local/electron/Cache
+            ~/AppData/Local/electron-builder/Cache
+          key: builder-cache-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+      - name: Install dependencies
+        shell: bash
+        run: |
+          set +e
+          ( npm ci --ignore-scripts || npm ci --ignore-scripts ) 2>&1 | tee npmci.log
+          ec=$?
+          set -eo pipefail
+          if [ "$ec" -ne 0 ]; then
+            tail -c 2500 npmci.log \
+              | sed -E -e 's#(//)[^/@" '"'"']+:[^/@" '"'"']+@#\1***:***@#g' -e 's/[[:cntrl:]]/ /g' \
+              | base64 | tr -d '\n' > tail.b64
+            echo "::error title=npm-ci-log-tail-b64::$(cat tail.b64)"
+            exit "$ec"
+          fi
+
+      - name: Tests (unit, incl. the link and update-repository guards)
+        run: npm test
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Production build
+        run: npm run build
+
+      - name: No secrets in the built files (and none tracked in git)
+        run: node scripts/scan-dist.mjs
+
+  package:
+    name: Package · ${{ matrix.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            name: windows
+          - os: macos-15
+            name: macos
+          - os: ubuntu-24.04
+            name: linux
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      # a transient registry/GitHub blip must not kill the job silently — the tail of the log is attached as a
+      # scrubbed annotation (readable via the check-runs API); the install is retried once first
+      # cache the Electron dist and the electron-builder tool archives (NSIS, AppImage tools, …) between runs —
+      # GitHub's release downloads throttle/504 under simultaneous CI load (linux won the race once and passed; every
+      # other job hit 504). Both caches are content-addressed and checksum-verified by electron-builder itself.
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/electron
+            ~/.cache/electron-builder
+            ~/Library/Caches/electron
+            ~/Library/Caches/electron-builder
+            ~/AppData/Local/electron/Cache
+            ~/AppData/Local/electron-builder/Cache
+          key: builder-cache-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+      - name: Install dependencies
+        shell: bash
+        run: |
+          set +e
+          ( npm ci --ignore-scripts || npm ci --ignore-scripts ) 2>&1 | tee npmci.log
+          ec=$?
+          set -eo pipefail
+          if [ "$ec" -ne 0 ]; then
+            tail -c 2500 npmci.log \
+              | sed -E -e 's#(//)[^/@" '"'"']+:[^/@" '"'"']+@#\1***:***@#g' -e 's/[[:cntrl:]]/ /g' \
+              | base64 | tr -d '\n' > tail.b64
+            echo "::error title=npm-ci-log-tail-b64::$(cat tail.b64)"
+            exit "$ec"
+          fi
+
+      # optional: the built-in proxy and the server address are not in git (see server/README.md); a build without
+      # them simply ships without those. Never present for forks, only for this repository's own runs.
+      # the asset CDN behind github.com's release downloads returns 504s today — pre-fetch the big immutable files
+      # with curl (resume + checksums) so the packaging step finds them already cached, then serve them on loopback
+      - name: Pre-fetch the build tools
+        shell: bash
+        timeout-minutes: 15
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bash scripts/prefetch-tools.sh
+
+      # If the pre-fetch verified every dist file for this platform, serve them on loopback and point electron-builder at the
+      # mirror via ELECTRON_MIRROR. @electron/get always re-fetches SHASUMS256.txt — even on a full cache hit — so merely
+      # populating its cache cannot survive a CDN outage; loopback can. Official files, verified against the official
+      # SHASUMS256.txt by the pre-fetch and re-validated by sumchecker on every download; 127.0.0.1 only, no TLS involved.
+      - name: Serve the verified Electron dist on loopback (if ready)
+        shell: bash
+        run: |
+          M_ROOT="${RUNNER_TEMP:-${TMPDIR:-/tmp}}/ci-electron-mirror"
+          if [ -f "$M_ROOT/READY" ]; then
+            ELECTRON_VERSION="$(node -p "require('./node_modules/electron/package.json').version")"
+            nohup node scripts/serve-static.mjs --root "$M_ROOT" --port 8137 > "$M_ROOT/server.log" 2>&1 &
+            echo $! > "$M_ROOT/server.pid"
+            ok=0
+            i=0
+            while [ "$i" -lt 50 ]; do
+              if curl -fsS -o /dev/null "http://127.0.0.1:8137/v${ELECTRON_VERSION}/SHASUMS256.txt"; then ok=1; break; fi
+              sleep 0.2
+              i=$((i+1))
+            done
+            if [ "$ok" = 1 ]; then
+              echo "ELECTRON_MIRROR=http://127.0.0.1:8137/" >> "$GITHUB_ENV"
+              echo "loopback mirror is up — electron-builder will not touch the release CDN"
+            else
+              echo "loopback mirror did not come up — leaving ELECTRON_MIRROR unset; electron-builder uses the network"
+              kill "$(cat "$M_ROOT/server.pid")" 2>/dev/null || true
+            fi
+          else
+            echo "no complete mirror — electron-builder will use its seeded cache or the network"
+          fi
+
+      - name: The built-in proxy and the server address
+        shell: bash
+        env:
+          PROXY_JSON: ${{ secrets.SC_PROXY_JSON }}
+          SERVER_JSON: ${{ secrets.SC_SERVER_JSON }}
+        run: |
+          if [ -n "$PROXY_JSON" ]; then printf '%s' "$PROXY_JSON" > proxy.local.json; echo "proxy: yes"; else echo "proxy: none"; fi
+          if [ -n "$SERVER_JSON" ]; then printf '%s' "$SERVER_JSON" > server.local.json; echo "server: yes"; else echo "server: none"; fi
+
+      # lint + typecheck + electron-vite build + electron-builder + verify-dist (fails if the update metadata is missing).
+      # GitHub's release downloads (the Electron dist, the NSIS toolchain, the AppImage tools) flap 504 today — every
+      # failed download poisoned this job until the cache existed. Downloads resume from the per-job cache on retry, so
+      # three attempts ride out a gateway flap without hiding a real failure: the last attempt's exit code decides, and
+      # the tail of the log (stack frames stripped, credentials scrubbed) goes into the check-run as an annotation.
+      - name: Package and verify the update metadata
+        shell: bash
+        timeout-minutes: 25
+        run: |
+          set -eo pipefail
+          ec=0
+          for attempt in 1 2 3; do
+            set +e
+            node scripts/dist.mjs 2>&1 | tee package.log
+            ec=$?
+            set -e
+            if [ "$ec" -eq 0 ]; then break; fi
+            echo "packaging attempt $attempt failed (exit $ec) — retrying in 25 s"
+            sleep 25
+          done
+          if [ "$ec" -ne 0 ]; then
+            grep -vE '^\s+at ' package.log | tail -c 2500 \
+              | sed -E -e 's#(//)[^/@" '"'"']+:[^/@" '"'"']+@#\1***:***@#g' -e 's/[[:cntrl:]]/ /g' \
+              | base64 | tr -d '\n' > tail.b64
+            echo "::error title=package-log-tail-b64::$(cat tail.b64)"
+            exit "$ec"
+          fi
+
+      - name: No secrets in the built files
+        run: node scripts/scan-dist.mjs dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ci-${{ matrix.name }}
+          path: |
+            dist/*.exe
+            dist/*.dmg
+            dist/*.zip
+            dist/*.AppImage
+            dist/*.deb
+            dist/*.blockmap
+            dist/latest*.yml
+          if-no-files-found: warn
+          retention-days: 3
+
+      - name: Stop the loopback mirror
+        if: always()
+        shell: bash
+        run: |
+          M_ROOT="${RUNNER_TEMP:-${TMPDIR:-/tmp}}/ci-electron-mirror"
+          if [ -f "$M_ROOT/server.pid" ]; then kill "$(cat "$M_ROOT/server.pid")" 2>/dev/null || true; echo "mirror stopped"; else echo "no mirror to stop"; fi
