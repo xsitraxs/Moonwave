@@ -54,6 +54,9 @@ export interface PlayerInfo {
 export const UPDATE_REPO = { owner: "xsitraxs", repo: "scplayer-fix" } as const;
 /** The releases page the app opens (a portable build can only be told a new version exists). */
 export const RELEASES_URL = `https://github.com/${UPDATE_REPO.owner}/${UPDATE_REPO.repo}/releases/latest`;
+/** The project's own pages, so a report or a link never sends someone to the project this one was forked from. */
+export const REPO_URL = `https://github.com/${UPDATE_REPO.owner}/${UPDATE_REPO.repo}`;
+export const ISSUES_URL = `${REPO_URL}/issues`;
 
 export type UpdateStatus =
   | { state: "idle" | "checking" | "none" }

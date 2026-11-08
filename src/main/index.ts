@@ -6,7 +6,7 @@ import { readFile, writeFile } from "node:fs/promises";
 import { release } from "node:os";
 import { join } from "node:path";
 import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, session, shell, type IpcMainInvokeEvent } from "electron";
-import { RENDERER_DEFAULTS, type AuthStatus, type InvokeChannel, type InvokeMap, type PlayerCommand, type PlayerInfo, type RendererState, type Result } from "@shared/ipc";
+import { ISSUES_URL, RENDERER_DEFAULTS, type AuthStatus, type InvokeChannel, type InvokeMap, type PlayerCommand, type PlayerInfo, type RendererState, type Result } from "@shared/ipc";
 import type { MusicProvider, SearchKind } from "@shared/provider";
 import type { RoomOp, SocialTrack } from "@shared/social";
 import type { ImportItem, QueueSource, SyncRequest, Track, LyricsSuggestionState } from "@shared/types";
@@ -609,7 +609,7 @@ function registerIpc() {
     await writeFile(r.filePath, text, "utf8");
     shell.showItemInFolder(r.filePath);
     const body = `sc player ${version}, ${systemName()}\n\nWhat happened:\n\n\nWhat I expected:\n\n\n(The report file ${r.filePath.split(/[\\/]/).pop()} is attached.)`;
-    void shell.openExternal(`https://github.com/waterlilo/sc-player/issues/new?title=${encodeURIComponent("Problem: ")}&body=${encodeURIComponent(body)}`);
+    void shell.openExternal(`${ISSUES_URL}/new?title=${encodeURIComponent("Problem: ")}&body=${encodeURIComponent(body)}`);
     return true;
   });
   handle("proxy:setPassword", (_e, password) => {

@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import { app, net } from "electron";
+import { REPO_URL } from "@shared/ipc";
 import type { Lyrics, LyricsHit } from "@shared/types";
 import { parseTtml } from "./ttml";
 import { normalize, primaryArtist } from "./soundcloud/match";
@@ -16,7 +17,7 @@ import { log } from "./system/log";
  * so a few cleaned-up variants are tried. What the user picks by hand is remembered per track.
  */
 const API = "https://lrclib.net/api";
-const UA = () => `sc player/${app.getVersion()} (https://github.com/waterlilo/sc-player)`;
+const UA = () => `sc player/${app.getVersion()} (${REPO_URL})`;
 
 interface Raw {
   id: number;
