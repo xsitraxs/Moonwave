@@ -84,6 +84,9 @@ jobs:
       # with curl (resume + checksums) so the packaging step finds them already cached, then serve them on loopback
       - name: Pre-fetch the build tools
         shell: bash
+        timeout-minutes: 15
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: bash scripts/prefetch-tools.sh
 
       # If the pre-fetch verified every dist file for this platform, serve them on loopback and point electron-builder at the
@@ -132,6 +135,7 @@ jobs:
       # the tail of the log (stack frames stripped, credentials scrubbed) goes into the check-run as an annotation.
       - name: Package and verify the update metadata
         shell: bash
+        timeout-minutes: 25
         run: |
           set -eo pipefail
           ec=0

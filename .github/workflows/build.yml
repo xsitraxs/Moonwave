@@ -63,6 +63,9 @@ jobs:
       # with curl (resume + checksums) so the packaging step finds them already cached, then serve them on loopback
       - name: Pre-fetch the build tools
         shell: bash
+        timeout-minutes: 15
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: bash scripts/prefetch-tools.sh
 
       # If the pre-fetch verified every dist file for this platform, serve them on loopback and point electron-builder at the
@@ -106,7 +109,10 @@ jobs:
 
       - run: npm test
 
-      - run: node scripts/dist.mjs
+      - name: Package the app
+        shell: bash
+        timeout-minutes: 25
+        run: node scripts/dist.mjs
 
       # the built app starts and is still running 25 s later (a crash on start fails the run)
       - name: The app starts (macOS)
