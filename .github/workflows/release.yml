@@ -81,10 +81,40 @@ jobs:
 
       # optional: the built-in proxy and the server address are not in git (see server/README.md)
       # the asset CDN behind github.com's release downloads returns 504s today — pre-fetch the big immutable files
-      # with curl (resume + checksums) so the packaging step finds them already cached
+      # with curl (resume + checksums) so the packaging step finds them already cached, then serve them on loopback
       - name: Pre-fetch the build tools
         shell: bash
         run: bash scripts/prefetch-tools.sh
+
+      # If the pre-fetch verified every dist file for this platform, serve them on loopback and point electron-builder at the
+      # mirror via ELECTRON_MIRROR. @electron/get always re-fetches SHASUMS256.txt — even on a full cache hit — so merely
+      # populating its cache cannot survive a CDN outage; loopback can. Official files, verified against the official
+      # SHASUMS256.txt by the pre-fetch and re-validated by sumchecker on every download; 127.0.0.1 only, no TLS involved.
+      - name: Serve the verified Electron dist on loopback (if ready)
+        shell: bash
+        run: |
+          M_ROOT="${RUNNER_TEMP:-${TMPDIR:-/tmp}}/ci-electron-mirror"
+          if [ -f "$M_ROOT/READY" ]; then
+            ELECTRON_VERSION="$(node -p "require('./node_modules/electron/package.json').version")"
+            nohup node scripts/serve-static.mjs --root "$M_ROOT" --port 8137 > "$M_ROOT/server.log" 2>&1 &
+            echo $! > "$M_ROOT/server.pid"
+            ok=0
+            i=0
+            while [ "$i" -lt 50 ]; do
+              if curl -fsS -o /dev/null "http://127.0.0.1:8137/v${ELECTRON_VERSION}/SHASUMS256.txt"; then ok=1; break; fi
+              sleep 0.2
+              i=$((i+1))
+            done
+            if [ "$ok" = 1 ]; then
+              echo "ELECTRON_MIRROR=http://127.0.0.1:8137/" >> "$GITHUB_ENV"
+              echo "loopback mirror is up — electron-builder will not touch the release CDN"
+            else
+              echo "loopback mirror did not come up — leaving ELECTRON_MIRROR unset; electron-builder uses the network"
+              kill "$(cat "$M_ROOT/server.pid")" 2>/dev/null || true
+            fi
+          else
+            echo "no complete mirror — electron-builder will use its seeded cache or the network"
+          fi
 
       - name: The built-in proxy and the server address
         shell: bash
@@ -157,3 +187,10 @@ jobs:
             dist/*.blockmap
             dist/latest*.yml
           retention-days: 30
+
+      - name: Stop the loopback mirror
+        if: always()
+        shell: bash
+        run: |
+          M_ROOT="${RUNNER_TEMP:-${TMPDIR:-/tmp}}/ci-electron-mirror"
+          if [ -f "$M_ROOT/server.pid" ]; then kill "$(cat "$M_ROOT/server.pid")" 2>/dev/null || true; echo "mirror stopped"; else echo "no mirror to stop"; fi
