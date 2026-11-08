@@ -88,9 +88,22 @@ jobs:
           if [ -n "$PROXY_JSON" ]; then printf '%s' "$PROXY_JSON" > proxy.local.json; echo "proxy: yes"; else echo "proxy: none"; fi
           if [ -n "$SERVER_JSON" ]; then printf '%s' "$SERVER_JSON" > server.local.json; echo "server: yes"; else echo "server: none"; fi
 
-      # lint + typecheck + electron-vite build + electron-builder + verify-dist (fails if the update metadata is missing)
+      # lint + typecheck + electron-vite build + electron-builder + verify-dist (fails if the update metadata is missing).
+      # On failure the tail of the log goes into a scrubbed '::error' annotation (readable via the check-runs API) so
+      # the failure can be diagnosed from anywhere — raw logs often can't leave the runner's storage zone.
       - name: Package and verify the update metadata
-        run: node scripts/dist.mjs
+        shell: bash
+        run: |
+          set -o pipefail
+          node scripts/dist.mjs 2>&1 | tee package.log
+          ec=$?
+          if [ "$ec" -ne 0 ]; then
+            tail -c 2500 package.log \
+              | sed -E -e 's#(//)[^/@" '"'"']+:[^/@" '"'"']+@#\1***:***@#g' -e 's/[[:cntrl:]]/ /g' \
+              | base64 | tr -d '\n' > tail.b64
+            echo "::error title=package-log-tail-b64::$(cat tail.b64)"
+            exit "$ec"
+          fi
 
       - name: No secrets in the built files
         run: node scripts/scan-dist.mjs dist
