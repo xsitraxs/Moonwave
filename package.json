@@ -190,6 +190,15 @@
     "toolsets": {
       "appimage": "1.0.3"
     },
+    "electronDownload": {
+      "mirrorOptions": {},
+      "checksums": {
+        "electron-v44.10.2-linux-x64.zip": "d2f9319dc81d6786c684a80f63d728421761f55a27a3ae3bd373250f0f40fdca",
+        "electron-v44.10.2-darwin-x64.zip": "846033297c88ec2f9f90cd88cf2d6fc12c52ba4a1797d230c20806dff21a21bb",
+        "electron-v44.10.2-darwin-arm64.zip": "1ef6142549160fe8572ca989212cb5fc3efd5fade445b5ac25639bfa9408a80d",
+        "electron-v44.10.2-win32-x64.zip": "7af18e85a1537b832924ae3b0e5146602f2f4f4b0c77c74e4ae0dc251ca338f9"
+      }
+    },
     "appImage": {
       "compression": "zstd"
     },

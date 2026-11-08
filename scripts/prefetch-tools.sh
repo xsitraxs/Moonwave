@@ -8,14 +8,17 @@
 #   macOS:   electron dist zips for both arches (arm64 + x64)
 #
 # The trust model — deliberately strict, no shortcuts:
-#   * The ONLY integrity anchor for the Electron dist is the official SHASUMS256.txt from the
-#     v<electronVersion> release. It is fetched from (a) the release's asset URL on github.com and,
-#     when GH_TOKEN is available, (b) the release asset API (api.github.com, redirecting to the same
-#     official asset). The file is accepted only if every non-empty line matches
-#     '<64 lowercase hex> [*]<filename>' AND it contains an entry for each required zip — a proxy
-#     error page or a truncated file is discarded. If it cannot be fetched at all, the dist is left
-#     unverified: the mirror below is NOT built, nothing is seeded into the @electron/get cache, and
-#     electron-builder falls back to its own download + validation exactly as if this step never ran.
+#   * The ONLY acceptable integrity anchor for the Electron dist is an official one, obtained in
+#     descending order of preference:
+#       1. the release's SHASUMS256.txt (raced on two transports, format-validated);
+#       2. the server-side sha256 `digest` GitHub computes for each release asset, served by the
+#          releases API (same first-party backend, same bytes the CDN ships) — a minimal
+#          checksum file covering exactly the required zips is generated from them;
+#     If NEITHER is available, the dist is left unverified: the mirror is NOT built, nothing is
+#     seeded into the @electron/get cache, and electron-builder falls back to its own download +
+#     validation exactly as if this step never ran. (The build itself is additionally shielded by
+#     the checksums pinned in package.json → build.electronDownload, which make electron-builder's
+#     validation fully offline; see the commit that introduced them.)
 #   * The zips are downloaded in PARALLEL with the checksum race (they do flow through the CDN even
 #     while SHASUMS256.txt 504s), but they are staged in a temp directory and are ONLY accepted after
 #     their SHA-256 matches the official SHASUMS256.txt. Files that fail verification are deleted.
@@ -156,6 +159,19 @@ if [ -n "$ELECTRON_VERSION" ]; then
 
   # 4) verify and stage only what matches the official checksums
   CACHE_DIST_SHA=""
+  if [ ! -f "$SHASUMS" ] && [ -n "${GH_TOKEN:-}" ] && command -v gh >/dev/null 2>&1; then
+    # fallback anchor: GitHub computes a sha256 digest for every release asset server-side and the
+    # releases API serves it; build a minimal checksum file from the assets (same first-party bytes).
+    GEN_SUMS="$TMPBASE/SHASUMS256-generated.txt"
+    if gh api "repos/electron/electron/releases/tags/v${ELECTRON_VERSION}" --jq '.assets[] | select(.digest != null) | (.digest | sub("^sha256:"; "")) + " *" + .name' > "$GEN_SUMS" 2>/dev/null \
+      && [ -s "$GEN_SUMS" ] && valid_shasums "$GEN_SUMS"; then
+      SHASUMS="$GEN_SUMS"
+      echo "integrity anchor: server-side asset digests via the releases API"
+    else
+      rm -f "$GEN_SUMS"
+      echo "no integrity anchor available (SHASUMS256.txt unreachable and the asset digests unusable) — dist stays unverified"
+    fi
+  fi
   if [ -f "$SHASUMS" ]; then
     CACHE_DIST_SHA=$(printf '%s' "$BASE" | { command -v sha256sum >/dev/null 2>&1 && sha256sum || shasum -a 256; } | awk '{print $1}')
   fi
