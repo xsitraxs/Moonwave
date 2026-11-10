@@ -10,13 +10,12 @@
 
 <br/>
 
-[![Скачать](https://img.shields.io/github/v/release/xsitraxs/Moonwave?style=for-the-badge&label=%D1%81%D0%BA%D0%B0%D1%87%D0%B0%D1%82%D1%8C&labelColor=0b1240&color=1d8e9b)](../../releases/latest)
+<a href="https://github.com/xsitraxs/Moonwave/releases/latest"><img src=".github/assets/badges/download.svg" alt="Скачать Moonwave" height="28" /></a>
 
-![Windows](https://img.shields.io/badge/Windows-10%20%2F%2011-1d8e9b?style=flat-square&labelColor=0b1240)
-![macOS](https://img.shields.io/badge/macOS-13%2B-1d8e9b?style=flat-square&labelColor=0b1240)
-![Linux](https://img.shields.io/badge/Linux-AppImage%20%2F%20deb-1d8e9b?style=flat-square&labelColor=0b1240)
-[![Загрузки](https://img.shields.io/github/downloads/xsitraxs/Moonwave/total?style=flat-square&label=%D0%B7%D0%B0%D0%B3%D1%80%D1%83%D0%B7%D0%BA%D0%B8&labelColor=0b1240&color=1d8e9b)](../../releases)
-[![GPL-3.0](https://img.shields.io/badge/%D0%BB%D0%B8%D1%86%D0%B5%D0%BD%D0%B7%D0%B8%D1%8F-GPL--3.0-1d8e9b?style=flat-square&labelColor=0b1240)](LICENSE)
+<img src=".github/assets/badges/windows.svg" alt="Windows 10 / 11" />
+<img src=".github/assets/badges/macos.svg" alt="macOS 13+" />
+<img src=".github/assets/badges/linux.svg" alt="Linux: AppImage / deb" />
+<a href="LICENSE"><img src=".github/assets/badges/license.svg" alt="Лицензия GPL-3.0" /></a>
 
 [Возможности](#возможности) •
 [Установка](#установка) •
