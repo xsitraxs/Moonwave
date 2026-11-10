@@ -18,6 +18,9 @@ services:
     restart: unless-stopped
     environment:
       ADMIN_TOKEN: ${ADMIN_TOKEN}
+      # Caddy is the only way in (the api's port is not published) and it sets X-Forwarded-For; the API trusts it
+      # here and nowhere else, since otherwise a client could choose its own rate-limit bucket
+      TRUST_PROXY: "1"
     volumes:
       - api-data:/data
     # reachable only through Caddy

@@ -112,7 +112,19 @@ setInterval(() => {
   for (const [k, b] of buckets) if (b.reset <= now) buckets.delete(k);
 }, 60_000).unref();
 
-/** The client's address: Caddy in front sets X-Forwarded-For; the direct peer otherwise. */
+/**
+ * Whether to believe X-Forwarded-For: only an explicit "1" or "true" turns it on, so an unset or misspelt value
+ * leaves the server reading the direct peer and a deployment behind a proxy it controls has to say so.
+ */
+export function trustProxyFrom(value: string | undefined): boolean {
+  return value === "1" || value === "true";
+}
+
+/**
+ * The client's address: Caddy in front sets X-Forwarded-For; the direct peer otherwise. The first element is the
+ * client, because Caddy (2.5 and later) throws away a header a client sent and writes the address it saw itself —
+ * its own trusted_proxies is unset, as this server is the only one behind it.
+ */
 export function ipOf(req: IncomingMessage, trustProxy: boolean): string {
   const fwd = trustProxy ? String(req.headers["x-forwarded-for"] ?? "").split(",")[0]?.trim() : "";
   return fwd || req.socket.remoteAddress || "?";

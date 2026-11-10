@@ -1,13 +1,17 @@
 import { createServer } from "node:http";
-import { HttpError, ipOf, limit, send } from "./http.ts";
+import { HttpError, ipOf, limit, send, trustProxyFrom } from "./http.ts";
 import { route } from "./routes.ts";
 
 /**
- * sc player's own server: the track messenger (friend codes, no accounts), the theme workshop and an anonymous count
- * of running apps. JSON over HTTP behind Caddy (TLS); data in SQLite under DATA_DIR.
+ * sc player's own server: the track messenger (friend codes, no accounts), the theme workshop and a pseudonymous
+ * count of running apps. JSON over HTTP behind Caddy (TLS); data in SQLite under DATA_DIR.
  */
 const PORT = Number(process.env.PORT ?? 8080);
-const TRUST_PROXY = process.env.TRUST_PROXY !== "0";
+// X-Forwarded-For decides the rate-limit bucket (5 registrations an hour, 20 pings, …), so trusting it by default
+// would let anyone start a fresh bucket per request by sending their own header — every limit here would be gone.
+// The address is trusted only when the deployment says a proxy it controls is in front: docker-compose does, for
+// Caddy ("1"); a bare `node src/main.ts` does not ("0", the default here).
+const TRUST_PROXY = trustProxyFrom(process.env.TRUST_PROXY);
 
 const server = createServer(async (req, res) => {
   const ip = ipOf(req, TRUST_PROXY);

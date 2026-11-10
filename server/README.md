@@ -80,9 +80,15 @@ docker run --rm -v sc-player_api-data:/d -v $PWD:/b alpine tar czf /b/api-data-$
 
 ```bash
 cd api
-DATA_DIR=./data-dev ADMIN_TOKEN=dev-admin-token-0123456789 TRUST_PROXY=0 node src/main.ts
+DATA_DIR=./data-dev ADMIN_TOKEN=dev-admin-token-0123456789 node src/main.ts   # TRUST_PROXY is off unless set
 ADMIN_TOKEN=dev-admin-token-0123456789 node test/smoke.ts     # the whole API end to end
 ```
+
+**`TRUST_PROXY`.** The rate limits are counted per client address, and the address comes from `X-Forwarded-For` only
+when `TRUST_PROXY=1`. It is off by default — behind a proxy that is not Caddy, a client could otherwise pick its own
+bucket and every limit would be pointless. `docker-compose.yml` sets it to `1` for the Caddy in front; when you run
+the API directly, leave it unset (or `0`) and send requests to it without a proxy. With a proxy in front on your own,
+set `1` and make sure nothing can reach the API's port without going through it.
 
 ## API
 
