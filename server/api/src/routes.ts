@@ -318,7 +318,7 @@ async function messageState(c: Ctx) {
   send(c.res, 204, null);
 }
 
-// ---- what sc player is playing ------------------------------------------------------------------------------------
+// ---- what Moonwave is playing ------------------------------------------------------------------------------------
 
 /**
  * An app played a track for a while (Settings → Messenger → "Share what I play, anonymously", on by default): its
@@ -344,7 +344,7 @@ async function listened(c: Ctx) {
 
 let listeningCache: { at: number; body: unknown } | null = null;
 
-/** The latest tracks played in sc player (the last two days), newest first. */
+/** The latest tracks played in Moonwave (the last two days), newest first. */
 function listening(c: Ctx) {
   if (!listeningCache || Date.now() - listeningCache.at > 30_000) {
     const rows = all("SELECT track_id, at, plays FROM listening WHERE at > ? ORDER BY at DESC LIMIT 30", Date.now() - 2 * DAY);
@@ -796,14 +796,14 @@ const CODE = "([A-Za-z0-9-]{4,16})";
 const TID = "([A-Za-z0-9_-]{10})";
 
 /**
- * A friend link (sc player: Inbox → Copy invite link): a small page that opens the app with the code
- * (scplayer://friend/SKY-XXXXX), or says where to get it. It shows only the code — nothing about its owner.
+ * A friend link (Moonwave: Inbox → Copy invite link): a small page that opens the app with the code
+ * (moonwave://friend/SKY-XXXXX), or says where to get it. It shows only the code — nothing about its owner.
  */
 function invitePage(c: Ctx) {
   const code = c.params[0]!;
-  const app = `scplayer://friend/${code}`;
+  const app = `moonwave://friend/${code}`;
   const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Add ${code} on sc player</title>
+<title>Add ${code} on Moonwave</title>
 <style>
   :root { color-scheme: dark; }
   body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #050506; color: #ececef; font: 16px/1.55 system-ui, "Segoe UI", sans-serif; }
@@ -816,11 +816,11 @@ function invitePage(c: Ctx) {
   .get a { color: #ececef; }
 </style></head>
 <body><main>
-  <h1>A friend invites you to sc player</h1>
+  <h1>A friend invites you to Moonwave</h1>
   <p>Open the app to add them as a friend: then you can send each other tracks and listen together.</p>
   <div class="code">${code}</div>
-  <a class="open" href="${app}">Open sc player</a>
-  <span class="get">No sc player yet? <a href="https://github.com/xsitraxs/scplayer-fix/releases/latest">Download it</a>, then open this link again.</span>
+  <a class="open" href="${app}">Open Moonwave</a>
+  <span class="get">No Moonwave yet? <a href="https://github.com/xsitraxs/scplayer-fix/releases/latest">Download it</a>, then open this link again.</span>
 </main></body></html>`;
   c.res.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "public, max-age=3600", "x-content-type-options": "nosniff", "content-security-policy": "default-src 'none'; style-src 'unsafe-inline'" });
   c.res.end(html);

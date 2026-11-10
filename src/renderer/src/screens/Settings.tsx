@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { PREFS_DEFAULTS, RELEASES_URL, REPO_URL, type AppInfo, type HotkeyAction, type NetCheck } from "@shared/ipc";
+import { DISCORD_CLIENT_ID, PREFS_DEFAULTS, RELEASES_URL, REPO_URL, type AppInfo, type HotkeyAction, type NetCheck } from "@shared/ipc";
 import Appearance from "@/components/settings/Appearance";
 import Equalizer from "@/components/settings/Equalizer";
 import HotkeyRecorder from "@/components/settings/HotkeyRecorder";
@@ -157,7 +157,7 @@ function Proxy() {
   const [user, setUser] = useState(proxy.username);
   const [password, setPassword] = useState("");
   const [hasPassword, setHasPassword] = useState(false);
-  // sc player's own proxy is offered only when the build carries one
+  // Moonwave's own proxy is offered only when the build carries one
   const [builtin, setBuiltin] = useState(false);
   const [route, setRoute] = useState<"own" | "ours" | null>(null);
   useEffect(() => {
@@ -167,7 +167,7 @@ function Proxy() {
       setRoute(i.proxyRoute);
     });
   }, [proxy.mode]);
-  // without sc player's proxy in the build "auto" is just Windows settings
+  // without Moonwave's proxy in the build "auto" is just Windows settings
   const mode = proxy.mode === "auto" && !builtin ? "system" : proxy.mode;
   const valid = PROXY_RE.test(url.trim());
   const socks = /^socks/i.test(url.trim());
@@ -438,9 +438,12 @@ export default function Settings() {
             <Row label={t.trackPopup} hint={t.trackPopupHint}>
               <Toggle on={prefs.trackPopup} onChange={(v) => setPref("trackPopup", v)} label={t.trackPopup} />
             </Row>
-            <Row label={t.discordPresence} hint={t.discordPresenceHint}>
-              <Toggle on={prefs.discordPresence} onChange={(v) => setPref("discordPresence", v)} label={t.discordPresence} />
-            </Row>
+            {/* hidden while Moonwave has no Discord application of its own (DISCORD_CLIENT_ID) */}
+            {!!DISCORD_CLIENT_ID && (
+              <Row label={t.discordPresence} hint={t.discordPresenceHint}>
+                <Toggle on={prefs.discordPresence} onChange={(v) => setPref("discordPresence", v)} label={t.discordPresence} />
+              </Row>
+            )}
             <Row label={t.popupCorner}>
               <div className="flex flex-wrap items-center justify-end gap-2">
                 <Choice

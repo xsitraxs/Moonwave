@@ -43,7 +43,7 @@ export function createMainWindow(opts: { startHidden: boolean; closeToTray: () =
     minWidth: 900,
     minHeight: 600,
     show: false,
-    title: "sc player",
+    title: "Moonwave",
     icon: appIcon(),
     backgroundColor: "#07050d",
     titleBarStyle: isMac ? "hiddenInset" : "hidden",

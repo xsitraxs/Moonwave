@@ -244,5 +244,5 @@ jobs:
           files=(dist/*.exe dist/*.dmg dist/*.zip dist/*.AppImage dist/*.deb dist/latest*.yml dist/*.blockmap dist/SHA256SUMS.txt)
           if [ ${#files[@]} -eq 0 ]; then echo "nothing to attach — verify-dist should have failed first"; exit 1; fi
           printf 'attaching:\n%s\n' "${files[@]}"
-          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "sc player $TAG" --generate-notes
+          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "Moonwave $TAG" --generate-notes
           gh release upload "$TAG" "${files[@]}" --clobber

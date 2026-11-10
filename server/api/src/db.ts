@@ -5,6 +5,7 @@ import { DatabaseSync } from "node:sqlite";
 export const DATA = process.env.DATA_DIR ?? "./data";
 mkdirSync(join(DATA, "themes"), { recursive: true });
 
+// the file keeps the name it had when the app was called sc player: renaming it would leave a running server with an empty one
 export const db = new DatabaseSync(join(DATA, "sc-player.db"));
 db.exec("PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 3000;");
 
@@ -41,7 +42,7 @@ CREATE TABLE IF NOT EXISTS messages (
 );
 CREATE INDEX IF NOT EXISTS messages_recipient ON messages (recipient, id);
 CREATE INDEX IF NOT EXISTS messages_pair ON messages (sender, recipient, id);
--- what sc player is playing, for everyone's home screen: SoundCloud track ids only (the apps read titles and covers from
+-- what Moonwave is playing, for everyone's home screen: SoundCloud track ids only (the apps read titles and covers from
 -- SoundCloud itself), when last played and how often lately; nothing about who played them
 CREATE TABLE IF NOT EXISTS listening (
   track_id INTEGER PRIMARY KEY,

@@ -56,6 +56,12 @@ export const UPDATE_REPO = { owner: "xsitraxs", repo: "scplayer-fix" } as const;
 export const RELEASES_URL = `https://github.com/${UPDATE_REPO.owner}/${UPDATE_REPO.repo}/releases/latest`;
 /** The project's own pages, so a report or a link never sends someone to the project this one was forked from. */
 export const REPO_URL = `https://github.com/${UPDATE_REPO.owner}/${UPDATE_REPO.repo}`;
+/**
+ * The Discord application the "Listening to …" status is shown under. Empty: Moonwave has none of its own yet — the id
+ * it had was sc player's (the status would read "sc player"), so the feature is off and its switch hidden until one is
+ * registered at discord.com/developers and put here.
+ */
+export const DISCORD_CLIENT_ID: string = "";
 export const ISSUES_URL = `${REPO_URL}/issues`;
 
 export type UpdateStatus =
@@ -77,9 +83,9 @@ export interface AppInfo {
   portable: boolean;
   packaged: boolean;
   logsDir: string;
-  /** the build carries sc player's own proxy */
+  /** the build carries Moonwave's own proxy */
   builtinProxy: boolean;
-  /** in the "auto" proxy mode: SoundCloud goes over the user's own connection or through sc player's proxy */
+  /** in the "auto" proxy mode: SoundCloud goes over the user's own connection or through Moonwave's proxy */
   proxyRoute: "own" | "ours" | null;
   /** this run started without the graphics card (Memory saver as it was at start) */
   memorySaver: boolean;
@@ -141,7 +147,7 @@ export interface Prefs {
   notifications: boolean;
   /** a small card with the cover, title and artist in a corner of the screen for a few seconds on a track change */
   trackPopup: boolean;
-  /** "Listening to sc player" with the track on the Discord profile (the Discord app on this computer) */
+  /** "Listening to Moonwave" with the track on the Discord profile (the Discord app on this computer) */
   discordPresence: boolean;
   /** the night design's clouds drifting behind the window */
   skyClouds: boolean;
@@ -169,7 +175,7 @@ export interface Prefs {
   substituteTolerance: number;
   /** tracks the user told not to substitute */
   noSubstitute: number[];
-  /** proxy: system settings, none, an address (for everything), or sc player's own (SoundCloud only) */
+  /** proxy: system settings, none, an address (for everything), or Moonwave's own (SoundCloud only) */
   proxy: { mode: "auto" | "system" | "direct" | "custom" | "builtin"; url: string; username: string; v?: number };
   look: Look;
   /** the full screen player's spectrum */
@@ -177,11 +183,11 @@ export interface Prefs {
   /** a pop-up when a friend sends a track while the window isn't in front */
   socialPopups: boolean;
   /**
-   * Once a day: a pseudonymous "one more app is running" to sc player's server (a random install id + the version).
+   * Once a day: a pseudonymous "one more app is running" to Moonwave's server (a random install id + the version).
    * Off for a new install; an existing setting is never changed under the person (see withPrefDefaults).
    */
   countMe: boolean;
-  /** Tracks played for a while go to sc player's server for everyone's "Listening on sc player" — the id only. Off for
+  /** Tracks played for a while go to Moonwave's server for everyone's "Listening on Moonwave" — the id only. Off for
    * a new install; an existing setting stays as it was. */
   shareListening: boolean;
   /** plain words (no times anywhere) are matched to the song on this computer (Whisper; the model is downloaded once) */
@@ -240,7 +246,7 @@ export const PREFS_DEFAULTS: Prefs = {
   look: { design: "studio", bg: "liquid", bgFile: "", bgFileType: "", bgBlur: 14, bgDim: 72, bgReact: 40, panelOpacity: 58, panelBlur: 30, lite: false, accent: "", surface: "", css: "" },
   spectrum: { place: "cover", style: "bars", height: 120, color: "accent", mirror: true },
   socialPopups: true,
-  // off for a new install: sending anything to sc player's server is a decision the person makes, not one made for them
+  // off for a new install: sending anything to Moonwave's server is a decision the person makes, not one made for them
   countMe: false,
   shareListening: false,
   autoSyncLyrics: false,
@@ -463,12 +469,12 @@ export interface InvokeMap {
   "update:download": () => void;
   "update:install": () => void;
 
-  /** sc player's own server: the messenger (friend codes, tracks only) */
+  /** Moonwave's own server: the messenger (friend codes, tracks only) */
   "social:status": () => SocialStatus;
   /** "Get my code": a new profile on the server with this name */
   "social:join": (name: string) => SocialStatus;
   "social:profile": (patch: { name?: string; shareNow?: boolean }) => SocialStatus;
-  /** the link that adds me as a friend (a page on sc player's server that opens the app); "" without a code */
+  /** the link that adds me as a friend (a page on Moonwave's server that opens the app); "" without a code */
   "social:inviteLink": () => string;
   /** forget the profile here and on the server (friends, tracks, themes) */
   "social:leave": () => SocialStatus;
@@ -493,7 +499,7 @@ export interface InvokeMap {
   "social:poll": () => void;
   /** a track played for a while (sent anonymously when "Share what I play" is on) */
   "social:listened": (trackId: number) => void;
-  /** what was played in sc player lately: SoundCloud ids, newest first */
+  /** what was played in Moonwave lately: SoundCloud ids, newest first */
   "social:listening": () => { id: number; at: number; plays: number }[];
   /** listening rooms (main/rooms.ts): the state now (after a reload of the page) */
   "room:state": () => RoomState;

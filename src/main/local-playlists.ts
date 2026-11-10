@@ -136,7 +136,7 @@ export const flushLocalPlaylists = () => file?.flush();
 /** All playlists on this computer as a file's text (a backup, or to take to another PC). */
 export function exportLocal(): { text: string; count: number } {
   const all = lists().map(({ title, items, created, from }) => ({ title, created, from, items }));
-  return { text: JSON.stringify({ app: "sc player", kind: "playlists", version: 1, playlists: all }, null, 1), count: all.length };
+  return { text: JSON.stringify({ app: "Moonwave", kind: "playlists", version: 1, playlists: all }, null, 1), count: all.length };
 }
 
 /**
@@ -148,10 +148,11 @@ export function importLocal(text: string): number {
   try {
     data = JSON.parse(text);
   } catch {
-    throw new ScError("unknown", "This isn't a playlists file from sc player");
+    throw new ScError("unknown", "This isn't a playlists file from Moonwave");
   }
   const d = data as { app?: unknown; kind?: unknown; playlists?: unknown };
-  if (d.app !== "sc player" || d.kind !== "playlists" || !Array.isArray(d.playlists)) throw new ScError("unknown", "This isn't a playlists file from sc player");
+  // files saved by sc player (the app Moonwave is based on, and Moonwave before it had its own name) are the same format
+  if ((d.app !== "Moonwave" && d.app !== "sc player") || d.kind !== "playlists" || !Array.isArray(d.playlists)) throw new ScError("unknown", "This isn't a playlists file from Moonwave");
   const have = new Set(lists().map((l) => key(l.title, l.items)));
   const added: LocalList[] = [];
   for (const raw of d.playlists.slice(0, 1000) as Record<string, unknown>[]) {

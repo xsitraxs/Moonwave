@@ -137,7 +137,7 @@ export default function PlayerBar() {
   const toggleLyrics = useUi((s) => s.toggleLyrics);
   const studio = useSettings((s) => s.prefs.look.design === "studio");
   const openFull = useUi((s) => s.openFull);
-  // listening rooms: with sc player's server in this build
+  // listening rooms: with Moonwave's server in this build
   const rooms = useSocial((s) => !!s.status?.available);
   const inRoom = useRoom((s) => !!s.room);
   const roomMember = useRoom((s) => !!s.room && s.room.host !== s.me);

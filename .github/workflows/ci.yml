@@ -225,7 +225,7 @@ jobs:
         shell: pwsh
         run: |
           $env:SC_NO_COUNT = "1"
-          $p = Start-Process -FilePath "dist/win-unpacked/sc player.exe" -RedirectStandardOutput "start.out.log" -RedirectStandardError "start.err.log" -PassThru
+          $p = Start-Process -FilePath "dist/win-unpacked/Moonwave.exe" -RedirectStandardOutput "start.out.log" -RedirectStandardError "start.err.log" -PassThru
           Start-Sleep -Seconds 25
           $ok = -not $p.HasExited
           if ($ok) {
@@ -235,7 +235,7 @@ jobs:
           } else {
             Write-Host "exited on start (code $($p.ExitCode))"
           }
-          $logFile = Join-Path $env:APPDATA "sc player\logs\main.log"
+          $logFile = Join-Path $env:APPDATA "Moonwave\logs\main.log"
           $combined = @()
           foreach ($f in @("start.out.log", "start.err.log", $logFile)) {
             if (Test-Path $f) {
@@ -260,12 +260,12 @@ jobs:
         if: runner.os == 'macOS'
         shell: bash
         run: |
-          SC_NO_COUNT=1 "dist/mac-arm64/sc player.app/Contents/MacOS/sc player" > start.log 2>&1 &
+          SC_NO_COUNT=1 "dist/mac-arm64/Moonwave.app/Contents/MacOS/Moonwave" > start.log 2>&1 &
           pid=$!
           sleep 25
           if kill -0 "$pid" 2>/dev/null; then kill "$pid"; ok=1; echo "running after 25 s"; else ok=0; echo "exited on start"; fi
           wait "$pid" 2>/dev/null || true
-          LOG_FILE="$HOME/Library/Application Support/sc player/logs/main.log"
+          LOG_FILE="$HOME/Library/Application Support/Moonwave/logs/main.log"
           {
             echo "=== start.log ==="
             tail -n 40 start.log 2>/dev/null || true
@@ -293,7 +293,7 @@ jobs:
           sleep 25
           if kill -0 "$pid" 2>/dev/null; then kill "$pid"; ok=1; echo "running after 25 s"; else ok=0; echo "exited on start"; fi
           wait "$pid" 2>/dev/null || true
-          LOG_FILE="$HOME/.config/sc player/logs/main.log"
+          LOG_FILE="$HOME/.config/Moonwave/logs/main.log"
           {
             echo "=== start.log ==="
             tail -n 40 start.log 2>/dev/null || true

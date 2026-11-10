@@ -1,5 +1,5 @@
 /**
- * sc player's own server (server/README.md): the track messenger and the theme workshop. Shapes as the API returns
+ * Moonwave's own server (server/README.md): the track messenger and the theme workshop. Shapes as the API returns
  * them; main talks to the server, the page only sees these.
  */
 

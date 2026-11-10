@@ -52,7 +52,7 @@ export function parseLatestYml(text) {
 const norm = (v) => v.split(".").concat(["0", "0", "0", "0"]).slice(0, 3).join(".");
 
 /**
- * Every unpacked app inside a dist/ folder: both `dist/mac/sc player.app` (x64) and `dist/mac-arm64/sc player.app` on
+ * Every unpacked app inside a dist/ folder: both `dist/mac/Moonwave.app` (x64) and `dist/mac-arm64/Moonwave.app` on
  * macOS, `dist/win-unpacked` on Windows, `dist/linux-unpacked` on Linux. Empty when only the installers are there.
  */
 export function unpackedApps(dir, platform) {
@@ -81,11 +81,11 @@ export function unpackedApp(dir, platform) {
  * The executable @electron/fuses reads the wire from: the .app bundle (it finds the framework binary inside itself),
  * the branded .exe, or the Linux executable, whose name comes from build.linux.executableName.
  */
-export function fusesTarget(unpacked, platform, productFilename = "sc player") {
+export function fusesTarget(unpacked, platform, productFilename = "Moonwave") {
   if (platform === "darwin") return unpacked;
   if (platform === "win32") return join(unpacked, `${productFilename}.exe`);
   const files = readdirSync(unpacked, { withFileTypes: true }).filter((e) => e.isFile()).map((e) => e.name);
-  return join(unpacked, files.includes("sc-player") ? "sc-player" : files.find((n) => !n.includes(".")) ?? "sc-player");
+  return join(unpacked, files.includes("moonwave") ? "moonwave" : files.find((n) => !n.includes(".")) ?? "moonwave");
 }
 
 /** Reads the raw JSON header string out of an ASAR archive's Chromium pickle framing. */
@@ -209,7 +209,7 @@ const FUSE_NAMES = { 0: "RunAsNode", 2: "EnableNodeOptionsEnvironmentVariable", 
  * Returns a list of problems, empty = ok. An unpacked app that is not there is not a problem: the installers are what
  * a release ships.
  */
-export async function verifyFuses({ dir, platform, productFilename = "sc player", checkCodesign = process.platform === "darwin" }) {
+export async function verifyFuses({ dir, platform, productFilename = "Moonwave", checkCodesign = process.platform === "darwin" }) {
   const apps = unpackedApps(dir, platform);
   if (!apps.length) return [];
   const { getCurrentFuseWire } = await import("@electron/fuses");
@@ -283,12 +283,12 @@ export function verifyDist({ dir, platform, expectVersion }) {
   // ---- the installers themselves, per platform
   if (platform === "win32") {
     const setups = pick(/setup.*\.exe$/i);
-    if (setups.length === 0) say("no NSIS installer (sc-player-setup-*.exe) in the output");
+    if (setups.length === 0) say("no NSIS installer (moonwave-setup-*.exe) in the output");
     for (const s of setups) {
       const bm = join(dir, `${s}.blockmap`);
       if (!existsSync(bm) || statSync(bm).size === 0) say(`missing blockmap ${s}.blockmap for differential Windows updates`);
     }
-    if (pick(/portable.*\.exe$/i).length === 0) say("no portable .exe (sc-player-portable-*.exe) in the output");
+    if (pick(/portable.*\.exe$/i).length === 0) say("no portable .exe (moonwave-portable-*.exe) in the output");
   } else if (platform === "darwin") {
     if (pick(/\.dmg$/i).length === 0) say("no .dmg in the output");
     if (pick(/\.zip$/i).length === 0) say("no .zip in the output (Squirrel.Mac needs it)");

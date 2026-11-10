@@ -1,4 +1,4 @@
-# sc player for macOS (Apple Silicon + Intel: .dmg, .zip) and Linux (x64: .AppImage, .deb), built on GitHub's
+# Moonwave for macOS (Apple Silicon + Intel: .dmg, .zip) and Linux (x64: .AppImage, .deb), built on GitHub's
 # machines — nobody here has a Mac. Windows is built the same way. This workflow is for test builds: the files come
 # out as the run's artifacts. Official releases (installers + update metadata attached to a GitHub Release) are made
 # by pushing a vX.Y.Z tag — see .github/workflows/release.yml; pull requests run .github/workflows/ci.yml.
@@ -119,14 +119,14 @@ jobs:
         if: runner.os == 'macOS'
         shell: bash
         run: |
-          SC_NO_COUNT=1 "dist/mac-arm64/sc player.app/Contents/MacOS/sc player" > start.log 2>&1 &
+          SC_NO_COUNT=1 "dist/mac-arm64/Moonwave.app/Contents/MacOS/Moonwave" > start.log 2>&1 &
           pid=$!
           sleep 25
           if kill -0 "$pid" 2>/dev/null; then kill "$pid"; ok=1; echo "running after 25 s"; else ok=0; echo "exited on start"; fi
           wait "$pid" 2>/dev/null || true
           echo "--- what it printed (last 80 lines; addresses and logins masked) ---"
           tail -n 80 start.log | sed -E 's#://[^/@ ]+@#://***@#g; s#[0-9]{1,3}(\.[0-9]{1,3}){3}#x.x.x.x#g'
-          LOG_FILE="$HOME/Library/Application Support/sc player/logs/main.log"
+          LOG_FILE="$HOME/Library/Application Support/Moonwave/logs/main.log"
           echo "--- how long the start took (the app's own log) ---"
           grep -E "start:|uncaught:|page process gone|page didn't load" "$LOG_FILE" || echo "(no start line)"
           [ "$ok" = 1 ]
@@ -147,7 +147,7 @@ jobs:
           wait "$pid" 2>/dev/null || true
           echo "--- what it printed (last 80 lines; addresses and logins masked) ---"
           tail -n 80 start.log | sed -E 's#://[^/@ ]+@#://***@#g; s#[0-9]{1,3}(\.[0-9]{1,3}){3}#x.x.x.x#g'
-          LOG_FILE="$HOME/.config/sc player/logs/main.log"
+          LOG_FILE="$HOME/.config/Moonwave/logs/main.log"
           echo "--- how long the start took (the app's own log) ---"
           grep -E "start:|uncaught:|page process gone|page didn't load" "$LOG_FILE" || echo "(no start line)"
           [ "$ok" = 1 ]
@@ -156,7 +156,7 @@ jobs:
 
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
-          name: sc-player-${{ matrix.name }}
+          name: moonwave-${{ matrix.name }}
           path: |
             dist/*.dmg
             dist/*.zip

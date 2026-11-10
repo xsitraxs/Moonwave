@@ -19,7 +19,7 @@ const ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"; // Crockford's base32: no I
 const CHECK_MS = 2 * 60_000;
 
 interface Payload {
-  app: "sc player";
+  app: "Moonwave";
   kind: "backup";
   version: 1;
   at: number;
@@ -51,7 +51,7 @@ function seal(key: string, p: Payload): Buffer {
 }
 
 function open(key: string, data: Buffer): Payload {
-  if (data.subarray(0, 4).toString() !== "SCB1") throw new ScError("unknown", "This isn't an sc player backup");
+  if (data.subarray(0, 4).toString() !== "SCB1") throw new ScError("unknown", "This isn't a Moonwave backup");
   try {
     const d = createDecipheriv("aes-256-gcm", derive(key, "enc"), data.subarray(4, 16));
     d.setAuthTag(data.subarray(data.length - 16));
@@ -65,7 +65,7 @@ const idOf = (key: string) => derive(key, "id").toString("hex");
 const writeOf = (key: string) => derive(key, "write").toString("hex");
 
 function payload(): Payload {
-  return { app: "sc player", kind: "backup", version: 1, at: Date.now(), // files from this computer get other ids elsewhere: their likes stay here
+  return { app: "Moonwave", kind: "backup", version: 1, at: Date.now(), // files from this computer get other ids elsewhere: their likes stay here
     likes: { ...likesData(), liked: likesData().liked.filter((l) => !isLocalTrack(l.id)) }, playlists: exportLocal().text, ownLyrics: ownLyricsData(), friend: friendSecret() };
 }
 /** what the copy holds, without its time: unchanged since the last upload means nothing goes */

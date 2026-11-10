@@ -9,7 +9,7 @@ import { player, usePlayer } from "./player";
 import { useUi } from "./ui";
 
 /**
- * The messenger as the page sees it: who I am on sc player's server, my friends, unread counts, what friends are
+ * The messenger as the page sees it: who I am on Moonwave's server, my friends, unread counts, what friends are
  * playing. main polls the server and pushes what changed; screens read it from here.
  */
 interface SocialStore {
@@ -133,8 +133,8 @@ export function initSocial() {
     if (!useSocial.getState().status?.profile?.shareNow) return;
     void call("social:now", t && s.status !== "paused" && s.status !== "idle" ? toSocial(t) : null).catch(() => undefined);
   });
-  // a track heard for half a minute (or half of a short one) counts for "Listening on sc player" — once per play; main
-  // sends it only with sc player's server in the build and "Share what I play" on
+  // a track heard for half a minute (or half of a short one) counts for "Listening on Moonwave" — once per play; main
+  // sends it only with Moonwave's server in the build and "Share what I play" on
   let counted = "";
   window.setInterval(() => {
     const s = usePlayer.getState();

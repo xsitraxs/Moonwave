@@ -2,7 +2,7 @@ import { BrowserWindow, screen } from "electron";
 import type { Design, PlayerInfo, PopupCorner } from "@shared/ipc";
 
 /**
- * A small card in a corner of the screen when the track changes while sc player isn't in front (Settings → Track
+ * A small card in a corner of the screen when the track changes while Moonwave isn't in front (Settings → Track
  * popup, off by default): cover, title, artist, for about four seconds. It never takes focus and lets clicks through,
  * so it doesn't get in the way of whatever is being worked on. It follows the chosen design: studio — dark glass over
  * the cover itself, blurred, like the window's background; og — the night card with the yellow edge.

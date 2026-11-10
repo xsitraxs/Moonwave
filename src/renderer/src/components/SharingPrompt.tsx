@@ -5,8 +5,8 @@ import { useSettings } from "@/state/settings";
 /**
  * The one-time question about the two sharing switches, shown on a new install.
  *
- * Both start off: nothing goes to sc player's server until the person says so. The card offers the two things that
- * would send something — the running-app count and the shared "Listening on sc player" — as one yes, and says plainly
+ * Both start off: nothing goes to Moonwave's server until the person says so. The card offers the two things that
+ * would send something — the running-app count and the shared "Listening on Moonwave" — as one yes, and says plainly
  * what each does; "Not now" keeps them off and the question never comes back (Settings → Messenger keeps both at any
  * time). It is recorded on the same page that sets the switches, so a crash before the answer shows it again.
  */

@@ -22,7 +22,7 @@ test("navigation: any other file:// address is rejected — a page the app never
 
 test("navigation: remote, opaque and about URLs are rejected", () => {
   assert.equal(isOwnIndexFile("https://example.com/", INDEX), false);
-  assert.equal(isOwnIndexFile("https://scplayer.example.com/out/renderer/index.html", INDEX), false);
+  assert.equal(isOwnIndexFile("https://moonwave.example.com/out/renderer/index.html", INDEX), false);
   assert.equal(isOwnIndexFile("data:text/html,<h1>hi</h1>", INDEX), false);
   assert.equal(isOwnIndexFile("about:blank", INDEX), false);
   assert.equal(isOwnIndexFile("", INDEX), false);

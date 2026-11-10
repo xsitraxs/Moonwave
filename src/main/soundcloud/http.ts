@@ -112,7 +112,7 @@ export class ScHttp {
       } catch (err) {
         if (!networkRetried) {
           networkRetried = true;
-          // the proxy's "auto" mode may switch to sc player's proxy meanwhile: the retry then goes that way
+          // the proxy's "auto" mode may switch to Moonwave's proxy meanwhile: the retry then goes that way
           if (!(await reportNetTrouble())) await sleep(1000);
           continue;
         }

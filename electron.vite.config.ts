@@ -23,7 +23,7 @@ const shared = { "@shared": resolve("src/shared") };
  *   break loudly (not silently) — add the domain here, never a blanket https:.
  */
 function csp(): Plugin {
-  // the workshop's previews come straight from sc player's server (see above); a build without a server has none
+  // the workshop's previews come straight from Moonwave's server (see above); a build without a server has none
   const server = serverApi();
   const policy = [
     "default-src 'self'",
@@ -69,7 +69,7 @@ function builtinProxy() {
   }
 }
 
-/** sc player's own server (server/README.md): server.local.json next to package.json — { "api": "https://…" }. */
+/** Moonwave's own server (server/README.md): server.local.json next to package.json — { "api": "https://…" }. */
 function serverApi() {
   try {
     const c = JSON.parse(readFileSync("server.local.json", "utf8")) as Record<string, unknown>;

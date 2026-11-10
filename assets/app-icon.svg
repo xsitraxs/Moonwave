@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
-<!-- sc player: a crescent moon that is the loudest of the sound waves rising under it, on a clear graphite night -->
+<!-- Moonwave: a crescent moon that is the loudest of the sound waves rising under it, on a clear graphite night -->
 <defs>
   <linearGradient id="night" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#050506"/><stop offset="1" stop-color="#1d1d23"/></linearGradient>
   <radialGradient id="glow" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#eef3ff" stop-opacity=".5"/><stop offset=".35" stop-color="#c9d8ff" stop-opacity=".18"/><stop offset="1" stop-color="#c9d8ff" stop-opacity="0"/></radialGradient>

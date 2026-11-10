@@ -1,9 +1,9 @@
 {
-  "name": "sc-player",
-  "productName": "sc player",
+  "name": "moonwave",
+  "productName": "Moonwave",
   "version": "2.4.1",
   "private": true,
-  "description": "sc player — a SoundCloud desktop client for Windows, macOS and Linux",
+  "description": "Moonwave — a SoundCloud desktop client for Windows, macOS and Linux",
   "author": "waterlil",
   "license": "GPL-3.0-only",
   "main": "out/main/index.js",
@@ -58,14 +58,14 @@
     "zustand": "5.0.15"
   },
   "build": {
-    "appId": "com.skythemontage.scplayer",
-    "productName": "sc player",
+    "appId": "io.github.xsitraxs.moonwave",
+    "productName": "Moonwave",
     "copyright": "waterlil",
     "protocols": [
       {
-        "name": "sc-player",
+        "name": "moonwave",
         "schemes": [
-          "scplayer"
+          "moonwave"
         ]
       }
     ],
@@ -87,7 +87,7 @@
     "extraResources": [
       {
         "from": "LICENSE",
-        "to": "LICENSE.sc-player.txt"
+        "to": "LICENSE.moonwave.txt"
       }
     ],
     "mac": {
@@ -156,7 +156,7 @@
       "perMachine": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
-      "shortcutName": "sc player"
+      "shortcutName": "Moonwave"
     },
     "linux": {
       "icon": "build/icon.png",
@@ -164,13 +164,13 @@
         "AppImage",
         "deb"
       ],
-      "executableName": "sc-player",
+      "executableName": "moonwave",
       "category": "Audio",
       "synopsis": "A SoundCloud player: no ads, lyrics word by word, friends to listen with",
       "maintainer": "waterlilo <https://github.com/waterlilo/sc-player>",
       "desktop": {
         "entry": {
-          "Name": "sc player",
+          "Name": "Moonwave",
           "Comment": "SoundCloud player",
           "Categories": "AudioVideo;Audio;Player;"
         }

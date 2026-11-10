@@ -199,7 +199,7 @@ function vkBar(s: { text: string; button: string | null; css: string; logo: stri
     const root = host.attachShadow({ mode: "closed" });
     root.innerHTML =
       `<style>${s.css}.bar{display:flex;align-items:center;gap:14px;min-height:54px;padding:8px 8px 8px 14px}.text{flex:1;color:#ececef}</style>` +
-      `<div class="bar glass"><span class="brand">${s.logo}sc player</span><span class="sep"></span><span class="text"></span><button type="button"></button></div>`;
+      `<div class="bar glass"><span class="brand">${s.logo}Moonwave</span><span class="sep"></span><span class="text"></span><button type="button"></button></div>`;
     document.documentElement.appendChild(host);
     bar = { host, text: root.querySelector<HTMLElement>(".text")!, button: root.querySelector("button")!, go: false };
     const b = bar;
@@ -369,7 +369,7 @@ function bookmarklet(): string {
     notVk: ru ? "Откройте VK — «Мою музыку» или плейлист — и нажмите закладку там." : "Open VK — “My music” or a playlist — and click the bookmark there.",
     none: ru ? "На этой странице нет треков. Откройте «Мою музыку» или плейлист." : "No tracks on this page. Open “My music” or a playlist.",
     reading: ru ? "Читаю треки… " : "Reading the tracks… ",
-    done: ru ? "Скопируйте и вставьте в sc player → Импорт" : "Copy them and paste into sc player → Import",
+    done: ru ? "Скопируйте и вставьте в Moonwave → Импорт" : "Copy them and paste into Moonwave → Import",
     copy: ru ? "Скопировать" : "Copy",
     copied: ru ? "Скопировано" : "Copied",
     close: ru ? "Закрыть" : "Close",
@@ -380,7 +380,7 @@ function bookmarklet(): string {
     const host = document.createElement("div");
     host.style.cssText = "position:fixed;inset:auto 0 18px 0;margin:auto;z-index:2147483647;width:min(640px,calc(100vw - 32px))";
     const root = host.attachShadow({ mode: "closed" });
-    root.innerHTML = "<style>" + ${JSON.stringify(glassCss(FONT))} + ".box{padding:12px 14px 14px}.head{display:flex;align-items:center;gap:12px;min-height:30px}.t{flex:1;font-weight:400}textarea{display:block;width:100%;height:220px;margin:12px 0;box-sizing:border-box;resize:vertical;background:rgba(255,255,255,.04);color:#ececef;border:1px solid rgba(255,255,255,.1);border-radius:7px;padding:10px 12px;font:400 12.5px/1.5 ui-monospace,Consolas,monospace;outline:none}textarea:focus{border-color:rgba(178,160,230,.6)}.row{display:flex;gap:8px}</style><div class='box glass'><div class=head><span class=brand>" + ${JSON.stringify(logo())} + "sc player</span><span class=sep></span><span class=t></span></div></div>";
+    root.innerHTML = "<style>" + ${JSON.stringify(glassCss(FONT))} + ".box{padding:12px 14px 14px}.head{display:flex;align-items:center;gap:12px;min-height:30px}.t{flex:1;font-weight:400}textarea{display:block;width:100%;height:220px;margin:12px 0;box-sizing:border-box;resize:vertical;background:rgba(255,255,255,.04);color:#ececef;border:1px solid rgba(255,255,255,.1);border-radius:7px;padding:10px 12px;font:400 12.5px/1.5 ui-monospace,Consolas,monospace;outline:none}textarea:focus{border-color:rgba(178,160,230,.6)}.row{display:flex;gap:8px}</style><div class='box glass'><div class=head><span class=brand>" + ${JSON.stringify(logo())} + "Moonwave</span><span class=sep></span><span class=t></span></div></div>";
     document.documentElement.appendChild(host);
     const box = root.querySelector(".box"), t = root.querySelector(".t");
     const page = await (${vkReader.toString()})((n) => (t.textContent = s.reading + n));
@@ -402,21 +402,21 @@ function bookmarklet(): string {
 /** A page in the browser with the bookmark to drag to the bookmarks bar, and how to use it. */
 export function openVkBookmark() {
   const ru = lang() === "ru";
-  const page = join(app.getPath("temp"), "sc-player-vk.html");
+  const page = join(app.getPath("temp"), "moonwave-vk.html");
   const steps = ru
     ? [
         "<b>Перетащите эту кнопку на панель закладок</b> (не нажимайте её здесь):",
         "<b>Откройте VK</b> в этом браузере — <a href=\"https://vk.com/audio\">«Мою музыку»</a> или нужный плейлист.",
-        "<b>Нажмите закладку.</b> Она прокрутит список до конца и покажет треки строками — скопируйте их и вставьте в sc player → Импорт.",
+        "<b>Нажмите закладку.</b> Она прокрутит список до конца и покажет треки строками — скопируйте их и вставьте в Moonwave → Импорт.",
       ]
     : [
         "<b>Drag this button to your bookmarks bar</b> (don't click it here):",
         "<b>Open VK</b> in this browser — <a href=\"https://vk.com/audio\">“My music”</a> or the playlist you want.",
-        "<b>Click the bookmark.</b> It scrolls the list to its end and shows the tracks as lines — copy them and paste into sc player → Import.",
+        "<b>Click the bookmark.</b> It scrolls the list to its end and shows the tracks as lines — copy them and paste into Moonwave → Import.",
       ];
   const html = `<!doctype html>
 <html lang="${ru ? "ru" : "en"}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>sc player — VK</title>
+<title>Moonwave — VK</title>
 <style>
 ${onest()
   .map((f) => `  @font-face { font-family: "sc-onest"; font-weight: ${f.weight}; unicode-range: ${f.range}; src: url(data:font/woff2;base64,${f.b64}) format("woff2"); }`)
@@ -457,7 +457,7 @@ ${onest()
   .foot { margin: 6px 0 0; padding-top: 16px; border-top: 1px solid rgba(255, 255, 255, 0.075); }
 </style></head>
 <body><main>
-  <div class="brand">${logo()}sc player</div>
+  <div class="brand">${logo()}Moonwave</div>
   <div class="card">
   <h1>${ru ? "Перенос из VK через браузер" : "Import from VK through your browser"}</h1>
   <ol>
