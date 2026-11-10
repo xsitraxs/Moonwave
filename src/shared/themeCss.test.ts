@@ -8,7 +8,7 @@ const reasons = (input: string) => sanitizeThemeCss(input).dropped.map((d) => d.
 
 test("a sober theme keeps its colours, glass and radii, scoped to the theme's container", () => {
   const out = css(".s-glass{background:rgba(14,14,17,.86);border-radius:10px;backdrop-filter:blur(30px)}");
-  assert.match(out, new RegExp(`^${THEME_SCOPE.replace(/[[\]]/g, "\\$&")} \\.s-glass`));
+  assert.match(out, new RegExp(`^${THEME_SCOPE.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")} \\.s-glass`));
   assert.match(out, /background: rgba\(14,14,17,.86\)/);
   assert.match(out, /border-radius: 10px/);
   assert.match(out, /backdrop-filter: blur\(30px\)/);

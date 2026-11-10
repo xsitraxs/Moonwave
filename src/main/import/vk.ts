@@ -51,6 +51,13 @@ function vkMayNavigate(url: string): boolean {
 
 // ---- the look: the app's studio design (styles/studio.css) --------------------------------------------------------
 
+/**
+ * A value written into code this file builds (executeJavaScript and the bookmarklet): JSON, with "<", ">", "/" and the
+ * two JavaScript line separators written as \u escapes. The value reads exactly the same, but the code stays safe
+ * even if it ever ends up inside a <script> or an HTML attribute, where plain JSON could close the tag.
+ */
+const js = (v: unknown) => JSON.stringify(v).replace(/[<>/\u2028\u2029]/g, (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, "0")}`);
+
 const FONT = `"sc-onest", "Onest", "Segoe UI", system-ui, sans-serif`;
 const LATIN = "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD";
 const CYRILLIC = "U+0301,U+0400-045F,U+0490-0491,U+04B0-04B1,U+2116";
@@ -74,11 +81,16 @@ let logoSvg: string | null = null;
 /** the app's mark (the title bar's), as svg markup */
 const logo = (): string => {
   try {
-    logoSvg ??= readFileSync(logoFile, "utf8").replace(/<!--[\s\S]*?-->/g, "").replace(/\s*\n\s*/g, "");
+    if (logoSvg === null) {
+      // repeated until nothing changes: one pass over "<!-<!-- -->-->" would leave a comment opener behind
+      let svg = readFileSync(logoFile, "utf8");
+      for (let prev = ""; prev !== svg; ) [prev, svg] = [svg, svg.replace(/<!--[\s\S]*?-->/g, "")];
+      logoSvg = svg.replace(/\s*\n\s*/g, "");
+    }
   } catch {
     logoSvg = "";
   }
-  return logoSvg;
+  return logoSvg ?? "";
 };
 
 /** The bar's and the bookmark box's styles: dark glass, thin light lines, a light button, the lavender accent. */
@@ -284,7 +296,7 @@ export function readVk(target: { url: string; key: string } | null, parent: Brow
     if (/^https:\/\//.test(url)) void shell.openExternal(url);
     return { action: "deny" };
   });
-  const exec = <T>(fn: string, arg?: unknown) => win.webContents.executeJavaScriptInIsolatedWorld(WORLD, [{ code: `(${fn})(${arg === undefined ? "" : JSON.stringify(arg)})` }]) as Promise<T>;
+  const exec = <T>(fn: string, arg?: unknown) => win.webContents.executeJavaScriptInIsolatedWorld(WORLD, [{ code: `(${fn})(${arg === undefined ? "" : js(arg)})` }]) as Promise<T>;
 
   const done = new Promise<{ title: string | null; items: ImportItem[] }>((resolve, reject) => {
     let finished = false;
@@ -296,7 +308,7 @@ export function readVk(target: { url: string; key: string } | null, parent: Brow
 
     const read = async () => {
       const t = m();
-      const progress = `(n) => { const b = window.__scVk; if (b) { b.text.textContent = ${JSON.stringify(t.vkReading(123456789))}.replace("123456789", n); b.button.style.display = "none"; } }`;
+      const progress = `(n) => { const b = window.__scVk; if (b) { b.text.textContent = ${js(t.vkReading(123456789))}.replace("123456789", n); b.button.style.display = "none"; } }`;
       const page = await win.webContents.executeJavaScriptInIsolatedWorld(WORLD, [{ code: `(${vkReader.toString()})(${progress})` }]) as VkPage;
       log("main", `import: vk ${page.kind} page read, ${page.tracks.length} tracks`);
       if (!page.tracks.length) {
@@ -375,17 +387,17 @@ function bookmarklet(): string {
     close: ru ? "Закрыть" : "Close",
   };
   const code = `(async () => {
-    const s = ${JSON.stringify(s)};
+    const s = ${js(s)};
     if (!/(^|\\.)vk\\.(com|ru)$/.test(location.hostname)) { alert(s.notVk); return; }
     const host = document.createElement("div");
     host.style.cssText = "position:fixed;inset:auto 0 18px 0;margin:auto;z-index:2147483647;width:min(640px,calc(100vw - 32px))";
     const root = host.attachShadow({ mode: "closed" });
-    root.innerHTML = "<style>" + ${JSON.stringify(glassCss(FONT))} + ".box{padding:12px 14px 14px}.head{display:flex;align-items:center;gap:12px;min-height:30px}.t{flex:1;font-weight:400}textarea{display:block;width:100%;height:220px;margin:12px 0;box-sizing:border-box;resize:vertical;background:rgba(255,255,255,.04);color:#ececef;border:1px solid rgba(255,255,255,.1);border-radius:7px;padding:10px 12px;font:400 12.5px/1.5 ui-monospace,Consolas,monospace;outline:none}textarea:focus{border-color:rgba(178,160,230,.6)}.row{display:flex;gap:8px}</style><div class='box glass'><div class=head><span class=brand>" + ${JSON.stringify(logo())} + "Moonwave</span><span class=sep></span><span class=t></span></div></div>";
+    root.innerHTML = "<style>" + ${js(glassCss(FONT))} + ".box{padding:12px 14px 14px}.head{display:flex;align-items:center;gap:12px;min-height:30px}.t{flex:1;font-weight:400}textarea{display:block;width:100%;height:220px;margin:12px 0;box-sizing:border-box;resize:vertical;background:rgba(255,255,255,.04);color:#ececef;border:1px solid rgba(255,255,255,.1);border-radius:7px;padding:10px 12px;font:400 12.5px/1.5 ui-monospace,Consolas,monospace;outline:none}textarea:focus{border-color:rgba(178,160,230,.6)}.row{display:flex;gap:8px}</style><div class='box glass'><div class=head><span class=brand>" + ${JSON.stringify(logo())} + "Moonwave</span><span class=sep></span><span class=t></span></div></div>";
     document.documentElement.appendChild(host);
     const box = root.querySelector(".box"), t = root.querySelector(".t");
     const page = await (${vkReader.toString()})((n) => (t.textContent = s.reading + n));
     if (!page.tracks.length) { host.remove(); alert(s.none); return; }
-    const same = new RegExp(${JSON.stringify(SAME_SONG.source)}, "i"), other = new RegExp(${JSON.stringify(OTHER_VERSION.source)}, "i");
+    const same = new RegExp(${js(SAME_SONG.source)}, "i"), other = new RegExp(${js(OTHER_VERSION.source)}, "i");
     const len = (ms) => Math.floor(ms / 60000) + ":" + String(Math.round(ms / 1000) % 60).padStart(2, "0");
     const text = page.tracks.map((x) => (x.artist ? x.artist + " — " : "") + (x.version && !same.test(x.version) && other.test(x.version) ? x.title + " (" + x.version + ")" : x.title) + (x.durationMs ? " " + len(x.durationMs) : "")).join("\\n");
     t.textContent = page.tracks.length + " — " + s.done;

@@ -39,6 +39,12 @@ jobs:
           # the app is bundled by electron-vite; nothing has to be compiled for the analysis, and "none" keeps the
           # job independent of the Electron binary (CI skips downloading it)
           build-mode: none
+          # design/ holds throwaway design prototypes run by hand (npx electron design/redesign/proto.cjs). They are not
+          # built, packed or shipped (package.json "build.files" takes out/ and resources/ only), so their findings,
+          # such as webSecurity: false for loading local mockups, are noise next to the app's
+          config: |
+            paths-ignore:
+              - design
 
       - uses: github/codeql-action/analyze@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
         with:

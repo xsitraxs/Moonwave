@@ -36,8 +36,8 @@ assert.equal((await api("POST", `/v1/friends/${a.code}/accept`, { secret: b.secr
 const stranger = (await api("POST", "/v1/register", { body: { name: "zed" } })).body;
 const unknown = ["SKY-22222", "SKY-ZZZZZ", "SKY-23456"].find((code) => code !== stranger.code && code !== a.code && code !== b.code)!;
 for (const [method, path] of [["DELETE", "/v1/friends/%"], ["POST", "/v1/friends/%/accept"], ["GET", "/v1/chat/%"], ["POST", "/v1/chat/%/seen"]] as const) {
-  const taken = await api(method, path.replace("%", stranger.code), { secret: a.secret });
-  const free = await api(method, path.replace("%", unknown), { secret: a.secret });
+  const taken = await api(method, path.replaceAll("%", stranger.code), { secret: a.secret });
+  const free = await api(method, path.replaceAll("%", unknown), { secret: a.secret });
   assert.equal(free.status, taken.status, `${method} ${path}: same status for a free and a taken code`);
   const text = (r: { body: unknown }, code: string) => JSON.stringify(r.body).replaceAll(code, "%");
   assert.equal(text(free, unknown), text(taken, stranger.code), `${method} ${path}: same answer for a free and a taken code`);

@@ -816,7 +816,7 @@ function restartForKey(): boolean {
   const bad = unopenedSecrets();
   if (!bad.length) return false;
   const mark = join(app.getPath("userData"), "key-restart");
-  const tried = createHash("sha1").update(bad.join("|")).digest("hex");
+  const tried = createHash("sha256").update(bad.join("|")).digest("hex");
   let last = "";
   try {
     last = readFileSync(mark, "utf8");
