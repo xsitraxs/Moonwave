@@ -17,19 +17,15 @@ test("a sober theme keeps its colours, glass and radii, scoped to the theme's co
 
 test("a fixed overlay over the player is refused, and nothing else in the rule is lost", () => {
   const { css: out, dropped } = sanitizeThemeCss(".s-glass{position:fixed;top:0;color:#fff;z-index:2147483647}");
-  assert.doesNotMatch(out, /position:\s*fixed/);
-  assert.match(out, /top: 0/);
-  assert.match(out, /color: #fff/);
-  assert.doesNotMatch(out, /z-index:\s*2147483647/);
+  assert.equal(out, "[data-theme-scope] .s-glass {\n  color: #fff;\n}");
   assert.ok(dropped.some((d) => /position/.test(d.reason)));
   assert.ok(dropped.some((d) => /z-index/.test(d.reason)));
 });
 
-test("sticky is refused too, and a z-index within the limit is kept", () => {
-  assert.doesNotMatch(css(".a{position:sticky}"), /sticky/);
-  assert.match(css(".a{position:relative;z-index:5}"), /z-index: 5/);
-  assert.doesNotMatch(css(".a{z-index:101}"), /z-index/);
-  assert.match(css(".a{z-index:100}"), /z-index: 100/);
+test("a theme never places, sizes, orders or hides anything: the layout stays the app's (AUDIT F2)", () => {
+  for (const decl of ["position:relative", "position:absolute", "position:sticky", "z-index:5", "top:-4px", "inset:0", "margin:0 0 0 -200px", "padding:900px", "width:0", "height:0", "max-height:0", "display:none", "visibility:hidden", "opacity:0", "transform:translateX(-4px)", "order:-1", "overflow:hidden", "flex:0", "gap:500px", "mix-blend-mode:difference", "font:0px onest,sans-serif"]) {
+    assert.equal(css(`.a{${decl}}`), "", decl);
+  }
 });
 
 test("content and pointer-events never get through", () => {
@@ -53,8 +49,7 @@ test("urls, imports, fonts and images are refused after their escapes are decode
   assert.match(css(".a{background:linear-gradient(180deg,#000,#111)}"), /linear-gradient/);
 });
 
-test("positioning inside the theme is fine; html, body and :root are not selectors a theme may use", () => {
-  assert.match(css(".a{position:absolute;inset:0}"), /position: absolute/);
+test("html, body and :root are not selectors a theme may use", () => {
   assert.equal(css("body .a{color:red}"), "");
   assert.equal(css("html{color:red}"), "");
   assert.equal(css(":root{--x:1}"), "");
@@ -63,9 +58,9 @@ test("positioning inside the theme is fine; html, body and :root are not selecto
 });
 
 test("@media is kept, nested @media is refused, and other at-rules are refused", () => {
-  const out = css("@media (max-width: 900px){.s-side{display:none}}");
+  const out = css("@media (max-width: 900px){.s-side{color:#888}}");
   assert.match(out, /^@media \(max-width: 900px\)/);
-  assert.match(out, /display: none/);
+  assert.match(out, /color: #888/);
   const nested = sanitizeThemeCss("@media (min-width:1px){@media (max-width:2px){.a{color:red}}}");
   assert.equal(nested.css, "");
   assert.ok(nested.dropped.some((d) => /nested too deeply/.test(d.reason)));
@@ -77,22 +72,23 @@ test("@media is kept, nested @media is refused, and other at-rules are refused",
 });
 
 test("@keyframes are kept and an animation may only name the theme's own", () => {
-  const out = css("@keyframes pulse{from{opacity:.4}to{opacity:1}}.a{animation:pulse 2s ease-in-out infinite}");
+  const out = css("@keyframes pulse{from{color:#888}to{color:#fff}}.a{animation:pulse 2s ease-in-out infinite}");
   assert.match(out, /@keyframes pulse/);
+  assert.match(out, /color: #888/);
   assert.match(out, /animation: pulse 2s ease-in-out infinite/);
   // an app animation is not the theme's to drive
   assert.doesNotMatch(css(".a{animation-name:sc-marker}"), /animation/);
   // and a keyframe that writes content is cut down to nothing
-  assert.doesNotMatch(css("@keyframes x{to{content:\"x\";opacity:1}}"), /content/);
+  assert.doesNotMatch(css("@keyframes x{to{content:\"x\";color:#fff}}"), /content/);
+  // nor one that moves or hides what it animates
+  assert.doesNotMatch(css("@keyframes x{to{opacity:0;transform:translateX(-9999px)}}"), /opacity|transform/);
 });
 
 test("a value with an unexpected function is dropped, with the function named", () => {
-  assert.equal(css(".a{filter:expression(alert(1))}"), "");
-  assert.ok(/expression/.test(reasons(".a{filter:expression(alert(1))}")));
-  assert.equal(css(".a{transform:perspective(500px) rotateY(45deg)}"), "");
-  assert.match(css(".a{transform:translateX(-4px) rotate(-2deg)}"), /transform: translateX\(-4px\) rotate\(-2deg\)/);
-  // a huge scale throws the layout off the screen
-  assert.equal(css(".a{transform:scale(100000)}"), "");
+  assert.equal(css(".a{color:expression(alert(1))}"), "");
+  assert.ok(/expression/.test(reasons(".a{color:expression(alert(1))}")));
+  assert.equal(css(".a{background:linear-gradient(red,blue),element(#x)}"), "");
+  assert.ok(/function element\(\) is not allowed/.test(reasons(".a{background:linear-gradient(red,blue),element(#x)}")));
 });
 
 test("fonts: only the app's own families (and the system stacks it already uses)", () => {
@@ -137,9 +133,9 @@ test("huge values are refused; a huge sheet is refused whole", () => {
 test("the result is always a sheet a theme scope can hold: every top-level selector starts with the scope", () => {
   const sheet = [
     ".a{color:#fff}",
-    ".b,.c{opacity:.5}",
-    "@media (min-width: 600px){.d{gap:8px}}",
-    "@keyframes k{to{opacity:1}}",
+    ".b,.c{color:#aaa}",
+    "@media (min-width: 600px){.d{color:red}}",
+    "@keyframes k{to{color:#fff}}",
     ".e{animation:k 1s linear}",
   ].join("\n");
   const out = css(sheet);
@@ -153,7 +149,7 @@ test("a broken sheet loses its broken parts and keeps the rest; the parser never
   for (const broken of ["}}}", "{{{", ".a{", "a{;}", "@", "@media", ".a{color}", "\\", ".a{content:'\\'}", "@keyframes x{", ".".repeat(500)]) {
     assert.doesNotThrow(() => sanitizeThemeCss(broken), broken);
   }
-  const out = css(".a{color:#fff}.b{position:fixed}.c{opacity:.5}");
+  const out = css(".a{color:#fff}.b{position:fixed}.c{color:#aaa}");
   assert.match(out, /\.a/);
   assert.doesNotMatch(out, /\.b\b/);
   assert.match(out, /\.c/);
@@ -166,7 +162,7 @@ test("themeCssProblems lists what a publication would be refused for", () => {
   assert.deepEqual(themeCssProblems(".a{color:#fff}"), []);
   const problems = themeCssProblems(".a{position:fixed;color:#fff}");
   assert.equal(problems.length, 1);
-  assert.match(problems[0]!, /^\.a: position: /);
+  assert.match(problems[0]!, /^\.a: property position is not allowed/);
 });
 
 test("escapes decode the way a browser decodes them", () => {
@@ -184,9 +180,10 @@ test("the golden themes: a workshop theme built from the app's own design surviv
                box-shadow: 0 18px 50px rgba(0, 0, 0, 0.5); backdrop-filter: blur(30px) saturate(1.2); }
     .s-btn { color: #ececef; font-family: "Onest", system-ui, sans-serif; font-weight: 600; letter-spacing: -0.003em; }
     .s-row:hover { background: rgba(255, 255, 255, 0.05); transition: background 0.15s ease-out; }
-    .s-side { opacity: 0.92; transform: translateY(-2px); }
-    @media (max-width: 900px) { .s-side { display: none; } }
-    @keyframes breathe { from { opacity: 0.6; } to { opacity: 1; } }
+    .s-side { background: linear-gradient(180deg, #16161a, #0e0e11); border-radius: 9999px; line-height: 1.4; font-size: 13px; }
+    @media (max-width: 900px) { .s-side { color: #a0a0a8; } }
+    @keyframes breathe { from { color: #888; } to { color: #fff; } }
+    .s-card { --accent: #ff5500; --accent-rgb: 255, 85, 0; --glass: rgba(20, 20, 24, 0.7); --text: var(--paper); }
     .s-np { animation: breathe 4s ease-in-out infinite alternate; }
   `;
   const { css: out, dropped } = sanitizeThemeCss(golden);
@@ -203,10 +200,31 @@ test("attacks that dress up the interface: overlays, disguised buttons, and hidi
   const fake = css('.x::after{content:"Sign in with SoundCloud";position:absolute;background:#f00}');
   assert.doesNotMatch(fake, /content:/);
   // the theme's container cannot be pushed off-screen to leave a bare background where the app should be
-  assert.doesNotMatch(css(".x{top:-9999px}"), /-9999px/);
-  assert.match(css(".x{top:-4px}"), /top: -4px/);
-  // and a transform that moves a panel over the title bar is bounded
+  assert.equal(css(".x{top:-9999px}"), "");
   assert.equal(css(".x{transform:translate(999999px)}"), "");
+});
+
+test("what is left can't hide or bury a button either: type, filters, variables, borders and shadows are bounded", () => {
+  // text too small to see, or spaced off its button
+  for (const v of ["font-size:0", "font-size:1px", "font-size:0.1rem", "font-size:200px", "letter-spacing:500px", "word-spacing:-900px", "text-indent:-9999px", "line-height:0", "line-height:0.1", "line-height:500px"]) {
+    assert.equal(css(`.a{${v}}`), "", v);
+  }
+  for (const v of ["font-size:13px", "font-size:0.875rem", "font-size:120%", "letter-spacing:-0.01em", "line-height:1.5", "line-height:normal", "line-height:20px"]) {
+    assert.notEqual(css(`.a{${v}}`), "", v);
+  }
+  // an invisible button that still takes the click
+  assert.equal(css(".a{filter:opacity(0)}"), "");
+  assert.equal(css(".a{filter:brightness(0)}"), "");
+  assert.equal(css(".a{backdrop-filter:opacity(0)}"), "");
+  assert.match(css(".a{backdrop-filter:blur(20px) saturate(1.4)}"), /backdrop-filter/);
+  // the app's own variables size and move things: a theme gives them colours only
+  for (const v of ["--k:0", "--rest:9999px", "--r:0", "--drift-dur:0s", "--font-sans:x", "--x:none"]) assert.equal(css(`.a{${v}}`), "", v);
+  for (const v of ["--accent:#f50", "--accent-rgb:255, 85, 0", "--glass:rgba(0,0,0,.5)", "--text:var(--paper)", "--line:hsl(0 0% 100% / 8%)"]) assert.notEqual(css(`.a{${v}}`), "", v);
+  // a border or a shadow wide enough to paint over the neighbours
+  assert.equal(css(".a{border:4000px solid #000}"), "");
+  assert.equal(css(".a{box-shadow:0 0 0 4000px #000}"), "");
+  assert.equal(css(".a{outline-offset:-500px}"), "");
+  assert.match(css(".a{border:1px solid rgba(255,255,255,.08);box-shadow:0 18px 50px rgba(0,0,0,.5)}"), /border: 1px solid/);
 });
 
 test("a theme cannot smuggle a rule or an @import through a quoted brace or a stray closing brace", () => {
@@ -221,6 +239,6 @@ test("a theme cannot smuggle a rule or an @import through a quoted brace or a st
 
 test("an animation is bounded: the keyframes may stay, an attempted flash speed may not", () => {
   // a 200 s fade is outside what a theme may run: the declaration goes, the (harmless) keyframes may stay unused
-  assert.doesNotMatch(css("@keyframes flash{to{opacity:0}}.x{animation:flash 200s}"), /animation:/);
-  assert.match(css("@keyframes spin{to{transform:rotate(360deg)}}.x{animation:spin 2s linear infinite}"), /animation: spin 2s linear infinite/);
+  assert.doesNotMatch(css("@keyframes flash{to{color:#000}}.x{animation:flash 200s}"), /animation:/);
+  assert.match(css("@keyframes glow{to{color:#fff}}.x{animation:glow 2s linear infinite}"), /animation: glow 2s linear infinite/);
 });
