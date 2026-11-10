@@ -22,7 +22,7 @@
 
 <br/>
 
-<img src=".github/assets/hero.jpg" alt="Moonwave — the Home page over a living background" width="100%" />
+<img src=".github/assets/hero.jpg" alt="Moonwave — the Home page" width="100%" />
 
 </div>
 
@@ -34,19 +34,12 @@
   <table>
     <tr>
       <td align="center" width="50%">
-        <img src=".github/assets/fullscreen.jpg" alt="The full screen player with lyrics lit word by word" />
+        <img src=".github/assets/fullscreen.jpg" alt="The full screen player with the lyrics next to the cover" />
         <br/>
         <sub><b>Lyrics, word by word</b></sub>
       </td>
       <td align="center" width="50%">
-        <img src=".github/assets/rooms.jpg" alt="A listening room with friends next to the Home page" />
-        <br/>
-        <sub><b>Listen together</b></sub>
-      </td>
-    </tr>
-    <tr>
-      <td align="center" colspan="2">
-        <img src=".github/assets/appearance.jpg" alt="Settings → Appearance with an own interface colour and accent" width="50%" />
+        <img src=".github/assets/appearance.jpg" alt="Settings → Appearance with an own interface colour and accent" />
         <br/>
         <sub><b>Make it yours</b></sub>
       </td>
