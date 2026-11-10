@@ -67,7 +67,9 @@
   runs out similar tracks keep it going.
 - **Send tracks to friends:** friend codes (no accounts), an Inbox, what your friends are listening to right now, and an
   invite link to send in any messenger.
-- **On Home:** what your friends are playing and what people listen to on sc player (anonymous).
+- **On Home:** what your friends are playing and what people listen to on sc player. The shared list is
+  pseudonymous and off by default: the app sends a track id only if you turn it on (Settings → Messenger), and the
+  running-app count is likewise off until you say yes once, on the first start.
 
 **Lyrics**
 - From [Better Lyrics](https://betterlyrics.org) (often timed word by word), its community catalog Unison and

@@ -5,7 +5,7 @@ One small VPS runs everything the app needs from its own side:
 | Part | Where | What |
 |---|---|---|
 | **Proxy** | `caddy/` | HTTPS forward proxy for SoundCloud only (site, API, audio, artwork, bot protection). Anything else is refused. Without the password it looks like an ordinary site. |
-| **API** | `api/` | `/v1/*`: the track messenger (friend codes, no accounts), the theme workshop, an anonymous count of running apps. Node 24, SQLite, no packages. |
+| **API** | `api/` | `/v1/*`: the track messenger (friend codes, no accounts), the theme workshop, a pseudonymous count of running apps (off unless the person turns it on). Node 24, SQLite, no packages. |
 
 Caddy takes the certificate from Let's Encrypt itself and renews it (no e-mail needed: Let's Encrypt no longer sends expiry notices).
 
@@ -13,7 +13,10 @@ Caddy takes the certificate from Let's Encrypt itself and renews it (no e-mail n
 
 - **Messenger:** a random friend code, the name the user typed, friendships, and the tracks sent (SoundCloud id, title, artist, cover and page links). "Listening now" only when the user turns it on, and only the current track. Deleting the profile in the app (`DELETE /v1/me`) removes all of it.
 - **Workshop:** published themes — name, description, the appearance knobs, optional CSS (style only: no `url()`, `@import`, fonts or scripts; checked here and again in the app), an optional background image or video (up to 25 MB, type checked by its bytes) and a preview image. Three reports hide a theme until a moderator looks.
-- **Counter:** once a day per install — a random install id and the app version. No IP, no account, nothing else.
+- **Counter:** only while the person keeps it on (Settings → Messenger; a new install starts with it off). Once a day
+  per install — a random install id and the app version. No IP, no account, nothing else.
+- **Listening:** only while the person keeps it on. A track id, no device secret, no account — "Listening on sc
+  player" is written without asking anyone who listened.
 
 ## Deploy
 

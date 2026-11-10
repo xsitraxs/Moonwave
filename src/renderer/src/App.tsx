@@ -33,6 +33,7 @@ import TrackMenu from "@/components/tracks/TrackMenu";
 import Toast from "@/components/ui/Toast";
 import PlaylistPicker from "@/components/tracks/PlaylistPicker";
 import CheckDialog from "@/components/CheckDialog";
+import SharingPrompt from "@/components/SharingPrompt";
 import Dialog from "@/components/Dialog";
 import { useNav, type Route } from "@/state/nav";
 
@@ -123,6 +124,7 @@ export default function App() {
       </div>
       <AppearancePopover />
       <Dialog />
+      <SharingPrompt />
     </>
   );
 }

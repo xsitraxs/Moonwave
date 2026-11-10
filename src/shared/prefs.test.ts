@@ -19,3 +19,33 @@ test("proxy: other choices stay as they were", () => {
   assert.equal(proxy({ mode: "direct" }).mode, "direct");
   assert.equal(proxy({ mode: "builtin" }).mode, "builtin");
 });
+
+test("telemetry: a new install starts with both sharing switches off and the question unasked", () => {
+  const p = withPrefDefaults(undefined);
+  assert.equal(p.countMe, false);
+  assert.equal(p.shareListening, false);
+  assert.equal(p.telemetryAsked, false);
+});
+
+test("telemetry: an install that already ran keeps its choices and is not asked again", () => {
+  // the old default was on for both: an upgrading user's saved settings must survive untouched
+  const kept = withPrefDefaults({ countMe: true, shareListening: true });
+  assert.equal(kept.countMe, true);
+  assert.equal(kept.shareListening, true);
+  assert.equal(kept.telemetryAsked, true, "an install with settings has already answered");
+
+  // and someone who had turned them off stays off
+  const off = withPrefDefaults({ countMe: false, shareListening: false });
+  assert.equal(off.countMe, false);
+  assert.equal(off.shareListening, false);
+  assert.equal(off.telemetryAsked, true);
+});
+
+test("telemetry: a new install sees the question once, and the answer stops it", () => {
+  // first start: nothing stored yet
+  assert.equal(withPrefDefaults(undefined).telemetryAsked, false);
+  // after the person answered "not now": the mark is stored and the question is gone
+  assert.equal(withPrefDefaults({ telemetryAsked: true }).telemetryAsked, true);
+  // they later turned the count on themselves: still not asked again
+  assert.equal(withPrefDefaults({ telemetryAsked: true, countMe: true }).telemetryAsked, true);
+});
