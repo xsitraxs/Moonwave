@@ -61,6 +61,9 @@ let sinkId = "";
  */
 let chainCarries = false;
 
+/** Whether a deck at crossfade level `level` reaches the analyser with anything at all (not muted, volume above 0). */
+const audibleLevel = (level: number) => !muted && volume > 0 && level > 0;
+
 /** the gain a deck was given in the current context; an element can be routed only once, so this also tells "already done" */
 const routedElements = new WeakMap<HTMLAudioElement, GainNode>();
 /**
@@ -393,14 +396,17 @@ class Deck {
       this.beginRouteCheck();
       return false;
     }
-    if (this.audio.paused) {
+    // paused, muted or at volume 0: the analyser is silent by the person's choice (the deck's gain sits before it), so
+    // nothing is judged, and the window starts over once the deck is heard again — a mute of more than a few seconds
+    // used to give the route up for the whole run and take the equalizer and the sky with it
+    if (this.audio.paused || !audibleLevel(this.level)) {
       this.routeSince = 0;
       return false;
     }
     // a quiet passage is disproved by a position that moved while the analyser heard exact zero, for longer than a
     // track's silence ever lasts (a fade, a gap between tracks)
     if (performance.now() - this.routeSince <= ROUTE_SILENCE_MS) return false;
-    return routeIsSilent({ running: true, level: this.routePeak, progressedSeconds: this.audio.currentTime - this.routeFrom });
+    return routeIsSilent({ running: true, level: this.routePeak, progressedSeconds: this.audio.currentTime - this.routeFrom, audible: audibleLevel(this.level) });
   }
 
   applyLevel() {
