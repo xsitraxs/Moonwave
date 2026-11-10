@@ -364,6 +364,15 @@ function listening(c: Ctx) {
 
 // ---- the user counter ---------------------------------------------------------------------------------------------
 
+/**
+ * The stats look back 30 days at most; older rows would only add up, day by day, to when each install was running —
+ * a usage history nobody agreed to. A few days over 30 so a month's count is never cut short.
+ */
+const PINGS_KEEP_DAYS = 35;
+const prunePings = () => run("DELETE FROM pings WHERE day < ?", new Date(Date.now() - PINGS_KEEP_DAYS * DAY).toISOString().slice(0, 10));
+prunePings();
+setInterval(prunePings, DAY).unref();
+
 async function ping(c: Ctx) {
   limit(`ping:${c.ip}`, 20, HOUR);
   const body = await readJson(c.req, 1024);
