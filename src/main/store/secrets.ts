@@ -1,7 +1,8 @@
-import { chmodSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { app, safeStorage } from "electron";
 import { log } from "../system/log";
+import { dropOrphans, forgetAll, keepOld, olds, type Sealed } from "./sealed";
 import { SECRETS_DISABLED_SUFFIX, looksLikeSecretsFile, planForBackend, storageBackendForPlatform, type StoragePlan } from "@shared/secureStorage";
 
 /**
@@ -17,11 +18,11 @@ import { SECRETS_DISABLED_SUFFIX, looksLikeSecretsFile, planForBackend, storageB
  * A secret that can't be opened is not the same as no secret: a run whose encryption key never reached the disk (seen
  * after installing over a running app) writes values the next run can't open, and the older value it overwrote was
  * the user's account. So every account value replaced or removed is kept sealed under "<key>~old" (the last few), and when
- * the current one can't be opened the newest old one that can is put back.
+ * the current one can't be opened the newest old one that can is put back. Those copies are for a replacement, not for
+ * a goodbye: signing out or leaving on purpose goes through forgetSecret, which removes them as well.
  */
 type Key = "sessionToken" | "officialClientSecret" | "officialRefreshToken" | "proxyPassword" | "socialSecret" | "moderatorToken" | "backupKey";
 
-const KEEP_OLD = 4;
 /** the ones that are an account: kept when replaced (a removed moderator key or proxy password is simply gone) */
 const GUARDED = new Set<Key>(["sessionToken", "officialRefreshToken", "socialSecret", "backupKey"]);
 const memory = new Map<Key, string>();
@@ -47,6 +48,12 @@ function prepare() {
     quarantineStaleSession();
   } else {
     log("main", `secrets: ${backend}`);
+    // old copies with no current value (a sign-out by 2.5.0 or earlier left them; see dropOrphans) go at start
+    const all = load();
+    if (dropOrphans(all, GUARDED)) {
+      save(all);
+      log("main", "secrets: copies left by an earlier sign-out removed");
+    }
   }
 }
 
@@ -108,8 +115,6 @@ const save = (all: Sealed) => {
   if (process.platform !== "win32") chmodSync(path(), 0o600);
 };
 
-type Sealed = Record<string, string | string[]>;
-
 function load(): Sealed {
   try {
     return JSON.parse(readFileSync(path(), "utf8")) as Sealed;
@@ -125,14 +130,6 @@ function open(sealed: string): string | null {
     return null;
   }
 }
-
-const olds = (all: Sealed, key: Key) => {
-  const v = all[`${key}~old`];
-  return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string" && !!x) : [];
-};
-const keepOld = (all: Sealed, key: Key, sealed: string, drop?: string) => {
-  all[`${key}~old`] = [sealed, ...olds(all, key).filter((s) => s !== sealed && s !== drop)].slice(0, KEEP_OLD);
-};
 
 const sealing = () => {
   prepare();
@@ -185,11 +182,15 @@ export function setSecret(key: Key, value: string | null) {
 }
 
 /**
- * Sign out and forget: the in-memory copies, the on-disk file, and the quarantine this build made (all of it is only
- * this app's credentials). User data — playlists, history, settings — is untouched.
+ * The person signed out or left on purpose: the value goes, and so does every earlier copy under "<key>~old".
+ * setSecret(key, null) keeps the removed value there, which is right when a value is lost by accident (a refused token,
+ * a server that forgot the device) but wrong here. Kept after a sign-out, those copies stay on disk when the person
+ * believes they are gone. Worse, getSecret puts one back when the current value can't be opened, so the next account's
+ * unreadable token would be swapped for the account they signed out of.
  */
-export function clearSecrets() {
-  memory.clear();
-  rmSync(path(), { force: true });
-  rmSync(quarantine(), { force: true });
+export function forgetSecret(key: Key) {
+  memory.delete(key);
+  if (!sealing()) return;
+  const all = load();
+  if (forgetAll(all, key)) save(all);
 }

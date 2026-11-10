@@ -7,7 +7,7 @@ import { sanitizeThemeCss } from "@shared/themeCss";
 import type { Friends, Message, RoomInvite, SocialProfile, SocialStatus, SocialTrack, SocialUpdate, ThemeLook, WsPage, WsReported, WsSort, WsThemeFull, SharedPlaylist } from "@shared/social";
 import { ScError } from "./soundcloud";
 import { prefs } from "./store";
-import { getSecret, setSecret } from "./store/secrets";
+import { forgetSecret, getSecret, setSecret } from "./store/secrets";
 import { readBackground, saveBackground } from "./system/background";
 import { log } from "./system/log";
 import { appIcon, showWindow } from "./system/tray";
@@ -149,7 +149,8 @@ export async function updateProfile(patch: { name?: string; shareNow?: boolean }
 
 export async function leave(): Promise<SocialStatus> {
   if (joined()) await api("DELETE", "/v1/me");
-  setSecret("socialSecret", null);
+  // the profile is deleted on the server: no copy of its secret has any use left on this computer
+  forgetSecret("socialSecret");
   profile = null;
   friends = null;
   Object.assign(loc(), { since: 0, v: -1 });
