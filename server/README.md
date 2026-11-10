@@ -20,10 +20,15 @@ Caddy takes the certificate from Let's Encrypt itself and renews it (no e-mail n
 
 ## Deploy
 
+> **A server set up before the rename (as sc player) stays where it is — in `/opt/sc-player`.** Docker Compose names
+> the project after its folder and the volumes after the project (`sc-player_api-data`, `sc-player_caddy-data`): the
+> same files started from another folder are a new, empty server — no friends, messages or backups — and the old one
+> still holds ports 80 and 443. Update it in place, as in [Updating](#updating). The folder below is for a new server.
+
 On a fresh Ubuntu/Debian VPS (1 vCPU / 1 GB is plenty):
 
 ```bash
-ssh -i ~/.ssh/moonwave-vps root@<ip>
+ssh -i ~/.ssh/moonwave-vps root@<ip>      # a key of your own (ssh-keygen -f ~/.ssh/moonwave-vps)
 curl -fsSL https://get.docker.com | sh
 ufw allow 22,80,443/tcp && ufw allow 443/udp && ufw --force enable
 mkdir -p /opt/moonwave
@@ -57,7 +62,6 @@ At build time, next to `package.json` (both files are in `.gitignore`):
 
 ```bash
 docker compose logs -f api                       # what the API is doing
-docker compose pull && docker compose up -d --build   # after updating the files
 curl https://<domain>/v1/stats                   # running apps today / week / month
 ```
 
@@ -70,10 +74,29 @@ curl -X POST -H "Authorization: Admin $ADMIN_TOKEN" https://<domain>/v1/admin/th
 curl -X DELETE -H "Authorization: Admin $ADMIN_TOKEN" https://<domain>/v1/themes/<id>
 ```
 
-Backup (the database and theme files live in the `api-data` volume):
+Backup (the database and theme files live in the `api-data` volume; run it in the server's folder — the volume's name
+starts with the folder's, `sc-player_api-data` or `moonwave_api-data`):
 
 ```bash
-docker run --rm -v moonwave_api-data:/d -v $PWD:/b alpine tar czf /b/api-data-$(date +%F).tgz -C /d .
+docker run --rm -v "$(basename "$PWD")_api-data":/d -v "$PWD":/b alpine tar czf /b/api-data-$(date +%F).tgz -C /d .
+```
+
+## Updating
+
+From this folder on your PC, into the folder the server already runs from (`/opt/sc-player` for a server set up
+before the rename, `/opt/moonwave` for a new one; the key is whichever you made, e.g. `~/.ssh/sc-player-vps`). Only the
+code is copied — `.env` and the data volumes are left alone:
+
+```bash
+scp -i ~/.ssh/<key> -r caddy api docker-compose.yml root@<ip>:/opt/<folder>/
+```
+
+On the server, a backup first (the command above), then:
+
+```bash
+cd /opt/<folder>
+docker compose up -d --build
+curl https://<domain>/v1/health                  # {"ok":true}
 ```
 
 ## Developing
