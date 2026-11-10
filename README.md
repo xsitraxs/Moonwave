@@ -80,6 +80,8 @@
 **На компьютере**
 - Медиаклавиши, системные элементы управления, значок в трее и в строке меню, глобальные горячие клавиши,
   уведомления, автозапуск.
+- **Статус «Слушает Moonwave» в Discord:** трек, обложка и время в вашем профиле, пока что-то играет. Передаётся
+  приложению Discord на этом же компьютере, без сервера. Выключается в Настройки → Окно и система.
 - **Windows:** кнопки ⏮ ⏯ ⏭ под превью на панели задач. **macOS:** закрытие окна не останавливает музыку.
 - Обновляется сам (установщик Windows, AppImage на Linux) или сообщает о новой версии (macOS, .deb, portable).
   Пока окно скрыто, ничего не рисуется — играет только звук.
@@ -174,7 +176,6 @@ Moonwave ставится **отдельным приложением**, ряд�
 - **Облачный бэкап** — лайки, плейлисты и тексты на новом компьютере по ключу переноса.
 - **Встроенный обход блокировки** SoundCloud — без zapret и VPN.
 - **Тексты от сообщества** — предлагать свои тексты для треков.
-- **Статус «Слушает Moonwave» в Discord.**
 
 Как поднять свой сервер — в [server/README.md](server/README.md).
 
@@ -218,7 +219,8 @@ or with SoundCloud.
   of the same recording; crossfade, 10-band EQ, output device, sleep timer; your own audio files.
 - **Lyrics** from Better Lyrics, Unison and LRCLIB, often word by word; plain lyrics can be synced on your computer.
 - **Look:** dark glass over a living background, your own colour and accent; a full screen player with a spectrum.
-- **Desktop:** media keys, tray, global hotkeys, notifications, self-updating installer and AppImage.
+- **Desktop:** media keys, tray, global hotkeys, notifications, "Listening to Moonwave" on your Discord profile,
+  self-updating installer and AppImage.
 
 **Install:** grab the file for your system from the [latest release](../../releases/latest) — `moonwave-setup-v….exe`
 (Windows), `moonwave-v…-arm64.dmg` / `-x64.dmg` (macOS 13+; run `xattr -cr "/Applications/Moonwave.app"` once, the
@@ -228,8 +230,8 @@ anyway** if SmartScreen warns.
 **Coming from sc player:** Moonwave installs next to it and copies its settings, likes and playlists on the first
 start (on macOS and Linux you sign in to SoundCloud again). Remove sc player once everything is there.
 
-**Not yet:** listening rooms, the Inbox, the Workshop, cloud backup, the built-in route to SoundCloud and Discord
-presence need a Moonwave server, which doesn't exist yet — they are hidden in current builds.
+**Not yet:** listening rooms, the Inbox, the Workshop, cloud backup and the built-in route to SoundCloud need a
+Moonwave server, which doesn't exist yet — they are hidden in current builds.
 
 **License:** GPL-3.0 — Copyright © 2026 waterlil and the contributors. The name *sc player* and its logo belong to the
 original app (GPL-3.0 §7e) and are not used here.

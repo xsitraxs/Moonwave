@@ -188,7 +188,7 @@ export function updateDiscord(info: PlayerInfo) {
 
 /** Settings → "Show in Discord": connects (and keeps trying) when on; clears the status and lets go when off. */
 export function setDiscordEnabled(on: boolean) {
-  // no Discord application of Moonwave's own yet (see DISCORD_CLIENT_ID): nothing is ever sent, whatever the setting says
+  // a build without a Discord application (DISCORD_CLIENT_ID = ""): nothing is ever sent, whatever the setting says
   if (!CLIENT_ID) on = false;
   if (on === enabled) return;
   enabled = on;

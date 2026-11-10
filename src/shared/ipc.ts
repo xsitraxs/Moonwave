@@ -59,11 +59,11 @@ export const RELEASES_URL = `https://github.com/${UPDATE_REPO.owner}/${UPDATE_RE
 /** The project's own pages, so a report or a link never sends someone to the project this one was forked from. */
 export const REPO_URL = `https://github.com/${UPDATE_REPO.owner}/${UPDATE_REPO.repo}`;
 /**
- * The Discord application the "Listening to …" status is shown under. Empty: Moonwave has none of its own yet — the id
- * it had was sc player's (the status would read "sc player"), so the feature is off and its switch hidden until one is
- * registered at discord.com/developers and put here.
+ * The Discord application the "Listening to …" status is shown under: its name is what the profile reads, so it is
+ * Moonwave's own (registered at discord.com/developers), not sc player's. It is a public id, not a secret. A fork that
+ * builds under another name sets its own here, or "" to turn the feature off and hide its switch.
  */
-export const DISCORD_CLIENT_ID: string = "";
+export const DISCORD_CLIENT_ID: string = "1569652950110830663";
 export const ISSUES_URL = `${REPO_URL}/issues`;
 
 export type UpdateStatus =
