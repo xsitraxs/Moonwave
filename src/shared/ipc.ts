@@ -135,6 +135,8 @@ export interface Look {
   css: string;
 }
 export type PopupCorner = "bottom-right" | "top-right" | "bottom-left" | "top-left";
+/** What the short Discord status (the member list, the friends list) names: the app, the artist or the track. */
+export type DiscordStatus = "app" | "artist" | "track";
 
 /** Everything on the Settings screen. main reads the parts it acts on (tray, autostart, hotkeys, notifications). */
 export interface Prefs {
@@ -151,6 +153,8 @@ export interface Prefs {
   trackPopup: boolean;
   /** "Listening to Moonwave" with the track on the Discord profile (the Discord app on this computer) */
   discordPresence: boolean;
+  /** "Listening to Moonwave", "Listening to <artist>" or "Listening to <track>"; the profile card shows all three anyway */
+  discordStatus: DiscordStatus;
   /** the night design's clouds drifting behind the window */
   skyClouds: boolean;
   /** stars twinkle with the top end, the edges flash on the kick (an analyser on the output) */
@@ -229,6 +233,7 @@ export const PREFS_DEFAULTS: Prefs = {
   notifications: false,
   trackPopup: false,
   discordPresence: true,
+  discordStatus: "app",
   skyClouds: true,
   reactiveSky: true,
   coverTint: true,

@@ -40,7 +40,7 @@ import { audioReport, noteAudioHealth, noteChildProcessGone } from "./system/aud
 import { netCheck } from "./system/netcheck";
 import { lockPermissions } from "./system/permissions";
 import { applyProxy, hasBuiltinProxy, initProxyAuth, initProxyAuto, proxyRoute } from "./system/proxy";
-import { setDiscordEnabled, updateDiscord } from "./system/discord";
+import { setDiscordEnabled, setDiscordStatus, updateDiscord } from "./system/discord";
 import { notifyTrack } from "./system/notify";
 import { createTray, showWindow, updateTray } from "./system/tray";
 import { updateThumbar } from "./system/thumbar";
@@ -697,6 +697,7 @@ function applySystemPrefs(before: ReturnType<typeof prefs>) {
   if (now.startWithWindows !== before.startWithWindows) applyAutostart(now.startWithWindows);
   if (JSON.stringify(now.hotkeys) !== JSON.stringify(before.hotkeys)) send(main, "hotkeys:failed", applyHotkeys(now.hotkeys));
   if (JSON.stringify(now.proxy) !== JSON.stringify(before.proxy)) void applyProxy(now.proxy);
+  setDiscordStatus(now.discordStatus);
   setDiscordEnabled(now.discordPresence);
 }
 
@@ -949,7 +950,10 @@ void app.whenReady().then(async () => {
   }));
   initHotkeys((action) => (action === "showWindow" ? showWindow(main) : send(main, "player:command", action)));
   const failed = timed("hotkeys", () => applyHotkeys(p.hotkeys));
-  timed("discord", () => setDiscordEnabled(p.discordPresence));
+  timed("discord", () => {
+    setDiscordStatus(p.discordStatus);
+    setDiscordEnabled(p.discordPresence);
+  });
   main.webContents.once("did-finish-load", () => send(main, "hotkeys:failed", failed));
   timed("autostart", () => applyAutostart(p.startWithWindows));
   log("main", `start: set up in ${Math.round(process.uptime() * 1000) - readyMs} ms after ready`);

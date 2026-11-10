@@ -448,6 +448,20 @@ export default function Settings() {
                 <Toggle on={prefs.discordPresence} onChange={(v) => setPref("discordPresence", v)} label={t.discordPresence} />
               </Row>
             )}
+            {!!DISCORD_CLIENT_ID && prefs.discordPresence && (
+              <Row label={t.discordStatus} hint={t.discordStatusHint}>
+                <Choice
+                  value={prefs.discordStatus}
+                  label={t.discordStatus}
+                  onChange={(v) => setPref("discordStatus", v)}
+                  options={[
+                    ["app", t.discordStatusApp],
+                    ["artist", t.discordStatusArtist],
+                    ["track", t.discordStatusTrack],
+                  ]}
+                />
+              </Row>
+            )}
             <Row label={t.popupCorner}>
               <div className="flex flex-wrap items-center justify-end gap-2">
                 <Choice

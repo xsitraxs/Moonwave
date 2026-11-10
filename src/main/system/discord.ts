@@ -1,6 +1,6 @@
 import { connect, type Socket } from "node:net";
 import { join } from "node:path";
-import { DISCORD_CLIENT_ID, RELEASES_URL, type PlayerInfo } from "@shared/ipc";
+import { DISCORD_CLIENT_ID, RELEASES_URL, type DiscordStatus, type PlayerInfo } from "@shared/ipc";
 import { artwork, isLocalTrack } from "@shared/types";
 import { log } from "./log";
 
@@ -30,6 +30,13 @@ let sentKey: string | null = null;
 let lastSend = 0;
 let later: NodeJS.Timeout | null = null;
 let nonce = 0;
+let statusOf: DiscordStatus = "app";
+// the last track heard from the page: a change of the status setting rebuilds the activity from it at once
+let lastInfo: PlayerInfo | null = null;
+
+// Discord's status_display_type: which field the short status shows. 0 = the application's name, 1 = state (the artist
+// here), 2 = details (the title here) — the same order Discord's RPC libraries use
+const STATUS_DISPLAY: Record<DiscordStatus, number> = { app: 0, artist: 1, track: 2 };
 
 function frame(op: number, payload: unknown) {
   const body = Buffer.from(JSON.stringify(payload));
@@ -172,6 +179,8 @@ function activity(info: PlayerInfo): object | null {
   const end = start && info.durationMs ? start + info.durationMs : undefined;
   return {
     type: 2, // "Listening to"
+    // an unknown value from an edited settings file falls back to the app's name rather than to whatever Discord does
+    status_display_type: STATUS_DISPLAY[statusOf] ?? 0,
     details: field(t.title),
     state: field(t.artist || "Unknown artist"),
     ...(start ? { timestamps: { start, ...(end ? { end } : {}) } } : {}),
@@ -182,7 +191,17 @@ function activity(info: PlayerInfo): object | null {
 
 /** The current track and play state, as main hears them from the page. */
 export function updateDiscord(info: PlayerInfo) {
+  lastInfo = info;
   wanted = activity(info);
+  flush();
+}
+
+/** Settings → the "Listening to …" status: the playing track's status is sent again with the new choice, without waiting for a skip. */
+export function setDiscordStatus(s: DiscordStatus) {
+  if (s === statusOf) return;
+  statusOf = s;
+  if (!lastInfo) return;
+  wanted = activity(lastInfo);
   flush();
 }
 
