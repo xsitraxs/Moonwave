@@ -132,7 +132,7 @@ assert.equal((await api("POST", "/v1/themes", { secret: a.secret, body: { name: 
 assert.equal((await api("POST", "/v1/themes", { secret: a.secret, body: { name: "x", look, css: ".x{position:fixed;inset:0;z-index:2147483647}" } })).status, 400);
 assert.equal((await api("POST", "/v1/themes", { secret: a.secret, body: { name: "x", look, css: '.x::after{content:"Sign in with SoundCloud"}' } })).status, 400);
 // a theme in the app's own design language is still accepted, with its sheet
-const themeCss = ".s-glass{border-radius:10px;backdrop-filter:blur(30px)}@media (max-width: 900px){.s-side{display:none}}";
+const themeCss = ".s-glass{border-radius:10px;backdrop-filter:blur(30px)}@media (max-width: 900px){.s-side{color:#ccc}}";
 const th = (await api("POST", "/v1/themes", { secret: a.secret, body: { name: "Night drive", description: "calm", look, css: themeCss } })).body;
 assert.equal((await api("GET", "/v1/themes")).body.themes.length, 0, "unpublished until it has a preview");
 const png = Buffer.from("89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000d49444154789c6360000002000001e221bc330000000049454e44ae426082", "hex");

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { decodeEntities, parseTime, parseTtml, wordTimed } from "./ttml.ts";
+import { decodeEntities, MAX_TTML, parseTime, parseTtml, wordTimed } from "./ttml.ts";
 
 test("times in every TTML form", () => {
   assert.equal(parseTime("00:01:30.500"), 90.5);
@@ -36,4 +36,26 @@ test("line-timed lines", () => {
   const lines = parseTtml(`<tt><body><div><p begin="00:00:01.320" end="00:00:03.410">I&apos;ve been so sober</p></div></body></tt>`);
   assert.deepEqual(lines, [{ t: 1.32, end: 3.41, text: "I've been so sober" }]);
   assert.equal(wordTimed(lines), false);
+});
+
+test("a hostile document can't hold the main process: unclosed lines, deep nesting, a huge size", () => {
+  const time = (doc: string) => {
+    const t = performance.now();
+    parseTtml(doc);
+    return performance.now() - t;
+  };
+  // half a megabyte of lines that never close took 2.6 s with the old pattern, and grew with the square of the size
+  assert.ok(time("<body>" + '<p begin="1">'.repeat(40_000)) < 200);
+  // spans nested 40 000 deep, each with text after it
+  assert.ok(time('<body><p begin="1">' + '<span begin="1">a<i/>'.repeat(40_000) + "</p>") < 500);
+  // past the size limit nothing is read at all
+  assert.deepEqual(parseTtml(`<body><p begin="1">x</p>${" ".repeat(MAX_TTML)}`), []);
+});
+
+test("other tags starting with p are not lines; lines around them still are", () => {
+  const lines = parseTtml('<body><param name="x"><pre>no</pre><p begin="1" end="2">one</p><p begin="3" end="4">two</p></body>');
+  assert.deepEqual(
+    lines.map((l) => l.text),
+    ["one", "two"],
+  );
 });

@@ -21,9 +21,6 @@ export const THEME_SCOPE = "[data-theme-scope]";
 /** The same limit the server has always had. */
 export const MAX_THEME_CSS = 20_000;
 
-/** Above this a theme could cover the app's own menus and dialogs; the app's highest panels use 80. */
-export const MAX_THEME_Z_INDEX = 100;
-
 /** One dropped piece of a theme's CSS, with the reason (never the whole sheet's contents). */
 export interface ThemeCssDrop {
   /** the selector or at-rule it was in, short */
@@ -81,16 +78,22 @@ const BORDER_PROPS = new Set([
   "text-shadow",
 ]);
 
-/** Blur, brightness and the like: the design's glass, kept within reason. */
-const FILTER_PROPS = new Set(["filter", "backdrop-filter", "-webkit-backdrop-filter"]);
+/**
+ * The glass behind a panel, kept within reason. Not `filter` on the element itself: `filter: opacity(0)` or
+ * `brightness(0)` makes a real button invisible while it still takes the click.
+ */
+const FILTER_PROPS = new Set(["backdrop-filter", "-webkit-backdrop-filter"]);
 
 /** Type: only families the app already ships, so a theme cannot bring a font of its own. */
-const FONT_PROPS = new Set(["font-family", "font-size", "font-weight", "font-style", "font-variant", "font-stretch", "font", "line-height", "letter-spacing", "word-spacing", "text-align", "text-transform", "text-decoration", "text-indent", "text-overflow", "white-space", "word-break", "overflow-wrap", "hyphens"]);
+const FONT_PROPS = new Set(["font-family", "font-size", "font-weight", "font-style", "font-variant", "font-stretch", "line-height", "letter-spacing", "word-spacing", "text-align", "text-transform", "text-decoration", "text-indent", "text-overflow", "white-space", "word-break", "overflow-wrap", "hyphens"]);
 
-/** Offsets and insets: bounded, so a theme cannot park an element outside the window. */
-const OFFSET_PROPS = new Set(["top", "right", "bottom", "left", "inset", "margin", "margin-top", "margin-right", "margin-bottom", "margin-left"]);
-
-const OTHER_PROPS = new Set(["opacity", "mix-blend-mode", "transform", "transform-origin", "transition", "transition-property", "transition-duration", "transition-timing-function", "transition-delay", "animation", "animation-name", "animation-duration", "animation-timing-function", "animation-delay", "animation-iteration-count", "animation-direction", "animation-fill-mode", "position", "top", "right", "bottom", "left", "inset", "z-index", "width", "height", "min-width", "min-height", "max-width", "max-height", "margin", "margin-top", "margin-right", "margin-bottom", "margin-left", "padding", "padding-top", "padding-right", "padding-bottom", "padding-left", "gap", "row-gap", "column-gap", "display", "flex", "flex-direction", "flex-wrap", "align-items", "align-content", "align-self", "justify-content", "justify-items", "justify-self", "order", "overflow", "overflow-x", "overflow-y", "aspect-ratio", "object-fit", "object-position", "cursor"]);
+/**
+ * Motion and the pointer. Deliberately nothing that places, sizes, orders or hides an element: no position, inset,
+ * margin, padding, width/height, display, order, overflow, opacity, transform or z-index. With those a theme could
+ * hide the real buttons or slide one over another (AUDIT F2) — a theme is colours, gradients, type, corners and
+ * shadows, and the layout stays the app's.
+ */
+const OTHER_PROPS = new Set(["transition", "transition-property", "transition-duration", "transition-timing-function", "transition-delay", "animation", "animation-name", "animation-duration", "animation-timing-function", "animation-delay", "animation-iteration-count", "animation-direction", "animation-fill-mode", "cursor"]);
 
 /**
  * Families a theme may name: the app's own fonts and the system stacks it already falls back to. Compared whole (case
@@ -98,11 +101,8 @@ const OTHER_PROPS = new Set(["opacity", "mix-blend-mode", "transform", "transfor
  */
 const FONT_FAMILIES = new Set(["onest", "pt mono", "space grotesk", "rubik wet paint", "special elite", "midnight creepy", "sc-onest", "system-ui", "sans-serif", "serif", "monospace", "cursive", "fantasy", "ui-sans-serif", "ui-serif", "ui-monospace", "segoe ui", "sf pro", "helvetica", "arial", "arial unicode ms", "verdana", "tahoma", "georgia", "times new roman", "courier", "courier new", "consolas", "menlo"]);
 
-/** Functions allowed inside `transform`; a matrix or a perspective can turn the page into something else entirely. */
-const TRANSFORM_FUNCTIONS = new Set(["translate", "translatex", "translatey", "translatez", "translate3d", "scale", "scalex", "scaley", "scalez", "scale3d", "rotate", "rotatex", "rotatey", "rotatez", "rotate3d", "skew", "skewx", "skewy", "none"]);
-
-/** Functions allowed inside `filter` and `backdrop-filter`. */
-const FILTER_FUNCTIONS = new Set(["blur", "brightness", "contrast", "grayscale", "saturate", "sepia", "opacity", "hue-rotate", "drop-shadow", "invert", "none"]);
+/** Functions allowed inside `backdrop-filter`. */
+const FILTER_FUNCTIONS = new Set(["blur", "brightness", "contrast", "grayscale", "saturate", "sepia", "hue-rotate", "invert", "none"]);
 
 /** Anything in a value that could load, run or reach outside the page. Checked on the decoded text, so escapes and
  * comments cannot hide it. */
@@ -212,49 +212,37 @@ function numbersWithin(value: string, limit: number): boolean {
   return true;
 }
 
-/** `z-index`: a plain integer within the limit (the app's own dialogs sit at 80). */
-function zIndexOk(value: string): boolean {
-  return /^-?\d{1,4}$/.test(value.trim()) && Math.abs(Number(value)) <= MAX_THEME_Z_INDEX;
-}
-
-/** `position`: a theme may move things around inside itself, but not pin them over the app. */
-function positionOk(value: string): boolean {
-  return /^(static|relative|absolute)$/i.test(value.trim());
-}
-
 /**
- * `display`: the app's own layout values. `none` is kept on purpose — a theme may hide a part of its own container at a
- * breakpoint, and it can only reach what is inside the scope; the app's own chrome is outside it.
+ * Sizes in type and borders, within what still reads as the app: `font-size: 0`, a letter spacing of a screen, or a
+ * border thousands of pixels wide hide or push away what is next to them as surely as `display: none`. Colours are
+ * taken out first, so the 255 of rgb(255 0 0) is not read as a length.
  */
-function displayOk(value: string): boolean {
-  return /^(block|inline|inline-block|flex|inline-flex|grid|inline-grid|contents|table|table-row|table-cell|none)$/i.test(value.trim());
+function lengthsWithin(value: string, min: number, max: number): boolean {
+  const bare = value.replace(/(rgba?|hsla?)\([^()]*\)/gi, " ").replace(/#[0-9a-f]{3,8}\b/gi, " ").replace(/var\(--[-\w]+\)/gi, " ");
+  const re = /(-?\d*\.?\d+)(px|rem|em|%)?/gi;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(bare))) {
+    const n = Number(m[1]);
+    // in px; rem/em at the app's 16 px, a percentage of a 16 px font
+    const px = m[2] === "rem" || m[2] === "em" ? n * 16 : m[2] === "%" ? (n / 100) * 16 : n;
+    if (!Number.isFinite(px) || px < min || px > max) return false;
+  }
+  return true;
 }
+
+/** Per type property: the range a length may take, in px (see lengthsWithin). */
+const TYPE_RANGES: Record<string, [number, number]> = {
+  "font-size": [9, 64],
+  "letter-spacing": [-4, 16],
+  "word-spacing": [-8, 32],
+  "text-indent": [-64, 64],
+};
 
 /** `font-family`: every family named must be one the app already uses, and the last must be a generic one. */
 function fontFamilyOk(value: string): boolean {
   const families = splitOutside(value, ",").map((f) => f.trim().replace(/^["']|["']$/g, "").toLowerCase());
   if (!families.length || families.length > 4) return false;
   return families.every((f) => FONT_FAMILIES.has(f));
-}
-
-/** `transform`: translations, scaling, rotation and skew, each with a number of a known unit — nothing else. */
-function transformOk(value: string): boolean {
-  const trimmed = value.trim();
-  if (/^none$/i.test(trimmed)) return true;
-  const calls = trimmed.match(/[a-z0-9-]+\s*\([^()]*\)/gi) ?? [];
-  if (!calls.length) return false;
-  // everything must be inside those calls; a stray word is not a transform
-  const rest = trimmed.replace(/[a-z0-9-]+\s*\([^()]*\)/gi, "").replace(/[\s,]/g, "");
-  if (rest) return false;
-  for (const call of calls) {
-    const name = /^([a-z0-9-]+)/i.exec(call)?.[1]?.toLowerCase() ?? "";
-    if (!TRANSFORM_FUNCTIONS.has(name)) return false;
-    const args = call.slice(call.indexOf("(") + 1, -1);
-    if (!/^[\s\d.,%a-z-]*$/i.test(args)) return false;
-    // 400 % of nothing: a huge scale or translate can throw the layout into another screen
-    if (!numbersWithin(args, 10_000)) return false;
-  }
-  return true;
 }
 
 /** `filter`/`backdrop-filter`: the glass effects, bounded, no drop-shadow with a URL (urls are refused anyway). */
@@ -331,7 +319,9 @@ function checkValue(property: string, rawValue: string, keyframes: Set<string>):
   if (unknown.length) return `function ${unknown[0]}() is not allowed`;
 
   const custom = property.startsWith("--");
-  if (custom) return /^[-\w\s#,.%()/:]+$/.test(v) ? null : "custom property with an unexpected value";
+  // the app's own variables also size and move things (radii, the drift of the sky, progress): a theme may only give
+  // them colours — a hex, a colour function, an "r, g, b" triplet as --accent-rgb takes, or another variable
+  if (custom) return /^(#[0-9a-f]{3,8}|(rgba?|hsla?)\([-\d\s.,%/]*\)|\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}|transparent|currentcolor|var\(--[-\w]+\))$/i.test(v) ? null : "a variable may only be given a colour";
 
   if (COLOR_PROPS.has(property)) {
     return /^([#a-z0-9\s,.%()/-]+)$/i.test(v) ? null : "not a colour";
@@ -342,20 +332,30 @@ function checkValue(property: string, rawValue: string, keyframes: Set<string>):
   }
   if (BORDER_PROPS.has(property)) {
     // border/outline shorthands carry only lengths, colours and style keywords
-    return /^[#a-z0-9\s,.%()/-]+$/i.test(v) && functions.every((f) => ["var", "rgb", "rgba", "hsl", "hsla", "calc", "min", "max", "clamp"].includes(f)) ? null : "border or shadow with something unexpected in it";
+    if (!(/^[#a-z0-9\s,.%()/-]+$/i.test(v) && functions.every((f) => ["var", "rgb", "rgba", "hsl", "hsla"].includes(f)))) return "border or shadow with something unexpected in it";
+    // corners may be round (9999px is a pill); widths and shadows stay near the element they belong to
+    if (property.includes("radius")) return lengthsWithin(v, 0, 9999) ? null : "radius out of range";
+    if (property.endsWith("shadow")) return lengthsWithin(v, -64, 64) ? null : "shadow reaching too far from its element";
+    return lengthsWithin(v, -16, 16) ? null : "border wider than 16 px";
   }
   if (FILTER_PROPS.has(property)) return filterOk(v) ? null : "filter with something unexpected in it";
-  if (property === "font-family" || property === "font") return property === "font-family" ? (fontFamilyOk(v) ? null : "a font the app does not have") : /^[a-z0-9\s/".%(),-]+$/i.test(v) && fontFamilyOk(v.split(/\s/).slice(1).join(" ") || v) ? null : "font with an unexpected value";
-  if (FONT_PROPS.has(property)) return /^[#a-z0-9\s,.%()/"-]+$/i.test(v) ? null : "not a type value";
-  if (property === "z-index") return zIndexOk(v) ? null : `z-index above ${MAX_THEME_Z_INDEX} or not a number`;
-  if (property === "position") return positionOk(v) ? null : "position other than static, relative or absolute";
-  if (property === "display") return displayOk(v) ? null : "display value that hides or replaces the layout";
-  if (property === "transform" || property === "transform-origin") return property === "transform" ? (transformOk(v) ? null : "transform with something unexpected in it") : /^[-\d.%a-z\s]+$/i.test(v) ? null : "not a transform origin";
+  // not the `font` shorthand: its size would slip past the range below ("font: 0px onest")
+  if (property === "font-family") return fontFamilyOk(v) ? null : "a font the app does not have";
+  if (FONT_PROPS.has(property)) {
+    if (!/^[#a-z0-9\s,.%()/"-]+$/i.test(v) || functions.length) return "not a type value";
+    const range = TYPE_RANGES[property];
+    if (range && !lengthsWithin(v, range[0], range[1])) return `${property} out of range`;
+    if (property === "line-height") {
+      if (/^normal$/i.test(v)) return null;
+      // unitless, it is a multiple of the font size: under 0.8 the lines run into each other
+      if (/^\d*\.?\d+$/.test(v)) return Number(v) >= 0.8 && Number(v) <= 3 ? null : "line-height out of range";
+      return /^\d*\.?\d+(px|rem|em|%)$/i.test(v) && lengthsWithin(v, 10, 96) ? null : "line-height out of range";
+    }
+    return null;
+  }
   if (property.startsWith("transition")) return transitionOk(v, (p) => isAllowedProperty(p)) ? null : "transition of something unexpected, or too slow";
   if (property.startsWith("animation")) return animationOk(v, keyframes) ? null : "animation that is not the theme's own @keyframes";
   if (property === "cursor") return /^(default|pointer|text|move|grab|grabbing|help|wait|progress|not-allowed|auto)$/i.test(v) ? null : "not a cursor";
-  // offsets: a nudge inside the theme is fine, a move off the screen (or far past it) is how a real button disappears
-  if (OFFSET_PROPS.has(property)) return numbersWithin(v, 4000) ? null : `${property} moves the element off the screen`;
   // the remaining whitelisted properties: lengths, percentages, keywords and the colour functions
   return /^[#a-z0-9\s,.%()/-]+$/i.test(v) ? null : `unexpected value for ${property}`;
 }

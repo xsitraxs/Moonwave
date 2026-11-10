@@ -42,14 +42,19 @@ function readLine(attrs: string, inner: string): TtmlLine | null {
   // walk the tags in order: timed spans are words, a bg wrapper marks what it holds, text between spans goes to the
   // word before it (that is where the spaces are)
   const re = /<span\b([^>]*)>|<\/span>|<br\s*\/?>|([^<]+)|<[^>]+>/g;
-  const stack: { timed: boolean; bg: boolean; begin: number; end: number; text: string }[] = [];
+  // each entry knows the innermost timed span around it (itself included), so text finds its word in one step: walking
+  // the stack for every piece of text made a document of deeply nested spans cost its depth times its length
+  type Open = { timed: boolean; bg: boolean; begin: number; end: number; text: string; word: Open | null };
+  const stack: Open[] = [];
   let loose = "";
   for (let m = re.exec(inner); m; m = re.exec(inner)) {
     if (m[0].startsWith("<span")) {
       const a = m[1] ?? "";
       const begin = parseTime(attr(a, "begin"));
       const bg = attr(a, "ttm:role") === "x-bg" || !!stack[stack.length - 1]?.bg;
-      stack.push({ timed: Number.isFinite(begin), bg, begin, end: parseTime(attr(a, "end")), text: "" });
+      const entry: Open = { timed: Number.isFinite(begin), bg, begin, end: parseTime(attr(a, "end")), text: "", word: null };
+      entry.word = entry.timed ? entry : (stack[stack.length - 1]?.word ?? null);
+      stack.push(entry);
     } else if (m[0] === "</span>") {
       const top = stack.pop();
       if (top?.timed) {
@@ -58,7 +63,7 @@ function readLine(attrs: string, inner: string): TtmlLine | null {
         else if (words.length) words[words.length - 1]!.text += text;
       }
     } else if (m[2] !== undefined) {
-      const open = [...stack].reverse().find((x) => x.timed);
+      const open = stack[stack.length - 1]?.word;
       if (open) open.text += m[2];
       else if (words.length) words[words.length - 1]!.text += decodeEntities(m[2]).replace(/\s+/g, " ");
       else loose += m[2];
@@ -83,13 +88,33 @@ function readLine(attrs: string, inner: string): TtmlLine | null {
   return { t: begin, end: Number.isFinite(end) ? end : begin, text };
 }
 
-/** All the lines of a TTML document, by start time; empty when it has none. */
+/**
+ * Larger than any song's lyrics (a word-timed TTML of a long track is ~100 KB). The documents come from other people's
+ * servers and are read in the main process, where a slow parse freezes the whole app; past this they are not read.
+ */
+export const MAX_TTML = 1024 * 1024;
+
+/** All the lines of a TTML document, by start time; empty when it has none (or it is too big to be lyrics). */
 export function parseTtml(ttml: string): TtmlLine[] {
-  const body = ttml.slice(Math.max(0, ttml.search(/<body\b/)));
+  if (ttml.length > MAX_TTML) return [];
+  const start = ttml.search(/<body\b/);
+  const body = start > 0 ? ttml.slice(start) : ttml;
   const lines: TtmlLine[] = [];
-  for (const m of body.matchAll(/<p\b([^>]*)>([\s\S]*?)<\/p>/g)) {
-    const line = readLine(m[1] ?? "", m[2] ?? "");
+  // found with indexOf, not /<p\b([^>]*)>([\s\S]*?)<\/p>/g: that pattern scans to the end of the text from every "<p"
+  // that never closes, so half a megabyte of them held the app for seconds; this reads the text once
+  for (let at = body.indexOf("<p"); at >= 0; at = body.indexOf("<p", at)) {
+    // "<p" followed by a name character is another tag (<param>, <pre>)
+    if (/[\w:-]/.test(body[at + 2] ?? "")) {
+      at += 2;
+      continue;
+    }
+    const gt = body.indexOf(">", at);
+    if (gt < 0) break;
+    const close = body.indexOf("</p>", gt);
+    if (close < 0) break;
+    const line = readLine(body.slice(at + 2, gt), body.slice(gt + 1, close));
     if (line && (line.text || line.words?.length)) lines.push(line);
+    at = close + 4;
   }
   return lines.sort((a, b) => a.t - b.t);
 }
