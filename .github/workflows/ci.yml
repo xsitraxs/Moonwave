@@ -219,6 +219,85 @@ jobs:
       - name: No secrets in the built files
         run: node scripts/scan-dist.mjs dist
 
+      # the built app starts (with its fuses and ASAR integrity check active), loads index.html, and is still running 25 s later
+      - name: The app starts (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $env:SC_NO_COUNT = "1"
+          $p = Start-Process -FilePath "dist/win-unpacked/sc player.exe" -RedirectStandardOutput "start.out.log" -RedirectStandardError "start.err.log" -PassThru
+          Start-Sleep -Seconds 25
+          $ok = -not $p.HasExited
+          if ($ok) {
+            Write-Host "running after 25 s (PID $($p.Id))"
+            & taskkill /F /T /PID $p.Id | Out-Null
+            $null = $p.WaitForExit(5000)
+          } else {
+            Write-Host "exited on start (code $($p.ExitCode))"
+          }
+          Write-Host "--- what it printed (last 80 lines; addresses and logins masked) ---"
+          foreach ($f in @("start.out.log", "start.err.log")) {
+            if (Test-Path $f) {
+              Get-Content $f -Tail 80 | ForEach-Object {
+                ($_ -replace '://[^/@ ]+@', '://***@') -replace '\b\d{1,3}(\.\d{1,3}){3}\b', 'x.x.x.x'
+              }
+            }
+          }
+          $logFile = Join-Path $env:APPDATA "sc player\logs\main.log"
+          Write-Host "--- how long the start took (the app's own log) ---"
+          if (Test-Path $logFile) {
+            Get-Content $logFile | Select-String "start:|uncaught:|page process gone|page didn't load" | ForEach-Object { $_.Line }
+          } else {
+            Write-Host "(no start line)"
+          }
+          if (-not $ok) { exit 1 }
+          if (-not (Test-Path $logFile) -or -not (Select-String -Path $logFile -Pattern "start: page loaded" -Quiet)) {
+            Write-Error "the packaged app never reached 'start: page loaded'"
+            exit 1
+          }
+          if (Select-String -Path $logFile -Pattern "page process gone|page didn't load|uncaught:" -Quiet) {
+            Write-Error "the packaged app logged a startup crash"
+            exit 1
+          }
+
+      - name: The app starts (macOS)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          SC_NO_COUNT=1 "dist/mac-arm64/sc player.app/Contents/MacOS/sc player" > start.log 2>&1 &
+          pid=$!
+          sleep 25
+          if kill -0 "$pid" 2>/dev/null; then kill "$pid"; ok=1; echo "running after 25 s"; else ok=0; echo "exited on start"; fi
+          wait "$pid" 2>/dev/null || true
+          echo "--- what it printed (last 80 lines; addresses and logins masked) ---"
+          tail -n 80 start.log | sed -E 's#://[^/@ ]+@#://***@#g; s#[0-9]{1,3}(\.[0-9]{1,3}){3}#x.x.x.x#g'
+          LOG_FILE="$HOME/Library/Application Support/sc player/logs/main.log"
+          echo "--- how long the start took (the app's own log) ---"
+          grep -E "start:|uncaught:|page process gone|page didn't load" "$LOG_FILE" || echo "(no start line)"
+          [ "$ok" = 1 ]
+          grep -q "start: page loaded" "$LOG_FILE"
+          ! grep -qE "page process gone|page didn't load|uncaught:" "$LOG_FILE"
+
+      - name: The app starts (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          sudo apt-get install -y -qq fuse3 > /dev/null
+          chmod +x dist/*.AppImage
+          SC_NO_COUNT=1 xvfb-run -a dist/*.AppImage --no-sandbox > start.log 2>&1 &
+          pid=$!
+          sleep 25
+          if kill -0 "$pid" 2>/dev/null; then kill "$pid"; ok=1; echo "running after 25 s"; else ok=0; echo "exited on start"; fi
+          wait "$pid" 2>/dev/null || true
+          echo "--- what it printed (last 80 lines; addresses and logins masked) ---"
+          tail -n 80 start.log | sed -E 's#://[^/@ ]+@#://***@#g; s#[0-9]{1,3}(\.[0-9]{1,3}){3}#x.x.x.x#g'
+          LOG_FILE="$HOME/.config/sc player/logs/main.log"
+          echo "--- how long the start took (the app's own log) ---"
+          grep -E "start:|uncaught:|page process gone|page didn't load" "$LOG_FILE" || echo "(no start line)"
+          [ "$ok" = 1 ]
+          grep -q "start: page loaded" "$LOG_FILE"
+          ! grep -qE "page process gone|page didn't load|uncaught:" "$LOG_FILE"
+
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: ci-${{ matrix.name }}

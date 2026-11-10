@@ -59,10 +59,21 @@ test("the release job is the only one with write access, and it runs in the rele
 
 test("the release attaches what it was built from: checksums, attestation, and the metadata", () => {
   const release = read("release.yml");
+  assert.match(release, /merge-multiple:\s*true/, "platform artifacts must merge before writing one combined SHA256SUMS.txt");
+  assert.match(release, /dist\/latest\.yml dist\/latest-mac\.yml dist\/latest-linux\.yml/, "all three update manifests must be verified before summing");
   assert.match(release, /node scripts\/checksums\.mjs dist/, "the checksum list is never made");
   assert.match(release, /subject-path:[\s\S]*dist\/SHA256SUMS\.txt/, "the checksum list is not attested");
   assert.match(release, /files=\([^)]*dist\/SHA256SUMS\.txt[^)]*\)/, "the checksum list is not attached to the release");
   assert.match(release, /dist\/latest\*\.yml/, "the updater metadata is not attached");
+});
+
+test("CI launches the packaged app on Windows, macOS, and Linux and verifies start: page loaded", () => {
+  const ci = read("ci.yml");
+  for (const label of ["The app starts (Windows)", "The app starts (macOS)", "The app starts (Linux)"]) {
+    assert.ok(ci.includes(label), `ci.yml is missing "${label}"`);
+  }
+  assert.match(ci, /Select-String -Path \$logFile -Pattern "start: page loaded"/, "Windows launch step must check main.log");
+  assert.equal((ci.match(/grep -q "start: page loaded" "\$LOG_FILE"/g) ?? []).length, 2, "macOS and Linux launch steps must check main.log");
 });
 
 test("dependabot keeps both the actions and the app's packages current", () => {

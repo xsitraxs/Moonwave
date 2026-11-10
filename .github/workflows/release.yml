@@ -1,11 +1,13 @@
 # Builds the installers for Windows, macOS and Linux and attaches them, with the auto-updater's metadata
-# (latest.yml / latest-mac.yml / latest-linux.yml), to the GitHub Release for the pushed tag.
+# (latest.yml / latest-mac.yml / latest-linux.yml) and a single combined SHA256SUMS.txt, to the GitHub Release for the
+# pushed tag.
 #
 # To make a release, on your machine:
 #   1. bump "version" in package.json (the updater and the files are built from it)
 #   2. commit, push to main, wait for the CI workflow to go green
 #   3. git tag vX.Y.Z && git push origin vX.Y.Z     (or: gh release create vX.Y.Z --generate-notes)
-# This workflow then builds the three platforms and uploads everything to the release.
+# This workflow builds the three platforms in read-only jobs first, then merges their artifacts in one gated `release`
+# job that writes SHA256SUMS.txt across all three OSes, attests every file's provenance, and uploads to the release.
 # It never runs on pull requests and never creates a tag by itself.
 name: Release
 
@@ -15,8 +17,8 @@ on:
       - "v*"
   workflow_dispatch: {}
 
-# Nothing here may write anything unless the step needs it: the token is read-only for the whole workflow and each
-# job widens it for itself (contents: write to attach the files, id-token/attestations to sign what was built).
+# Nothing here may write anything unless the step needs it: the token is read-only for the whole workflow (including
+# the three platform build jobs), and only the final `release` job widens it to attach and attest what was built.
 permissions:
   contents: read
 
@@ -29,16 +31,8 @@ env:
   ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
 
 jobs:
-  release:
-    name: Release · ${{ matrix.name }}
-    # the tag push is the only way in, and the environment is where the owner adds required reviewers or a deployment
-    # branch rule in the repository settings — this file can only name it, not configure it
-    environment: release
-    permissions:
-      contents: write
-      id-token: write
-      attestations: write
-      artifact-metadata: write
+  build:
+    name: Build · ${{ matrix.name }}
     strategy:
       fail-fast: false
       matrix:
@@ -58,6 +52,12 @@ jobs:
         with:
           node-version: 24
           cache: npm
+
+      # the tag must be the version in package.json (modulo a missing patch: v2.4 means 2.4.0)
+      - name: The tag matches the package version
+        shell: bash
+        run: |
+          node -e 'const v=require("./package.json").version;const t=process.env.GITHUB_REF_NAME.replace(/^v/,"");const n=(s)=>s.split(".").concat(["0","0","0"]).slice(0,3).join(".");if(n(t)!==n(v)){console.error("tag "+t+" != package.json version "+v+" — refusing to build");process.exit(1)}console.log("tag matches package.json:",v)'
 
       # a transient registry/GitHub blip must not kill the job silently — the tail of the log is attached as a
       # scrubbed annotation (readable via the check-runs API); the install is retried once first
@@ -139,10 +139,6 @@ jobs:
           if [ -n "$SERVER_JSON" ]; then printf '%s' "$SERVER_JSON" > server.local.json; echo "server: yes"; else echo "server: none"; fi
 
       # lint + typecheck + electron-vite build + electron-builder + verify-dist (fails if the update metadata is missing).
-      # GitHub's release downloads (the Electron dist, the NSIS toolchain, the AppImage tools) flap 504 today — every
-      # failed download poisoned this job until the cache existed. Downloads resume from the per-job cache on retry, so
-      # three attempts ride out a gateway flap without hiding a real failure: the last attempt's exit code decides, and
-      # the tail of the log (stack frames stripped, credentials scrubbed) goes into the check-run as an annotation.
       - name: Package and verify the update metadata
         shell: bash
         timeout-minutes: 25
@@ -169,10 +165,62 @@ jobs:
       - name: No secrets in the built files
         run: node scripts/scan-dist.mjs dist
 
-      # the same files that go into the release, so a download can be checked against a list signed by this workflow
-      - name: Checksums
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: release-${{ matrix.name }}
+          path: |
+            dist/*.exe
+            dist/*.dmg
+            dist/*.zip
+            dist/*.AppImage
+            dist/*.deb
+            dist/*.blockmap
+            dist/latest*.yml
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Stop the loopback mirror
+        if: always()
         shell: bash
-        run: node scripts/checksums.mjs dist
+        run: |
+          M_ROOT="${RUNNER_TEMP:-${TMPDIR:-/tmp}}/ci-electron-mirror"
+          if [ -f "$M_ROOT/server.pid" ]; then kill "$(cat "$M_ROOT/server.pid")" 2>/dev/null || true; echo "mirror stopped"; else echo "no mirror to stop"; fi
+
+  release:
+    name: Publish & attest release
+    needs: build
+    # the tag push is the only way in, and the environment is where the owner adds required reviewers or a deployment
+    # branch rule in the repository settings — this file can only name it, not configure it
+    environment: release
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+      artifact-metadata: write
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+
+      - uses: actions/setup-node@2028fbc5c25fe9cf00d9f06a71cc4710d4507903 # v6.0.0
+        with:
+          node-version: 24
+
+      - uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
+        with:
+          pattern: release-*
+          path: dist
+          merge-multiple: true
+
+      # all three platforms' update manifests must be present before writing one combined SHA256SUMS.txt
+      - name: Checksums (all three platforms combined)
+        shell: bash
+        run: |
+          set -euo pipefail
+          for yml in dist/latest.yml dist/latest-mac.yml dist/latest-linux.yml; do
+            if [ ! -f "$yml" ]; then echo "missing $yml in merged release artifacts"; exit 1; fi
+          done
+          node scripts/checksums.mjs dist
 
       - name: Attest the provenance of every published file
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
@@ -184,12 +232,6 @@ jobs:
             dist/*.AppImage
             dist/*.deb
             dist/SHA256SUMS.txt
-
-      # the tag must be the version in package.json (modulo a missing patch: v2.4 means 2.4.0)
-      - name: The tag matches the package version
-        shell: bash
-        run: |
-          node -e 'const v=require("./package.json").version;const t=process.env.GITHUB_REF_NAME.replace(/^v/,"");const n=(s)=>s.split(".").concat(["0","0","0"]).slice(0,3).join(".");if(n(t)!==n(v)){console.error("tag "+t+" != package.json version "+v+" — refusing to attach");process.exit(1)}console.log("tag matches package.json:",v)'
 
       - name: Attach the installers and the update metadata to the release
         shell: bash
@@ -204,23 +246,3 @@ jobs:
           printf 'attaching:\n%s\n' "${files[@]}"
           gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "sc player $TAG" --generate-notes
           gh release upload "$TAG" "${files[@]}" --clobber
-
-      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
-        with:
-          name: release-${{ matrix.name }}
-          path: |
-            dist/*.exe
-            dist/*.dmg
-            dist/*.zip
-            dist/*.AppImage
-            dist/*.deb
-            dist/*.blockmap
-            dist/latest*.yml
-          retention-days: 30
-
-      - name: Stop the loopback mirror
-        if: always()
-        shell: bash
-        run: |
-          M_ROOT="${RUNNER_TEMP:-${TMPDIR:-/tmp}}/ci-electron-mirror"
-          if [ -f "$M_ROOT/server.pid" ]; then kill "$(cat "$M_ROOT/server.pid")" 2>/dev/null || true; echo "mirror stopped"; else echo "no mirror to stop"; fi

@@ -114,7 +114,7 @@ jobs:
         timeout-minutes: 25
         run: node scripts/dist.mjs
 
-      # the built app starts and is still running 25 s later (a crash on start fails the run)
+      # the built app starts, loads index.html from app.asar, and is still running 25 s later (a crash on start fails the run)
       - name: The app starts (macOS)
         if: runner.os == 'macOS'
         shell: bash
@@ -123,11 +123,15 @@ jobs:
           pid=$!
           sleep 25
           if kill -0 "$pid" 2>/dev/null; then kill "$pid"; ok=1; echo "running after 25 s"; else ok=0; echo "exited on start"; fi
+          wait "$pid" 2>/dev/null || true
           echo "--- what it printed (last 80 lines; addresses and logins masked) ---"
           tail -n 80 start.log | sed -E 's#://[^/@ ]+@#://***@#g; s#[0-9]{1,3}(\.[0-9]{1,3}){3}#x.x.x.x#g'
+          LOG_FILE="$HOME/Library/Application Support/sc player/logs/main.log"
           echo "--- how long the start took (the app's own log) ---"
-          grep "start:" "$HOME/Library/Application Support/sc player/logs/main.log" || echo "(no start line)"
+          grep -E "start:|uncaught:|page process gone|page didn't load" "$LOG_FILE" || echo "(no start line)"
           [ "$ok" = 1 ]
+          grep -q "start: page loaded" "$LOG_FILE"
+          ! grep -qE "page process gone|page didn't load|uncaught:" "$LOG_FILE"
 
       # run as users run it: the AppImage mounted through FUSE, not unpacked (an xz-packed image took 40 s to start)
       - name: The app starts (Linux)
@@ -140,11 +144,15 @@ jobs:
           pid=$!
           sleep 25
           if kill -0 "$pid" 2>/dev/null; then kill "$pid"; ok=1; echo "running after 25 s"; else ok=0; echo "exited on start"; fi
+          wait "$pid" 2>/dev/null || true
           echo "--- what it printed (last 80 lines; addresses and logins masked) ---"
           tail -n 80 start.log | sed -E 's#://[^/@ ]+@#://***@#g; s#[0-9]{1,3}(\.[0-9]{1,3}){3}#x.x.x.x#g'
+          LOG_FILE="$HOME/.config/sc player/logs/main.log"
           echo "--- how long the start took (the app's own log) ---"
-          grep "start:" "$HOME/.config/sc player/logs/main.log" || echo "(no start line)"
+          grep -E "start:|uncaught:|page process gone|page didn't load" "$LOG_FILE" || echo "(no start line)"
           [ "$ok" = 1 ]
+          grep -q "start: page loaded" "$LOG_FILE"
+          ! grep -qE "page process gone|page didn't load|uncaught:" "$LOG_FILE"
 
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
