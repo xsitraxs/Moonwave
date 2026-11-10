@@ -11,6 +11,8 @@ import type { ImportItem } from "@shared/types";
 import { chromeUserAgent, ScError } from "../soundcloud";
 import { lang, m } from "../i18n";
 import { log } from "../system/log";
+import { isAppUrl } from "../windows/main-window";
+import { lockPermissions } from "../system/permissions";
 import { OTHER_VERSION, SAME_SONG, withVersion } from "./parse";
 
 /**
@@ -29,6 +31,23 @@ const PARTITION = "vk-import";
 /** the page's scripts never see what runs here, nor the bar */
 const WORLD = 1077;
 const HOSTS = /(^|\.)(vk\.com|vk\.ru|vk\.me|vk\.cc)$/i;
+
+/**
+ * Where the VK window may go: the sites VK's own sign-in sends a person through (id, passport, the music pages stay on
+ * vk.com itself). Everything else — a link in someone's post, an ad — opens in the real browser instead, so the window
+ * kept alive with an account's cookies only ever shows VK.
+ */
+const NAVIGATION_HOSTS = /(^|\.)(vk\.com|vk\.ru|vk\.me|vk\.cc|userapi\.com|vk\.top)$/i;
+
+/** True for an address the VK window may load by itself. */
+function vkMayNavigate(url: string): boolean {
+  try {
+    const u = new URL(url);
+    return u.protocol === "https:" && NAVIGATION_HOSTS.test(u.hostname);
+  } catch {
+    return false;
+  }
+}
 
 // ---- the look: the app's studio design (styles/studio.css) --------------------------------------------------------
 
@@ -212,6 +231,13 @@ function vkFonts(list: { weight: string; range: string; b64: string }[]) {
 // ---- the window ---------------------------------------------------------------------------------------------------
 
 let current: { win: BrowserWindow; done: Promise<{ title: string | null; items: ImportItem[] }> } | null = null;
+/** the session's handlers are set once per run: a second window would only add the same handlers again */
+let locked = false;
+const lockPermissionsOnce = (ses: Electron.Session) => {
+  if (locked) return;
+  locked = true;
+  lockPermissions(ses, "vk-import", isAppUrl);
+};
 
 const toItems = (tracks: VkTrack[]): ImportItem[] => tracks.map((t) => ({ title: withVersion(t.title, t.version), artist: t.artist, durationMs: t.durationMs }));
 
@@ -226,6 +252,8 @@ export function readVk(target: { url: string; key: string } | null, parent: Brow
     return current.done;
   }
   const ses = session.fromPartition(PARTITION);
+  // VK's page is not the app: it gets no permission the app's own page has
+  lockPermissionsOnce(ses);
   const win = new BrowserWindow({
     parent: parent ?? undefined,
     width: 1120,
@@ -240,6 +268,12 @@ export function readVk(target: { url: string; key: string } | null, parent: Brow
   });
   win.on("page-title-updated", (e) => e.preventDefault());
   win.webContents.setUserAgent(chromeUserAgent());
+  // a link out of the page (a redirect VK scripts do themselves, not a clicked one) leaves the window only for VK
+  win.webContents.on("will-navigate", (e, url) => {
+    if (vkMayNavigate(url)) return;
+    e.preventDefault();
+    if (/^https:\/\//i.test(url)) void shell.openExternal(url);
+  });
   // VK's own windows (a sign-in step) stay in its session; other links open in the browser
   win.webContents.setWindowOpenHandler(({ url }) => {
     try {

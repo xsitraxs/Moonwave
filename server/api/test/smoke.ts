@@ -112,7 +112,13 @@ assert.equal((await api("POST", "/v1/online", { body: { install: "no good!" } })
 const look = { design: "studio", bg: "file", bgBlur: 10, bgDim: 60, bgReact: 30, panelOpacity: 50, panelBlur: 24, accent: "#aabbcc" };
 assert.equal((await api("POST", "/v1/themes", { secret: a.secret, body: { name: "x", look, css: "body{background:url(https://evil)}" } })).status, 400);
 assert.equal((await api("POST", "/v1/themes", { secret: a.secret, body: { name: "x", look, css: "@im\\70ort 'x';" } })).status, 400);
-const th = (await api("POST", "/v1/themes", { secret: a.secret, body: { name: "Night drive", description: "calm", look, css: ".panel{border-radius:4px}" } })).body;
+// the white list: a theme may be pretty, not pretend to be the app (publishing is limited to 10 a day per device, so
+// the full matrix lives in src/shared/themeCss.test.ts; these two are the shapes the old blacklist let through)
+assert.equal((await api("POST", "/v1/themes", { secret: a.secret, body: { name: "x", look, css: ".x{position:fixed;inset:0;z-index:2147483647}" } })).status, 400);
+assert.equal((await api("POST", "/v1/themes", { secret: a.secret, body: { name: "x", look, css: '.x::after{content:"Sign in with SoundCloud"}' } })).status, 400);
+// a theme in the app's own design language is still accepted, with its sheet
+const themeCss = ".s-glass{border-radius:10px;backdrop-filter:blur(30px)}@media (max-width: 900px){.s-side{display:none}}";
+const th = (await api("POST", "/v1/themes", { secret: a.secret, body: { name: "Night drive", description: "calm", look, css: themeCss } })).body;
 assert.equal((await api("GET", "/v1/themes")).body.themes.length, 0, "unpublished until it has a preview");
 const png = Buffer.from("89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000d49444154789c6360000002000001e221bc330000000049454e44ae426082", "hex");
 assert.equal((await api("PUT", `/v1/themes/${th.id}/preview`, { secret: b.secret, raw: png })).status, 403);
@@ -123,6 +129,7 @@ const list = (await api("GET", "/v1/themes?sort=top", { secret: b.secret })).bod
 assert.equal(list.themes[0].name, "Night drive");
 assert.equal(list.themes[0].background, "image/png");
 assert.equal((await api("GET", `/v1/themes/${th.id}`)).body.look.accent, "#aabbcc");
+assert.equal((await api("GET", `/v1/themes/${th.id}`)).body.css, themeCss, "a published theme keeps its sheet for old clients");
 const file = await fetch(`${BASE}/v1/themes/${th.id}/preview`);
 assert.equal(file.headers.get("content-type"), "image/png");
 assert.equal((await api("POST", `/v1/themes/${th.id}/like`, { secret: b.secret })).body.liked, true);

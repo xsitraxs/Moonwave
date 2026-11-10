@@ -18,6 +18,10 @@ services:
     restart: unless-stopped
     environment:
       ADMIN_TOKEN: ${ADMIN_TOKEN}
+      # Caddy is the only way in (`expose: 8080` is internal to the Compose network) and Caddy's reverse_proxy
+      # overwrites untrusted X-Forwarded-For with the real client IP. Keep TRUST_PROXY="1" here: without it, the API
+      # would key rate limits on Caddy's container IP and collapse every user into one shared bucket.
+      TRUST_PROXY: "1"
     volumes:
       - api-data:/data
     # reachable only through Caddy

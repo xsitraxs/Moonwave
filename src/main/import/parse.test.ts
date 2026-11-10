@@ -20,6 +20,14 @@ test("Spotify links, one per line as the Spotify app copies them", () => {
   assert.deepEqual(parseInput("https://open.spotify.com/embed/album/4aawyAB9vmqN3uQ7FjRGTy"), [{ kind: "spotifyAlbum", id: "4aawyAB9vmqN3uQ7FjRGTy" }]);
 });
 
+test("a short Spotify link is only fetched when it is https", () => {
+  // this link is not read from its text: it is requested and followed, so over http it is not worth following
+  assert.deepEqual(parseInput("https://spotify.link/abcDEF123"), [{ kind: "spotifyShort", url: "https://spotify.link/abcDEF123" }]);
+  assert.deepEqual(parseInput("http://spotify.link/abcDEF123"), []);
+  // a full link is read from the address itself, so both schemes still go through (no request is made for it)
+  assert.deepEqual(parseInput("http://open.spotify.com/track/2LlQb7Uoj1kKyGhlkBf9aC"), [{ kind: "spotifyTrack", id: "2LlQb7Uoj1kKyGhlkBf9aC" }]);
+});
+
 test("YouTube and YouTube Music links", () => {
   assert.deepEqual(parseInput("https://music.youtube.com/playlist?list=PLdbojgN8BYotZSRY9NOKRZvvorLm0io6g&si=x"), [{ kind: "youtubePlaylist", id: "PLdbojgN8BYotZSRY9NOKRZvvorLm0io6g" }]);
   assert.deepEqual(parseInput("https://www.youtube.com/playlist?list=OLAK5uy_mz6eafmqdRHSaR4IwG0ll6J6rgv0_ZpGw"), [{ kind: "youtubePlaylist", id: "OLAK5uy_mz6eafmqdRHSaR4IwG0ll6J6rgv0_ZpGw" }]);

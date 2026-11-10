@@ -120,6 +120,11 @@ export interface Look {
   accent: string;
   /** the interface's own colour "#rrggbb" — panels, menus, the window behind them — kept dark; "" = graphite */
   surface: string;
+  /**
+   * A workshop theme's own CSS (the theme's sheet as published). main checks it again before it reaches the page
+   * (src/shared/themeCss.ts), and the page scopes what is left to the app's shell; "" = no theme sheet.
+   */
+  css: string;
 }
 export type PopupCorner = "bottom-right" | "top-right" | "bottom-left" | "top-left";
 
@@ -171,9 +176,13 @@ export interface Prefs {
   spectrum: SpectrumLook;
   /** a pop-up when a friend sends a track while the window isn't in front */
   socialPopups: boolean;
-  /** once a day: an anonymous "one more app is running" to sc player's server (a random install id + the version) */
+  /**
+   * Once a day: a pseudonymous "one more app is running" to sc player's server (a random install id + the version).
+   * Off for a new install; an existing setting is never changed under the person (see withPrefDefaults).
+   */
   countMe: boolean;
-  /** tracks played for a while go to sc player's server for everyone's "Listening on sc player" — the id only */
+  /** Tracks played for a while go to sc player's server for everyone's "Listening on sc player" — the id only. Off for
+   * a new install; an existing setting stays as it was. */
   shareListening: boolean;
   /** plain words (no times anywhere) are matched to the song on this computer (Whisper; the model is downloaded once) */
   autoSyncLyrics: boolean;
@@ -193,6 +202,11 @@ export interface Prefs {
    * liquid background — about 100 MB less. The graphics card is chosen at start, so it takes a restart.
    */
   memorySaver: boolean;
+  /**
+   * The one-time question about the two sharing switches (Settings → Messenger) has been shown. A new install starts
+   * with both off and sees it once; an install that already ran never sees it, because its settings are its own answer.
+   */
+  telemetryAsked: boolean;
 }
 
 export type Language = "auto" | "en" | "ru";
@@ -223,26 +237,39 @@ export const PREFS_DEFAULTS: Prefs = {
   substituteTolerance: 3,
   noSubstitute: [],
   proxy: { mode: "auto", url: "", username: "", v: 2 },
-  look: { design: "studio", bg: "liquid", bgFile: "", bgFileType: "", bgBlur: 14, bgDim: 72, bgReact: 40, panelOpacity: 58, panelBlur: 30, lite: false, accent: "", surface: "" },
+  look: { design: "studio", bg: "liquid", bgFile: "", bgFileType: "", bgBlur: 14, bgDim: 72, bgReact: 40, panelOpacity: 58, panelBlur: 30, lite: false, accent: "", surface: "", css: "" },
   spectrum: { place: "cover", style: "bars", height: 120, color: "accent", mirror: true },
   socialPopups: true,
-  countMe: true,
-  shareListening: true,
+  // off for a new install: sending anything to sc player's server is a decision the person makes, not one made for them
+  countMe: false,
+  shareListening: false,
   autoSyncLyrics: false,
   accurateSync: false,
   restingPlayer: false,
   localLikes: true,
   language: "auto",
   memorySaver: false,
+  telemetryAsked: false,
 };
 
-/** Fills in anything missing from stored prefs (new options in a newer version). */
+/**
+ * Fills in anything missing from stored prefs (new options in a newer version).
+ *
+ * The two sharing switches need care when they are missing: `stored` exists on an install that has run before, so its
+ * person has already been asked (or chose silence by never turning them on) — and filling in the new default of `false`
+ * is exactly right there. Only a fresh install gets the one-time question (telemetryAsked stays false).
+ */
 export function withPrefDefaults(stored: Partial<Prefs> | undefined): Prefs {
   const p = { ...PREFS_DEFAULTS, ...stored };
   const proxy = { ...PREFS_DEFAULTS.proxy, ...stored?.proxy };
   // "system" was the default before "auto" existed: such settings move to the new default once (v marks it done)
   if (stored?.proxy && !stored.proxy.v) Object.assign(proxy, { v: 2, mode: proxy.mode === "system" ? "auto" : proxy.mode });
-  return { ...p, hotkeys: { ...PREFS_DEFAULTS.hotkeys, ...stored?.hotkeys }, eq: { ...PREFS_DEFAULTS.eq, ...stored?.eq }, proxy, look: { ...PREFS_DEFAULTS.look, ...stored?.look, design: "studio" }, spectrum: { ...PREFS_DEFAULTS.spectrum, ...stored?.spectrum } };
+  const look: Prefs["look"] = { ...PREFS_DEFAULTS.look, ...stored?.look, design: "studio" };
+  const merged: Prefs = { ...p, hotkeys: { ...PREFS_DEFAULTS.hotkeys, ...stored?.hotkeys }, eq: { ...PREFS_DEFAULTS.eq, ...stored?.eq }, proxy, look, spectrum: { ...PREFS_DEFAULTS.spectrum, ...stored?.spectrum } };
+  // an install with saved settings has already been asked (before this version, simply by having the switches): it is
+  // not shown the first-run question, and its choices stay exactly as saved
+  if (stored && stored.telemetryAsked === undefined) merged.telemetryAsked = true;
+  return merged;
 }
 
 /** State the renderer keeps in main's store (settings.json in userData). */

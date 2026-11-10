@@ -1,13 +1,18 @@
 import { createServer } from "node:http";
-import { HttpError, ipOf, limit, send } from "./http.ts";
+import { HttpError, ipOf, limit, send, trustProxyFrom } from "./http.ts";
 import { route } from "./routes.ts";
 
 /**
- * sc player's own server: the track messenger (friend codes, no accounts), the theme workshop and an anonymous count
- * of running apps. JSON over HTTP behind Caddy (TLS); data in SQLite under DATA_DIR.
+ * sc player's own server: the track messenger (friend codes, no accounts), the theme workshop and a pseudonymous
+ * count of running apps. JSON over HTTP behind Caddy (TLS); data in SQLite under DATA_DIR.
  */
 const PORT = Number(process.env.PORT ?? 8080);
-const TRUST_PROXY = process.env.TRUST_PROXY !== "0";
+// X-Forwarded-For decides the rate-limit bucket (5 registrations an hour, 300 req/min, …). Behind Caddy in
+// docker-compose (where port 8080 is `expose`-only and Caddy overwrites untrusted X-Forwarded-For by default),
+// TRUST_PROXY must be "1" so all users do not share Caddy's single container IP bucket. When the API is run directly
+// (`node src/main.ts`) or behind a proxy that forwards client headers untouched, the default stays off ("0") so a
+// direct caller cannot pick its own bucket via X-Forwarded-For.
+const TRUST_PROXY = trustProxyFrom(process.env.TRUST_PROXY);
 
 const server = createServer(async (req, res) => {
   const ip = ipOf(req, TRUST_PROXY);

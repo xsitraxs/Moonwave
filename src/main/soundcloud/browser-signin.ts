@@ -1,9 +1,10 @@
-import { writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { app, shell } from "electron";
 import { lang } from "../i18n";
 import { log } from "../system/log";
-import { parseFriendFromArgs, parseTokenFromArgs, PROTOCOL, TOKEN } from "./browser-signin-url";
+import { parseFriendFromArgs, parseSignInLinkFromArgs, PROTOCOL, TOKEN } from "./browser-signin-url";
+import { acceptsQuietly, beginWait, idleWait, isWaiting, type SignInWait } from "./browser-signin-state";
 
 export { PROTOCOL, TOKEN };
 
@@ -11,17 +12,25 @@ export { PROTOCOL, TOKEN };
  * Sign-in through the user's own browser: the only way in since 2.1.4 (SoundCloud's bot protection kept turning the
  * window inside the app down; a browser the person uses every day passes it).
  *
- * The browser shows a helper page (written to the temp folder) with a bookmark to drag to the bookmarks bar. After
- * signing in on soundcloud.com as usual, a click on that bookmark reads the site's own `oauth_token` cookie (readable
- * by the page's scripts) and hands it to the app through the `scplayer://` link: Windows starts the app with that link
- * and the running app gets it as a second instance's arguments. Nothing leaves the computer.
+ * The browser shows a helper page (written to a folder of its own under the temp directory) with a bookmark to drag
+ * to the bookmarks bar. After signing in on soundcloud.com as usual, a click on that bookmark reads the site's own
+ * `oauth_token` cookie (readable by the page's scripts) and hands it to the app through the `scplayer://` link:
+ * Windows starts the app with that link and the running app gets it as a second instance's arguments. Nothing leaves
+ * the computer.
  *
- * A link is taken at once while the user is waiting for it (they pressed "Sign in with your browser" in the last
- * 15 minutes); any other time the app asks first, so another page can't sign it into someone else's account. The
- * link handler stays registered after a sign-in (next time the bookmark alone does it) and goes with "Cancel".
+ * A link is taken without a question only while the user is waiting AND its one-time state is the one this run handed
+ * to the helper page: any web page can open `scplayer://signin?token=…`, and without the state it could sign the app
+ * into someone else's account while the user sits at the sign-in screen. A bookmark made in an earlier session has no
+ * such state (or an old one), so it still works, but asks first — which keeps the one-click way and puts the decision
+ * in front of the person. The link handler stays registered after a sign-in and goes with "Cancel".
+ *
+ * The token travels in the link, and so in this app's command line for the moment it takes to pass it: any local
+ * process can read it there meanwhile. That is a known, accepted risk (SECURITY.md) — the alternative, a local socket,
+ * no longer matches how Windows hands a link to a running app.
  */
-const WAIT_MS = 15 * 60_000;
-let waitingUntil = 0;
+let wait: SignInWait = idleWait;
+/** the helper page's own folder (created by mkdtempSync and removed after the sign-in, or on cancel) */
+let helperDir: string | null = null;
 
 const handlerArgs = (): [string, string[]] =>
   // in development the app runs as "electron <project folder>" (a test profile goes along: Windows starts the link
@@ -32,7 +41,26 @@ const handlerArgs = (): [string, string[]] =>
     : [process.env.PORTABLE_EXECUTABLE_FILE ?? process.execPath, []];
 
 export function waitingForBrowser() {
-  return Date.now() < waitingUntil;
+  return isWaiting(wait, Date.now());
+}
+
+/**
+ * True when a link may be taken without a question: the app is waiting for one, and the link carries the very state
+ * this wait handed to its helper page (compared in constant time — see browser-signin-state.ts).
+ */
+export function matchesBrowserState(linkState: string | null): boolean {
+  return acceptsQuietly(wait, linkState, Date.now());
+}
+
+/** The helper page's folder, kept in one place so that a newer wait replaces an older page instead of leaving it behind. */
+function dropHelperDir() {
+  if (!helperDir) return;
+  try {
+    rmSync(helperDir, { recursive: true, force: true });
+  } catch {
+    /* already gone, or a browser still holds it open on Windows: it is in the temp folder, the system cleans it up */
+  }
+  helperDir = null;
 }
 
 /** scplayer:// links open this app: a sign-in from the browser, a friend's link. Set at every start (installed). */
@@ -54,34 +82,41 @@ export const friendFromArgs = parseFriendFromArgs;
 
 export function startBrowserSignIn() {
   registerLinks();
-  waitingUntil = Date.now() + WAIT_MS;
-  const page = join(app.getPath("temp"), "sc-player-sign-in.html");
-  writeFileSync(page, helperPage(), "utf8");
+  // a fresh state for this attempt: the previous page's state stops being enough the moment a new one is made
+  wait = beginWait(Date.now());
+  dropHelperDir();
+  // a folder of its own, created with owner-only rights: a fixed name under the shared temp directory could be
+  // replaced by another local user's file (or read by them) between writing the page and the browser opening it
+  helperDir = mkdtempSync(join(app.getPath("temp"), "sc-player-"));
+  const page = join(helperDir, "sign-in.html");
+  writeFileSync(page, helperPage(wait.state!), { encoding: "utf8", mode: 0o600 });
   log("main", "login: browser sign-in started");
   void shell.openPath(page);
 }
 
-/** Signed in: the wait is over, the link stays for next time. */
+/** Signed in: the wait is over, the state is spent, and the page that carried it goes away. */
 export function finishBrowserSignIn() {
-  waitingUntil = 0;
+  wait = idleWait;
+  dropHelperDir();
 }
 
 export function stopBrowserSignIn() {
   // the link handler stays: friend links use it too
-  waitingUntil = 0;
+  finishBrowserSignIn();
 }
 
-/** The token from a `scplayer://signin?token=…` link among a new instance's arguments, if there is one. */
-export function tokenFromArgs(argv: string[]): string | null {
-  return parseTokenFromArgs(argv, (msg) => log("main", msg));
+/** A sign-in link (`scplayer://signin?token=…&state=…`) among a new instance's arguments, if there is one. */
+export function signInLinkFromArgs(argv: string[]) {
+  return parseSignInLinkFromArgs(argv, (msg) => log("main", msg));
 }
 
-function helperPage() {
+function helperPage(state: string) {
   const isRu = lang() === "ru";
   const modKey = process.platform === "darwin" ? "Cmd" : "Ctrl";
   const notScMsg = isRu ? "Сначала откройте soundcloud.com, затем нажмите эту закладку." : "Open soundcloud.com first, then click this bookmark.";
   const notLoggedInMsg = isRu ? "Сначала войдите в SoundCloud, затем снова нажмите эту закладку." : "Sign in to SoundCloud first, then click this bookmark again.";
-  const bookmarklet = `(()=>{if(!/(^|\\.)soundcloud\\.com$/.test(location.hostname)){alert("${notScMsg}");return}const m=document.cookie.match(/(?:^|;\\s*)oauth_token=([^;]+)/);if(!m){alert("${notLoggedInMsg}");return}location.href="${PROTOCOL}://signin?token="+encodeURIComponent(m[1])})()`;
+  // the state ties this bookmark to this attempt: the app takes a link without asking only when it carries it
+  const bookmarklet = `(()=>{if(!/(^|\\.)soundcloud\\.com$/.test(location.hostname)){alert("${notScMsg}");return}const m=document.cookie.match(/(?:^|;\\s*)oauth_token=([^;]+)/);if(!m){alert("${notLoggedInMsg}");return}location.href="${PROTOCOL}://signin?token="+encodeURIComponent(m[1])+"&state=${state}"})()`;
   const href = `javascript:${encodeURIComponent(bookmarklet)}`;
 
   const title = isRu ? "sc player — вход через браузер" : "sc player — sign in with your browser";
@@ -101,8 +136,8 @@ function helperPage() {
     : `<b>Sign in to SoundCloud</b> in this browser as usual: <a href="https://soundcloud.com/signin">soundcloud.com/signin</a>.<br>
       <span class="muted">Already signed in here? Just open <a href="https://soundcloud.com/">soundcloud.com</a>.</span>`;
   const step3 = isRu
-    ? `<b>На soundcloud.com нажмите закладку «sc player sign-in».</b> Браузер спросит, открыть ли sc player — подтвердите. sc player выполнит вход, и эту вкладку можно закрыть.`
-    : `<b>On soundcloud.com, click the “sc player sign-in” bookmark.</b> The browser asks whether to open sc player — allow it. sc player signs in and this tab can be closed.`;
+    ? `<b>На soundcloud.com нажмите закладку «sc player sign-in».</b> Браузер спросит, открыть ли sc player — подтвердите. sc player выполнит вход, и эту вкладку можно закрыть. После перезапуска приложения закладка тоже работает, но приложение сначала спросит подтверждение.`
+    : `<b>On soundcloud.com, click the “sc player sign-in” bookmark.</b> The browser asks whether to open sc player — allow it. sc player signs in and this tab can be closed. After the app restarts the bookmark still works, but the app asks you to confirm first.`;
   const footer = isRu
     ? `Закладка лишь передаёт ваш вход SoundCloud в sc player на этом компьютере; она никуда ничего не отправляет. Относитесь к ней как к паролю: не делитесь снимками экрана адреса, который она открывает.`
     : `The bookmark only passes your SoundCloud sign-in to sc player on this computer; it sends nothing anywhere else. Treat it like a password: don't share screenshots of the address it opens.`;

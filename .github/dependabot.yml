@@ -1,0 +1,44 @@
+# Keeps the dependencies that a release actually ships, and the actions that build it, current.
+#
+# The workflows pin every action to a full commit SHA (an action tag can be moved under us; a SHA cannot). Dependabot
+# understands that form: it is the only thing that can bump a pinned SHA, so it is not optional here — without it the
+# pins would silently rot.
+#
+# There is no npm entry for server/: the server has no dependencies at all (no package-lock.json, no node_modules —
+# Node runs its TypeScript itself, see server/README.md), so an update there could never find anything to update.
+version: 2
+
+updates:
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: ""
+    groups:
+      # one pull request for the routine bumps: a SHA update per action would otherwise be five PRs a week
+      actions:
+        patterns: ["*"]
+
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: ""
+    groups:
+      # dev-only packages can move together; the ones that end up inside the app (electron, electron-builder,
+      # electron-updater, the font packages, mediabunny, onnxruntime) stay in separate PRs, since each needs its own
+      # packaging check
+      tooling:
+        dependency-type: development
+        patterns: ["eslint*", "@eslint/*", "typescript*", "@types/*", "prettier*"]
+    ignore:
+      # the Electron major sets the Node and Chromium the app ships; bumping it is a deliberate migration with a
+      # packaging run, never a drive-by PR
+      - dependency-name: electron
+        update-types: ["version-update:semver-major"]
+      - dependency-name: electron-builder
+        update-types: ["version-update:semver-major"]

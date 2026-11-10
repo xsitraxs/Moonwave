@@ -8,6 +8,23 @@ import { presentAsChrome, scPartition, scSession } from "./session";
  * the app was taken away in 2.1.4 — SoundCloud's bot protection kept turning it down). The app's session also keeps the
  * site's `oauth_token` cookie, for the check window and after a restart.
  */
+/**
+ * Where the check window may go: SoundCloud itself, and the sign-in steps its own pages send a person through
+ * (accounts.google.com, appleid.apple.com, facebook.com, …) — those are reached from soundcloud.com's buttons, after
+ * the window has already loaded a SoundCloud page. Anything else opens in the real browser, so a page the window was
+ * sent to can never walk the app's session (with the person's cookies in it) somewhere else.
+ */
+const CHECK_STAYS = /(^|\.)(soundcloud\.com|soundcloud\.app|sndcdn\.com|sndcdn\.cloud|google\.com|googleusercontent\.com|gstatic\.com|apple\.com|icloud\.com|facebook\.com|fbcdn\.net|twitter\.com|x\.com|microsoftonline\.com|live\.com)$/i;
+
+function checkMayNavigate(url: string): boolean {
+  try {
+    const u = new URL(url);
+    return u.protocol === "https:" && CHECK_STAYS.test(u.hostname);
+  } catch {
+    return false;
+  }
+}
+
 export class SessionAuth {
   token(): string | null {
     return getSecret("sessionToken");
@@ -67,6 +84,13 @@ export class SessionAuth {
       if (c.name === "oauth_token") log("main", `check: the site ${removed ? `removed the sign-in cookie (${cause})` : "set the sign-in cookie"}${!removed && c.value === token ? " (the same token)" : ""}`);
     };
     ses.cookies.on("changed", onCookie);
+    // a navigation the site does itself (not a click that opens a new window) stays on SoundCloud and its sign-in
+    // providers; anything else opens in the real browser, never in this session
+    win.webContents.on("will-navigate", (e, to) => {
+      if (checkMayNavigate(to)) return;
+      e.preventDefault();
+      if (/^https:\/\//i.test(to)) void shell.openExternal(to);
+    });
     // links away from SoundCloud open in the real browser
     win.webContents.setWindowOpenHandler(({ url: to }) => {
       if (/^https:\/\//.test(to)) void shell.openExternal(to);

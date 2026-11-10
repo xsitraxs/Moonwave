@@ -29,7 +29,9 @@ export type Source =
 const YANDEX = /^https?:\/\/(?:www\.)?music\.yandex\.(?:ru|com|by|kz|uz|ua)(\/[^\s?#]*)/i;
 const SPOTIFY = /^https?:\/\/open\.spotify\.com\/(?:intl-[a-z-]+\/)?(?:embed\/)?(playlist|album|track)\/([A-Za-z0-9]{22})/i;
 const SPOTIFY_URI = /^spotify:(playlist|album|track):([A-Za-z0-9]{22})$/i;
-const SPOTIFY_SHORT = /^https?:\/\/spotify\.link\/[A-Za-z0-9]+$/i;
+// https only: this one is not read from the link itself but fetched and followed (followShort in sources.ts), so a
+// plain-http link would send that request unencrypted through whatever network the machine is on
+const SPOTIFY_SHORT = /^https:\/\/spotify\.link\/[A-Za-z0-9]+$/i;
 const YOUTUBE = /^https?:\/\/(?:(?:www|m|music)\.)?(?:youtube\.com|youtu\.be)\//i;
 const VIDEO_ID = /^[A-Za-z0-9_-]{11}$/;
 const LIST_ID = /^[A-Za-z0-9_-]{2,64}$/;

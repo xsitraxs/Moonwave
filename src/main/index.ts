@@ -17,7 +17,7 @@ import { addDroppedFiles, addLocalFiles, flushLocalTracks, isLocalTrack, localLi
 import { addLocal, copiesOf, copyLocal, createLocal, deleteLocal, exportLocal, importLocal, flushLocalPlaylists, isLocal, localIds, localPlaylist, localPlaylists, localTracks, MAX_TRACKS, renameLocal, setLocalTracks } from "./local-playlists";
 import { communityLyrics, flushLyrics, forgetLyrics, lyricsFor, ownText, pickLyrics, searchLyrics, setCommunityLyrics, setOwnLyrics } from "./lyrics";
 import { deleteModel, downloadModel, flushLyricsSync, onSyncStatus, syncedBefore, syncStatus, syncWords } from "./lyrics-sync";
-import { auth, authStatus, chromeUserAgent, provider, ScError, scSession, finishBrowserSignIn, friendFromArgs, registerLinks, startBrowserSignIn, stopBrowserSignIn, toErrorInfo, tokenFromArgs, waitingForBrowser } from "./soundcloud";
+import { auth, authStatus, chromeUserAgent, provider, ScError, scSession, finishBrowserSignIn, friendFromArgs, matchesBrowserState, registerLinks, signInLinkFromArgs, startBrowserSignIn, stopBrowserSignIn, toErrorInfo, waitingForBrowser } from "./soundcloud";
 import { flushAlternatives } from "./soundcloud/alternatives";
 import { m } from "./i18n";
 import { readImport, resolveItem } from "./import/sources";
@@ -35,6 +35,7 @@ import { log, logsDir } from "./system/log";
 import { loadReport, watchLoad } from "./system/diagnostics";
 import { audioReport, noteAudioHealth, noteChildProcessGone } from "./system/audio";
 import { netCheck } from "./system/netcheck";
+import { lockPermissions } from "./system/permissions";
 import { applyProxy, hasBuiltinProxy, initProxyAuth, initProxyAuto, proxyRoute } from "./system/proxy";
 import { setDiscordEnabled, updateDiscord } from "./system/discord";
 import { notifyTrack } from "./system/notify";
@@ -674,13 +675,14 @@ function allowAudioCors() {
 
 // ---- lifecycle ------------------------------------------------------------------------------------------------------
 
-/** The browser sign-in's link (scplayer://signin?token=…) arrives as a second instance's arguments. */
+/** The browser sign-in's link (scplayer://signin?token=…&state=…) arrives as a second instance's arguments. */
 async function signInFromBrowser(argv: string[]) {
-  const token = tokenFromArgs(argv);
-  if (!token) return;
-  // more than 15 minutes since "Sign in with your browser", or the app was started by the link: asked first, so
-  // another page can't sign the app into someone else's account
-  if (!waitingForBrowser()) {
+  const link = signInLinkFromArgs(argv);
+  if (!link) return;
+  // quietly only when this run is waiting for a link AND the link carries the state its helper page was given. Any
+  // page can open scplayer://signin?token=… while the app waits, so a link without the state (a bookmark from an
+  // earlier session, or someone else's) is put to the person first, as is one that arrives after the 15 minutes.
+  if (!matchesBrowserState(link.state)) {
     const ask: Electron.MessageBoxOptions = {
       type: "question",
       buttons: [m().signIn, m().cancel],
@@ -695,7 +697,7 @@ async function signInFromBrowser(argv: string[]) {
       return;
     }
   }
-  auth.useToken(token);
+  auth.useToken(link.token);
   provider.reset();
   const status = await authStatus();
   // a refused token is forgotten by authStatus: the app stays signed out and keeps waiting for another try
@@ -753,6 +755,8 @@ app.on("before-quit", () => {
   flushLocalTracks();
   flushLocalLikes();
   setDiscordEnabled(false);
+  // the browser sign-in's helper page is a one-time thing: a copy left in the temp folder points at a spent state
+  stopBrowserSignIn();
 });
 process.on("uncaughtException", (err) => log("main", `uncaught: ${err.stack ?? err.message}`));
 
@@ -803,6 +807,11 @@ void app.whenReady().then(async () => {
     return out;
   };
   scSession().setUserAgent(chromeUserAgent());
+  // every session the app shows a page in: the main window, the SoundCloud one (check window, API requests), the VK
+  // import window, and the probe session (a bare fetch, but a session all the same)
+  lockPermissions(session.defaultSession, "app", isAppUrl);
+  lockPermissions(scSession(), "soundcloud", isAppUrl);
+  lockPermissions(session.fromPartition("sc-probe"), "probe", isAppUrl);
   initProxyAuth(() => prefs().proxy.username);
   initProxyAuto();
   await timedAsync("proxy", () => applyProxy(prefs().proxy));

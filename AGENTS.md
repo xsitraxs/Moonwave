@@ -79,7 +79,14 @@ npm run typecheck && npm run lint && npm test
   update-repository guards), typecheck, lint, production build, a secrets scan of the built files, and packaging on
   Windows, macOS and Linux. Push a `vX.Y.Z` tag and `.github/workflows/release.yml` builds the three platforms and
   attaches the installers together with the auto-updater metadata (`latest.yml`, `latest-mac.yml`, `latest-linux.yml`)
-  to the GitHub Release. The tag must match `package.json`'s version.
+  and `SHA256SUMS.txt` to the GitHub Release; the same files carry a signed build-provenance attestation
+  (`gh attestation verify <file> -R xsitraxs/scplayer-fix`). The tag must match `package.json`'s version. The release
+  job runs in the `release` environment, where the owner can require a reviewer; its token is read-only outside that
+  job.
+- **Pinned actions.** Every `uses:` in `.github/workflows/` is a full commit SHA with the version in a comment — a tag
+  can be moved, a SHA cannot. Never write `@vN`; Dependabot (`.github/dependabot.yml`) moves the pins weekly.
+- **Static analysis.** `.github/workflows/codeql.yml` runs CodeQL (`javascript-typescript`) on pushes to `main` and
+  weekly. Do not also turn on GitHub's default setup for code scanning: the two cannot run together.
 - **Release names.** Releases are short: v2.3, v2.3.1. `package.json` keeps semver (2.4.0). `npm run dist` builds for
   the machine it runs on — it refuses to finish if the update metadata is missing (`scripts/verify-dist.mjs`), so a
   release can never ship without the files the updater reads. macOS and Linux come from the release workflow.

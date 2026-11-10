@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { all, DATA, one, run, tx, type Row } from "./db.ts";
 import { fail, HttpError, int, limit, readBody, readJson, send, text, url } from "./http.ts";
 import { roomRoutes, rooms } from "./room-routes.ts";
+import { themeCssProblems } from "./theme-css.ts";
 
 const MIN = 60_000;
 const HOUR = 60 * MIN;
@@ -476,24 +477,17 @@ function look(v: unknown) {
 }
 
 /**
- * A theme's own CSS: style only. Nothing that loads from elsewhere or runs code — no url(), @import, @font-face,
- * expressions, bindings, or markup. The app checks it again before using it.
+ * A theme's own CSS, checked with the same sanitiser the app uses (theme-css.ts, an exact copy of
+ * src/shared/themeCss.ts): a white list of properties and values, scoped selectors, only @media and @keyframes.
+ * A new publication with anything the sanitiser would drop is refused with the reasons, so authors see what is wrong
+ * before other people install their theme; themes published before this check keep working, because the app sanitises
+ * whatever arrives before it applies it.
  */
 export function checkCss(v: unknown): string {
   if (v === undefined || v === null || v === "") return "";
   if (typeof v !== "string") return fail(400, "css must be text");
-  if (v.length > 20_000) fail(400, "css too long (20 000 characters)");
-  // read it the way a browser would: comments out, escapes (\70 = p) decoded, so "@im\70ort" is still @import
-  const flat = v
-    .replace(/\/\*[\s\S]*?\*\//g, "")
-    .replace(/\\([0-9a-f]{1,6})\s?/gi, (_, h: string) => {
-      const n = parseInt(h, 16);
-      return n > 0 && n <= 0x10ffff ? String.fromCodePoint(n) : "?";
-    })
-    .replace(/\\(.)/g, "$1")
-    .toLowerCase();
-  const bad = [/url\s*\(/, /@import/, /@font-face/, /@namespace/, /expression\s*\(/, /javascript:/, /behavior\s*:/, /-moz-binding/, /<\/?\s*(style|script)/, /image-set\s*\(/, /src\s*\(/];
-  for (const re of bad) if (re.test(flat)) fail(400, `css: ${re.source.replace(/\\s\*|\\/g, "")} is not allowed`);
+  const problems = themeCssProblems(v);
+  if (problems.length) return fail(400, `css: ${problems.slice(0, 3).join("; ")}${problems.length > 3 ? ` (and ${problems.length - 3} more)` : ""}`);
   return v;
 }
 
