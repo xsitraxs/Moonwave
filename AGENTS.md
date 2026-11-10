@@ -80,7 +80,7 @@ npm run typecheck && npm run lint && npm test
   Windows, macOS and Linux. Push a `vX.Y.Z` tag and `.github/workflows/release.yml` builds the three platforms and
   attaches the installers together with the auto-updater metadata (`latest.yml`, `latest-mac.yml`, `latest-linux.yml`)
   and `SHA256SUMS.txt` to the GitHub Release; the same files carry a signed build-provenance attestation
-  (`gh attestation verify <file> -R xsitraxs/scplayer-fix`). The tag must match `package.json`'s version. The release
+  (`gh attestation verify <file> -R xsitraxs/Moonwave`). The tag must match `package.json`'s version. The release
   job runs in the `release` environment, where the owner can require a reviewer; its token is read-only outside that
   job.
 - **Pinned actions.** Every `uses:` in `.github/workflows/` is a full commit SHA with the version in a comment — a tag

@@ -13,8 +13,8 @@
 [Install](#install) •
 [Good to know](#good-to-know)
 
-[![Latest release](https://img.shields.io/github/v/release/xsitraxs/scplayer-fix?style=flat-square&label=release&labelColor=111114&color=3a3a41)](../../releases/latest)
-[![Downloads](https://img.shields.io/github/downloads/xsitraxs/scplayer-fix/total?style=flat-square&labelColor=111114&color=3a3a41)](../../releases)
+[![Latest release](https://img.shields.io/github/v/release/xsitraxs/Moonwave?style=flat-square&label=release&labelColor=111114&color=3a3a41)](../../releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/xsitraxs/Moonwave/total?style=flat-square&labelColor=111114&color=3a3a41)](../../releases)
 ![Windows](https://img.shields.io/badge/Windows-10%20%2F%2011-3a3a41?style=flat-square&labelColor=111114)
 ![macOS](https://img.shields.io/badge/macOS-Apple%20Silicon%20%2F%20Intel-3a3a41?style=flat-square&labelColor=111114)
 ![Linux](https://img.shields.io/badge/Linux-AppImage%20%2F%20deb-3a3a41?style=flat-square&labelColor=111114)
