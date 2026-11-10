@@ -2,6 +2,7 @@ import { artwork, type Track } from "@shared/types";
 import type { Look, Prefs } from "@shared/ipc";
 import { usePlayer } from "@/state/player";
 import { useSettings } from "@/state/settings";
+import { applyThemeCss } from "./themeCss";
 
 /**
  * The studio design's look: <html data-design> picks the stylesheet (styles/studio.css), the knobs go to CSS
@@ -227,9 +228,14 @@ export function shownLook(prefs: Prefs): Look {
 
 export function initLook() {
   applyKnobs(shownLook(useSettings.getState().prefs));
+  // the workshop theme's own sheet: applied where the look changes, and only when the sheet itself is a different one
+  // (every knob change makes a new look object, but re-parsing an unchanged sheet on each would be wasted work)
+  let css = useSettings.getState().prefs.look.css;
+  applyThemeCss(css);
   useSettings.subscribe((s, prev) => {
     if (s.prefs.look === prev.prefs.look && s.prefs.memorySaver === prev.prefs.memorySaver) return;
     applyKnobs(shownLook(s.prefs));
+    if (s.prefs.look.css !== css) applyThemeCss((css = s.prefs.look.css));
     void update();
   });
   usePlayer.subscribe((s, prev) => s.queue[s.index] !== prev.queue[prev.index] && void update());

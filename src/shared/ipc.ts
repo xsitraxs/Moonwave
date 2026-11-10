@@ -120,6 +120,11 @@ export interface Look {
   accent: string;
   /** the interface's own colour "#rrggbb" — panels, menus, the window behind them — kept dark; "" = graphite */
   surface: string;
+  /**
+   * A workshop theme's own CSS (the theme's sheet as published). main checks it again before it reaches the page
+   * (src/shared/themeCss.ts), and the page scopes what is left to the app's shell; "" = no theme sheet.
+   */
+  css: string;
 }
 export type PopupCorner = "bottom-right" | "top-right" | "bottom-left" | "top-left";
 
@@ -223,7 +228,7 @@ export const PREFS_DEFAULTS: Prefs = {
   substituteTolerance: 3,
   noSubstitute: [],
   proxy: { mode: "auto", url: "", username: "", v: 2 },
-  look: { design: "studio", bg: "liquid", bgFile: "", bgFileType: "", bgBlur: 14, bgDim: 72, bgReact: 40, panelOpacity: 58, panelBlur: 30, lite: false, accent: "", surface: "" },
+  look: { design: "studio", bg: "liquid", bgFile: "", bgFileType: "", bgBlur: 14, bgDim: 72, bgReact: 40, panelOpacity: 58, panelBlur: 30, lite: false, accent: "", surface: "", css: "" },
   spectrum: { place: "cover", style: "bars", height: 120, color: "accent", mirror: true },
   socialPopups: true,
   countMe: true,

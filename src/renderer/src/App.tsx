@@ -109,7 +109,8 @@ export default function App() {
       <RoomSheet />
       <InviteFloat />
       <SkipNotice />
-      <div className={`s-shell relative z-10${sideQueue ? " with-queue" : ""}${full ? " full-open" : ""}`}>
+      {/* the theme workshop's CSS is scoped to this element (lib/themeCss.ts): a theme restyles the shell and what is in it, nothing outside */}
+      <div data-theme-scope="" className={`s-shell relative z-10${sideQueue ? " with-queue" : ""}${full ? " full-open" : ""}`}>
         <StudioTitleBar />
         <StudioSidebar />
         <main className="relative min-h-0 overflow-hidden">

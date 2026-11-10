@@ -3,6 +3,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { join as joinPath } from "node:path";
 import { app, nativeImage, net, Notification, type BrowserWindow } from "electron";
 import type { Look } from "@shared/ipc";
+import { sanitizeThemeCss } from "@shared/themeCss";
 import type { Friends, Message, RoomInvite, SocialProfile, SocialStatus, SocialTrack, SocialUpdate, ThemeLook, WsPage, WsReported, WsSort, WsThemeFull, SharedPlaylist } from "@shared/social";
 import { ScError } from "./soundcloud";
 import { prefs } from "./store";
@@ -393,8 +394,12 @@ export async function wsInstall(id: string): Promise<Look> {
     file = { bgFile: saved.file, bgFileType: saved.type };
   } else if (bg === "file") bg = "liquid";
   if (joined()) void api("POST", `/v1/themes/${encodeURIComponent(id)}/install`).catch(() => undefined);
+  // the theme's own CSS travels with the look; main checks it again before it reaches the page (shared/themeCss.ts),
+  // and an older theme with no sheet just sets none
+  const { css, dropped } = sanitizeThemeCss(t.css ?? "");
+  if (dropped.length) log("main", `theme: ${dropped.length} declaration(s) of "${t.name}" left out (${dropped[0]!.reason})`);
   // themes from the old night design come in as studio ones
-  return { ...current, ...t.look, design: "studio", surface: t.look.surface ?? "", bg, ...file, lite: current.lite };
+  return { ...current, ...t.look, design: "studio", surface: t.look.surface ?? "", bg, ...file, lite: current.lite, css };
 }
 
 export async function wsLike(id: string) {
