@@ -1,5 +1,5 @@
 import { BrowserWindow, shell } from "electron";
-import { getSecret, setSecret } from "../store/secrets";
+import { forgetSecret, getSecret, setSecret } from "../store/secrets";
 import { log } from "../system/log";
 import { presentAsChrome, scPartition, scSession } from "./session";
 
@@ -131,7 +131,8 @@ export class SessionAuth {
 
   /** Sign out: the token, cookies, site storage and cache of the SoundCloud session are all wiped. */
   async logout() {
-    setSecret("sessionToken", null);
+    // forgotten with its earlier copies: a sign-out must leave no SoundCloud token in secrets.bin
+    forgetSecret("sessionToken");
     const ses = scSession();
     await ses.clearStorageData();
     await ses.clearCache();

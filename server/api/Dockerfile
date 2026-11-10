@@ -1,5 +1,6 @@
 # No packages to install: Node 24 runs the TypeScript itself and has SQLite built in.
-FROM node:24-alpine
+# Pinned by tag and digest, so a rebuild gets exactly this image; Dependabot (.github/dependabot.yml) proposes updates.
+FROM node:24.22.2-alpine3.24@sha256:a34ab6d7f6f4813f4d0c5469d74685604b962fbdbf5793a7bc7b4998ecb867c8
 WORKDIR /app
 COPY src ./src
 ENV NODE_ENV=production DATA_DIR=/data PORT=8080 NODE_NO_WARNINGS=1
