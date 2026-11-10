@@ -129,6 +129,10 @@ function Updates({ info }: { info: AppInfo | null }) {
           </PaperButton>
         )}
       </Row>
+      {/* GPL-3.0 §5: a modified version says so, and where it comes from (sc player's name is not Moonwave's to use) */}
+      <Row label={t.forkOf} hint={t.forkOfHint}>
+        {null}
+      </Row>
       {update.state === "available" && update.portable && (
         <Row label={t.upPortable}>
           <PaperButton onClick={() => void call("shell:open", RELEASES)}>

@@ -30,13 +30,15 @@ test("the releases button and the update feed name the same repository", () => {
  * src/, the server under server/, the scripts, the workflows, the readme. The first audit checked only src/ and
  * missed the standalone server's invite page, which sent people to the upstream releases for a fork build.
  *
- * The one deliberate exception is `package.json` → build.maintainer (upstream attribution in the .deb metadata, kept
- * by decision in this PR); and the iOS app is a different project (waterlilo/sc-player-ios), credited in the readme —
- * it is not this repository's release feed. Both are matched by exact text below, nothing else is allowed.
+ * The iOS app is a different project (waterlilo/sc-player-ios), credited in the readme — it is not this repository's
+ * release feed. (The .deb's maintainer used to name upstream here; since the rename it names who actually ships
+ * Moonwave, as a maintainer field should.) Since the rename to Moonwave the readme also names where the app comes from
+ * ("Based on [sc player](…) by waterlil", as GPL-3.0 §5 asks of a modified version): that attribution, written exactly
+ * so, is allowed in the readme only. Everything is matched by exact text below, nothing else is allowed.
  */
 const FORBIDDEN = /github\.com\/waterlilo\/sc-player(?!-ios)/g;
 const ALLOWED: { file: RegExp; text: string }[] = [
-  { file: /^package\.json$/, text: "waterlilo <https://github.com/waterlilo/sc-player>" },
+  { file: /^README\.md$/, text: "[sc player](https://github.com/waterlilo/sc-player)" },
 ];
 const SKIP_DIRS = new Set(["node_modules", ".git", "dist", "out", "release"]);
 const SCANNED_EXT = new Set([".ts", ".tsx", ".js", ".mjs", ".cjs", ".json", ".yml", ".yaml", ".md", ".html", ".css", ".vue", ".py", ".sh"]);

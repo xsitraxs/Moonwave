@@ -390,6 +390,8 @@ export const en = {
   addKeyword: "Add a word",
   add: "Add",
   versionLine: (v: string) => `Moonwave ${v}`,
+  forkOf: "Based on sc player by waterlil",
+  forkOfHint: "Moonwave is a modified version of sc player, free software under the GNU GPL v3.0 — you may use, change and share it. Not made or endorsed by waterlil.",
   checkUpdatesAuto: "Check for updates automatically",
   checkNow: "Check now",
   upChecking: "Checking…",

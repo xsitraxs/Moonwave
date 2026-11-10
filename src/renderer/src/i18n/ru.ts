@@ -413,6 +413,8 @@ export const ru: Dict = {
   addKeyword: "Добавить слово",
   add: "Добавить",
   versionLine: (v: string) => `Moonwave ${v}`,
+  forkOf: "Основано на sc player от waterlil",
+  forkOfHint: "Moonwave — изменённая версия sc player, свободной программы под лицензией GNU GPL v3.0: её можно использовать, менять и распространять. waterlil не создавал и не одобрял Moonwave.",
   checkUpdatesAuto: "Проверять обновления автоматически",
   checkNow: "Проверить сейчас",
   upChecking: "Проверяем…",

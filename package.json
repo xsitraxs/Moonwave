@@ -4,7 +4,7 @@
   "version": "2.4.1",
   "private": true,
   "description": "Moonwave — a SoundCloud desktop client for Windows, macOS and Linux",
-  "author": "waterlil",
+  "author": "xsitraxs",
   "license": "GPL-3.0-only",
   "main": "out/main/index.js",
   "type": "module",
@@ -60,7 +60,7 @@
   "build": {
     "appId": "io.github.xsitraxs.moonwave",
     "productName": "Moonwave",
-    "copyright": "waterlil",
+    "copyright": "Copyright © 2026 waterlil and the contributors",
     "protocols": [
       {
         "name": "moonwave",
@@ -167,7 +167,7 @@
       "executableName": "moonwave",
       "category": "Audio",
       "synopsis": "A SoundCloud player: no ads, lyrics word by word, friends to listen with",
-      "maintainer": "waterlilo <https://github.com/waterlilo/sc-player>",
+      "maintainer": "xsitraxs <https://github.com/xsitraxs/scplayer-fix>",
       "desktop": {
         "entry": {
           "Name": "Moonwave",
