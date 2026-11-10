@@ -57,3 +57,18 @@ export function allowPermission(url: string, permission: string, isAppUrl: AppUr
   if (!url) return false;
   return isAppUrl(url);
 }
+
+/**
+ * Whether a permission *check* (not a request) is answered yes. The same rule as allowPermission, plus one thing only a
+ * check needs: `media` for audio, on the app's own page.
+ *
+ * Chromium hides the output devices' ids and names from navigator.mediaDevices.enumerateDevices() unless the page
+ * passes the microphone's permission check, and Electron asks setPermissionCheckHandler that as "media" with
+ * mediaType "audio". Answering no there left the output device picker (Settings → App, the player's bar) with one
+ * nameless entry in a packaged build. A check never opens the microphone: getUserMedia goes through the request
+ * handler, which still refuses `media` for everyone (allowPermission).
+ */
+export function allowPermissionCheck(url: string, permission: string, mediaType: string | undefined, isAppUrl: AppUrlCheck): boolean {
+  if (permission === "media") return mediaType === "audio" && !!url && isAppUrl(url);
+  return allowPermission(url, permission, isAppUrl);
+}

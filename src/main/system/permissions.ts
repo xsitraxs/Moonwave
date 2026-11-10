@@ -1,6 +1,6 @@
 import type { Session } from "electron";
 import { log } from "./log";
-import { allowPermission, permissionUrl } from "./permissions-rules";
+import { allowPermission, allowPermissionCheck, permissionUrl } from "./permissions-rules";
 
 /**
  * Permission handlers for every session the app uses.
@@ -50,6 +50,7 @@ export function lockPermissions(ses: Session, name: string, isAppUrl: (url: stri
       mainUrl: wc ? wc.getURL() : "",
       requestingOrigin,
     });
-    return allowPermission(url, permission, isAppUrl);
+    // checks have one extra: the audio "media" check enumerateDevices needs to name the outputs (permissions-rules.ts)
+    return allowPermissionCheck(url, permission, details?.mediaType, isAppUrl);
   });
 }
