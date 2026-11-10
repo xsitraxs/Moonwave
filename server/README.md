@@ -15,8 +15,8 @@ Caddy takes the certificate from Let's Encrypt itself and renews it (no e-mail n
 - **Workshop:** published themes — name, description, the appearance knobs, optional CSS (style only: no `url()`, `@import`, fonts or scripts; checked here and again in the app), an optional background image or video (up to 25 MB, type checked by its bytes) and a preview image. Three reports hide a theme until a moderator looks.
 - **Counter:** only while the person keeps it on (Settings → Messenger; a new install starts with it off). Once a day
   per install — a random install id and the app version. No IP, no account, nothing else.
-- **Listening:** only while the person keeps it on. A track id, no device secret, no account — "Listening on sc
-  player" is written without asking anyone who listened.
+- **Listening:** only while the person keeps it on. A track id, no device secret, no account — "Listening on
+  Moonwave" is written without asking anyone who listened.
 
 ## Deploy
 

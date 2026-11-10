@@ -10,8 +10,8 @@ import { getSecret, setSecret } from "./store/secrets";
 import { log } from "./system/log";
 
 /**
- * A copy of what lives only on this computer — likes, own playlists, own lyrics and the friend code — kept on sc
- * player's server, so a new computer gets it all back with the transfer key (Settings → Account). The key never
+ * A copy of what lives only on this computer — likes, own playlists, own lyrics and the friend code — kept on
+ * Moonwave's server, so a new computer gets it all back with the transfer key (Settings → Account). The key never
  * leaves the computer: it names the copy, guards writing it and encrypts it (AES-256-GCM), so the server holds bytes
  * it can't read. Lost key, lost copy — the page says so.
  */
