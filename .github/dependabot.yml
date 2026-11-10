@@ -6,6 +6,8 @@
 #
 # There is no npm entry for server/: the server has no dependencies at all (no package-lock.json, no node_modules —
 # Node runs its TypeScript itself, see server/README.md), so an update there could never find anything to update.
+# Its Docker images are pinned by digest the same way the actions are by SHA, and are kept current here for the same
+# reason. The forward-proxy plugin's commit in server/caddy/Dockerfile is the one pin it can't move.
 version: 2
 
 updates:
@@ -41,4 +43,17 @@ updates:
       - dependency-name: electron
         update-types: ["version-update:semver-major"]
       - dependency-name: electron-builder
+        update-types: ["version-update:semver-major"]
+
+  # the server's images (server/api, server/caddy): one PR per image, since each is a server rebuild to check
+  - package-ecosystem: docker
+    directories: ["/server/api", "/server/caddy"]
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: ""
+    ignore:
+      # Node's major is the server's runtime (its SQLite and TypeScript support): a deliberate move, like Electron's
+      - dependency-name: node
         update-types: ["version-update:semver-major"]
