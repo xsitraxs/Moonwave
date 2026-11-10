@@ -7,10 +7,11 @@ import { route } from "./routes.ts";
  * count of running apps. JSON over HTTP behind Caddy (TLS); data in SQLite under DATA_DIR.
  */
 const PORT = Number(process.env.PORT ?? 8080);
-// X-Forwarded-For decides the rate-limit bucket (5 registrations an hour, 20 pings, …), so trusting it by default
-// would let anyone start a fresh bucket per request by sending their own header — every limit here would be gone.
-// The address is trusted only when the deployment says a proxy it controls is in front: docker-compose does, for
-// Caddy ("1"); a bare `node src/main.ts` does not ("0", the default here).
+// X-Forwarded-For decides the rate-limit bucket (5 registrations an hour, 300 req/min, …). Behind Caddy in
+// docker-compose (where port 8080 is `expose`-only and Caddy overwrites untrusted X-Forwarded-For by default),
+// TRUST_PROXY must be "1" so all users do not share Caddy's single container IP bucket. When the API is run directly
+// (`node src/main.ts`) or behind a proxy that forwards client headers untouched, the default stays off ("0") so a
+// direct caller cannot pick its own bucket via X-Forwarded-For.
 const TRUST_PROXY = trustProxyFrom(process.env.TRUST_PROXY);
 
 const server = createServer(async (req, res) => {
