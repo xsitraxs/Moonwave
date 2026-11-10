@@ -24,6 +24,7 @@
     "test": "node --test \"src/**/*.test.ts\" \"scripts/**/*.test.mjs\""
   },
   "devDependencies": {
+    "@electron/asar": "3.4.1",
     "@electron/fuses": "2.1.3",
     "@eslint/js": "10.0.1",
     "@fontsource/onest": "5.3.1",
