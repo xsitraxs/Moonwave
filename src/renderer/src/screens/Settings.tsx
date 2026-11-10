@@ -442,10 +442,24 @@ export default function Settings() {
             <Row label={t.trackPopup} hint={t.trackPopupHint}>
               <Toggle on={prefs.trackPopup} onChange={(v) => setPref("trackPopup", v)} label={t.trackPopup} />
             </Row>
-            {/* hidden while Moonwave has no Discord application of its own (DISCORD_CLIENT_ID) */}
+            {/* hidden in a build without a Discord application (DISCORD_CLIENT_ID = "") */}
             {!!DISCORD_CLIENT_ID && (
               <Row label={t.discordPresence} hint={t.discordPresenceHint}>
                 <Toggle on={prefs.discordPresence} onChange={(v) => setPref("discordPresence", v)} label={t.discordPresence} />
+              </Row>
+            )}
+            {!!DISCORD_CLIENT_ID && prefs.discordPresence && (
+              <Row label={t.discordStatus} hint={t.discordStatusHint}>
+                <Choice
+                  value={prefs.discordStatus}
+                  label={t.discordStatus}
+                  onChange={(v) => setPref("discordStatus", v)}
+                  options={[
+                    ["app", t.discordStatusApp],
+                    ["artist", t.discordStatusArtist],
+                    ["track", t.discordStatusTrack],
+                  ]}
+                />
               </Row>
             )}
             <Row label={t.popupCorner}>

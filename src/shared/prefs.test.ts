@@ -49,3 +49,10 @@ test("telemetry: a new install sees the question once, and the answer stops it",
   // they later turned the count on themselves: still not asked again
   assert.equal(withPrefDefaults({ telemetryAsked: true, countMe: true }).telemetryAsked, true);
 });
+
+test("discord: the short status names the app unless the user picks the artist or the track", () => {
+  assert.equal(withPrefDefaults(undefined).discordStatus, "app");
+  // settings saved by a version without the choice get the same default
+  assert.equal(withPrefDefaults({ discordPresence: true }).discordStatus, "app");
+  assert.equal(withPrefDefaults({ discordStatus: "track" }).discordStatus, "track");
+});
