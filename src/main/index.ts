@@ -7,6 +7,8 @@ import { release } from "node:os";
 import { join } from "node:path";
 import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, session, shell, type IpcMainInvokeEvent } from "electron";
 import { ISSUES_URL, RENDERER_DEFAULTS, type AuthStatus, type InvokeChannel, type InvokeMap, type PlayerCommand, type PlayerInfo, type RendererState, type Result } from "@shared/ipc";
+import { audioUtilityRole } from "@shared/audioHealth";
+import { isStatusBreakpoint, mergeDisabledFeatures, nextGpuSandboxOffOnCrash, shouldDisableAudioSandbox, shouldDisableGpuSandbox } from "@shared/windowsSandbox";
 import type { MusicProvider, SearchKind } from "@shared/provider";
 import type { RoomOp, SocialTrack } from "@shared/social";
 import type { ImportItem, QueueSource, SyncRequest, Track, LyricsSuggestionState } from "@shared/types";
@@ -96,6 +98,30 @@ const status = async (): Promise<AuthStatus> => (DEMO ? { mode: "session", user:
 const modulesLoadedMs = Math.round(process.uptime() * 1000);
 const memorySaver = prefs().memorySaver;
 if (memorySaver) app.disableHardwareAcceleration();
+// Windows 11 26200+ (and %LOCALAPPDATA% trees altered by third-party AppContainer SIDs) kill Chromium's AudioService
+// and GPU child sandboxes at init with 0x80000003 STATUS_BREAKPOINT; the renderer sandbox itself stays fully enabled.
+const savedMain = store().get();
+const audioSandboxOff = shouldDisableAudioSandbox({
+  platform: process.platform,
+  osRelease: release(),
+  crashedBefore: savedMain.winAudioSandboxOff,
+});
+if (audioSandboxOff) {
+  app.commandLine.appendSwitch(
+    "disable-features",
+    mergeDisabledFeatures(app.commandLine.getSwitchValue("disable-features"), ["AudioServiceSandbox"]),
+  );
+}
+const gpuSandboxOff =
+  app.commandLine.hasSwitch("disable-gpu-sandbox") ||
+  shouldDisableGpuSandbox({
+    platform: process.platform,
+    memorySaver,
+    crashedBefore: savedMain.winGpuSandboxOff,
+  });
+if (gpuSandboxOff && !app.commandLine.hasSwitch("disable-gpu-sandbox")) {
+  app.commandLine.appendSwitch("disable-gpu-sandbox");
+}
 /**
  * How Chromium's graphics stack came up. `disabled_software` here means Chromium fell back to software rendering
  * (no usable card, or the graphics process died) — the same condition that makes a Web Audio route silence a deck, so
@@ -109,10 +135,42 @@ const graphicsStatus = (): { gpuCompositing: string; webgl: string } => {
 const systemName = () => (process.platform === "darwin" ? `macOS ${process.getSystemVersion()}` : process.platform === "linux" ? `Linux ${release()}` : `Windows ${release()}`);
 // which build wrote this file: without it two runs of different installers look like one app behaving inconsistently
 log("main", `start: sc player ${app.getVersion()}, Electron ${process.versions.electron}, ${systemName()}, ${process.arch}${process.env.PORTABLE_EXECUTABLE_DIR ? ", portable" : ""}`);
+if (audioSandboxOff || gpuSandboxOff) {
+  log("main", `sandbox: ${[audioSandboxOff ? "AudioServiceSandbox off" : "", gpuSandboxOff ? "gpu-sandbox off" : ""].filter(Boolean).join(", ")}`);
+}
+// a second copy (a click on a scplayer:// link, the menu entry again) hands its arguments over and leaves — it must
+// not run the start below as well (it signed in, set the proxy and wrote files before quitting)
+const firstInstance = app.requestSingleInstanceLock();
+if (!firstInstance) app.quit();
 // the graphics process failing is what leaves an empty window; Chromium retries and then draws without it
 app.on("child-process-gone", (_e, d) => {
   if (d.reason === "clean-exit") return;
   log("main", `${d.type}${d.name ? ` (${d.name})` : ""} process gone: ${d.reason} (exit ${d.exitCode})`);
+  if (firstInstance && process.platform === "win32") {
+    if (audioUtilityRole(d.type, d.name) === "audio" && isStatusBreakpoint(d.exitCode) && !store().get().winAudioSandboxOff) {
+      store().patch({ winAudioSandboxOff: true });
+      store().flush();
+      log("main", "audio: AudioService crashed with STATUS_BREAKPOINT; next start will disable AudioServiceSandbox");
+    }
+    const nextGpu = nextGpuSandboxOffOnCrash({
+      platform: process.platform,
+      processType: d.type,
+      reason: d.reason,
+      exitCode: d.exitCode,
+      gpuSandboxDisabledThisRun: gpuSandboxOff,
+      currentSaved: store().get().winGpuSandboxOff === true,
+    });
+    if (nextGpu !== null) {
+      store().patch({ winGpuSandboxOff: nextGpu });
+      store().flush();
+      log(
+        "main",
+        nextGpu
+          ? "graphics: GPU sandbox crashed with STATUS_BREAKPOINT; next start will pass --disable-gpu-sandbox"
+          : "graphics: GPU still crashed with --disable-gpu-sandbox; restoring GPU sandbox for next start",
+      );
+    }
+  }
   // the sound's own service (or the device service a chosen output starts): the page has to rebuild and say so,
   // because Chromium restarts the helper without telling the page that its decoders and context died
   noteChildProcessGone(main, d);
@@ -126,11 +184,6 @@ app.on("child-process-gone", (_e, d) => {
     setTimeout(report, 5000);
   }
 });
-
-// a second copy (a click on a scplayer:// link, the menu entry again) hands its arguments over and leaves — it must
-// not run the start below as well (it signed in, set the proxy and wrote files before quitting)
-const firstInstance = app.requestSingleInstanceLock();
-if (!firstInstance) app.quit();
 setCommunityLyrics((t) => social.approvedLyrics(t));
 registerBackgroundScheme();
 app.setAppUserModelId("com.skythemontage.scplayer");

@@ -9,6 +9,10 @@ export interface MainState {
   renderer: RendererState;
   /** where the proxy's "auto" mode sent SoundCloud last: the user's own connection or sc player's proxy */
   proxyRoute?: "own" | "ours";
+  /** Windows: set once AudioService crashed with STATUS_BREAKPOINT so subsequent starts disable AudioServiceSandbox */
+  winAudioSandboxOff?: boolean;
+  /** Windows: set once the sandboxed GPU process crashed with STATUS_BREAKPOINT so subsequent starts pass --disable-gpu-sandbox */
+  winGpuSandboxOff?: boolean;
 }
 
 let file: JsonFile<MainState> | null = null;
