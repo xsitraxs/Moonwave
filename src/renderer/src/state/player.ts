@@ -1,7 +1,9 @@
 import { create } from "zustand";
 import type { PlayerSnapshot, RepeatMode } from "@shared/ipc";
+import { waveformQuiet } from "@shared/audioHealth";
 import type { ErrorCode, Page, QueueSource, Track } from "@shared/types";
 import * as engine from "@/audio/engine";
+import { queryClient } from "@/api/queries";
 import { getActivity, subscribeActivity } from "@/lib/activity";
 import { isHidden } from "@/lib/hidden";
 import { call } from "@/lib/sky";
@@ -235,9 +237,8 @@ function start(index: number, opts: { autoplay?: boolean; startAt?: number } = {
       set({ status: "error", error: "unavailable" });
       // not a silent skip: it plays on SoundCloud itself
       useUi.getState().noteSkipped(track);
-      window.clearTimeout(skipTimer);
       // in a room: quiet here until the room's next track
-      if (!remote) skipTimer = window.setTimeout(() => void advance(true), 600);
+      if (!remote) skipSoon(600);
       return;
     }
     prefetchNextSub();
@@ -257,6 +258,9 @@ async function sourceIds(source: QueueSource): Promise<number[]> {
   const hit = idCache.get(key);
   if (hit && Date.now() - hit.at < ID_TTL) return hit.ids;
   const ids = await call("data:sourceIds", source);
+  // entries were only ever replaced, never dropped: every list played in a long session stayed in memory (a large
+  // likes list is tens of thousands of ids)
+  for (const [k, v] of idCache) if (Date.now() - v.at >= ID_TTL) idCache.delete(k);
   idCache.set(key, { at: Date.now(), ids });
   return ids;
 }
@@ -291,7 +295,8 @@ async function shuffleWholeList() {
 
 // ---- keeping the queue filled -------------------------------------------------------------------------------------
 
-let toppingUp = false;
+/** the fill in progress: a caller that needs its result (the next track at a list's end) waits for it */
+let topUpRun: Promise<void> | null = null;
 
 async function fetchPage(source: QueueSource): Promise<Page<Track> | null> {
   switch (source.kind) {
@@ -322,10 +327,19 @@ const append = (tracks: Track[]) => {
  * order); else the list is really over — repeat "all" starts it again (a fresh shuffle when shuffled), and with
  * repeat off the autopilot continues with similar tracks. The autopilot never steps in while any of the list is left.
  */
-async function topUp(force = false) {
-  if (toppingUp || remote) return;
-  if (!force && get().queue.length - get().index > AHEAD) return;
-  toppingUp = true;
+function topUp(force = false): Promise<void> {
+  if (remote) return Promise.resolve();
+  // a forced call (nothing left to play) waits for the fill already running — returning at once used to end the queue
+  // right while the autopilot's next tracks were on their way — and fills again only if that brought nothing
+  if (topUpRun) return force ? topUpRun.then(() => (nextIndex(get().index, false) < 0 ? topUp(true) : undefined)) : topUpRun;
+  if (!force && get().queue.length - get().index > AHEAD) return Promise.resolve();
+  topUpRun = fill().finally(() => {
+    topUpRun = null;
+  });
+  return topUpRun;
+}
+
+async function fill() {
   const gen = rebuild;
   try {
     for (let guard = 0; guard < 6 && get().queue.length - get().index <= AHEAD; guard++) {
@@ -370,8 +384,6 @@ async function topUp(force = false) {
     }
   } catch {
     /* can't grow right now: the queue just ends here */
-  } finally {
-    toppingUp = false;
   }
 }
 
@@ -386,10 +398,27 @@ function nextIndex(from: number, wrap: boolean) {
 // ---- engine → store -----------------------------------------------------------------------------------------------
 
 let skipTimer = 0;
+/**
+ * Tracks skipped one after another because they can't be played. A list where nothing plays (a region-blocked
+ * playlist, every track behind DRM) used to be walked forever with repeat on, a stream request every second or so;
+ * past this many in a row the player stays on the error instead.
+ */
+const MAX_SKIPS_IN_A_ROW = 15;
+let skipsInARow = 0;
+
+/** On to the next track soon, unless too many in a row have failed already. */
+function skipSoon(ms: number) {
+  window.clearTimeout(skipTimer);
+  if (++skipsInARow > MAX_SKIPS_IN_A_ROW) return;
+  skipTimer = window.setTimeout(() => void advance(true), ms);
+}
 
 engine.bindEngine({
   loading: () => set({ status: "loading" }),
-  playing: () => set({ status: "playing", error: null }),
+  playing: () => {
+    skipsInARow = 0;
+    set({ status: "playing", error: null });
+  },
   paused: () => set({ status: get().status === "error" ? "error" : "paused" }),
   duration: (d) => set({ duration: d }),
   // nobody sees the time while the window is hidden: no DOM updates then (they kept the GPU process busy)
@@ -457,6 +486,16 @@ engine.bindEngine({
     void topUp();
     prefetchNextSub();
   },
+  quietBetween: (from, to) => {
+    const t = currentTrack();
+    if (!t) return null;
+    // the waveform of what actually plays: the substitute upload's when there is one
+    const playing = engine.activeStreamId() !== t.id ? substituteFor(t) : t;
+    if (!playing?.waveformUrl) return null;
+    // only what the player bar already fetched: the watchdog never costs a request
+    const samples = queryClient.getQueryData<number[]>(["waveform", playing.waveformUrl]);
+    return waveformQuiet(samples, playing.durationMs / 1000, from, to);
+  },
   /** what the person asked for: only then is a silent tract worth rebuilding (and retrying behind their back). */
   wanted: () => {
     const s = get().status;
@@ -466,10 +505,7 @@ engine.bindEngine({
     set({ status: "error", error: code });
     // a track SoundCloud won't stream to us (DRM, region): skip it; network trouble waits for "retry" (in a room it
     // just stays quiet here until the room's next track)
-    if (!remote && (code === "unavailable" || code === "not_found")) {
-      window.clearTimeout(skipTimer);
-      skipTimer = window.setTimeout(() => void advance(true), 1200);
-    }
+    if (!remote && (code === "unavailable" || code === "not_found")) skipSoon(1200);
   },
 });
 
@@ -478,9 +514,26 @@ subscribeActivity(() => {
 });
 
 async function advance(auto: boolean) {
-  await topUp(true);
-  const { index, repeat } = get();
-  const next = nextIndex(index, repeat === "all" || !auto);
+  // a next track already queued starts at once (start() tops the queue up behind it); waiting for the fill first put a
+  // network round trip between two tracks whenever three or fewer were left
+  let next = nextIndex(get().index, false);
+  if (next < 0) {
+    // the list is over: more of it, a fresh shuffle for repeat, or the autopilot — and only then wrap around. Waited
+    // for until the first new track is there, not until the whole fill is done (it goes on for up to six requests)
+    let stop = () => {};
+    const arrived = new Promise<void>((resolve) => {
+      stop = usePlayer.subscribe((s) => {
+        if (nextIndex(s.index, false) >= 0) resolve();
+      });
+    });
+    try {
+      await Promise.race([topUp(true), arrived]);
+    } finally {
+      stop();
+    }
+    const { index, repeat } = get();
+    next = nextIndex(index, repeat === "all" || !auto);
+  }
   if (next >= 0) start(next);
   else {
     engine.pause();
@@ -498,6 +551,7 @@ export const player = {
     if (!target) return;
     if (remote) return remote.playFrom(tracks, index, source);
     rebuild++;
+    skipsInARow = 0;
     if (get().shuffle) {
       const rest = shuffled(tracks.filter((t, i) => i !== index && playable(t)));
       set({ queue: [target, ...rest], original: [...tracks], pending: [], source, autoFrom: -1 });
@@ -534,6 +588,7 @@ export const player = {
   },
   jumpTo(index: number) {
     if (remote) return;
+    skipsInARow = 0;
     if (playable(get().queue[index])) start(index);
   },
   toggle() {
@@ -546,7 +601,11 @@ export const player = {
   },
   play: () => (remote ? remote.play() : engine.play()),
   pause: () => (remote ? remote.pause() : engine.pause()),
-  next: () => (remote ? remote.next() : void advance(false)),
+  next: () => {
+    if (remote) return remote.next();
+    skipsInARow = 0;
+    void advance(false);
+  },
   /** Back to the start if more than 3 s in, otherwise the previous playable track. */
   prev() {
     if (remote) return remote.prev();
