@@ -35,6 +35,7 @@ import { log, logsDir } from "./system/log";
 import { loadReport, watchLoad } from "./system/diagnostics";
 import { audioReport, noteAudioHealth, noteChildProcessGone } from "./system/audio";
 import { netCheck } from "./system/netcheck";
+import { lockPermissions } from "./system/permissions";
 import { applyProxy, hasBuiltinProxy, initProxyAuth, initProxyAuto, proxyRoute } from "./system/proxy";
 import { setDiscordEnabled, updateDiscord } from "./system/discord";
 import { notifyTrack } from "./system/notify";
@@ -806,6 +807,11 @@ void app.whenReady().then(async () => {
     return out;
   };
   scSession().setUserAgent(chromeUserAgent());
+  // every session the app shows a page in: the main window, the SoundCloud one (check window, API requests), the VK
+  // import window, and the probe session (a bare fetch, but a session all the same)
+  lockPermissions(session.defaultSession, "app", isAppUrl);
+  lockPermissions(scSession(), "soundcloud", isAppUrl);
+  lockPermissions(session.fromPartition("sc-probe"), "probe", isAppUrl);
   initProxyAuth(() => prefs().proxy.username);
   initProxyAuto();
   await timedAsync("proxy", () => applyProxy(prefs().proxy));
