@@ -31,6 +31,21 @@ assert.equal((await api("GET", "/v1/friends", { secret: b.secret })).body.incomi
 assert.equal((await api("POST", "/v1/send", { secret: a.secret, body: { to: [b.code], track } })).status, 403);
 assert.equal((await api("POST", `/v1/friends/${a.code}/accept`, { secret: b.secret })).body.friends[0].code, a.code);
 
+// only adding a friend tells a free code from a taken one: every other route answers an unknown code exactly like a
+// stranger's, so they can't be used to test codes at the general rate limit
+const stranger = (await api("POST", "/v1/register", { body: { name: "zed" } })).body;
+const unknown = ["SKY-22222", "SKY-ZZZZZ", "SKY-23456"].find((code) => code !== stranger.code && code !== a.code && code !== b.code)!;
+for (const [method, path] of [["DELETE", "/v1/friends/%"], ["POST", "/v1/friends/%/accept"], ["GET", "/v1/chat/%"], ["POST", "/v1/chat/%/seen"]] as const) {
+  const taken = await api(method, path.replace("%", stranger.code), { secret: a.secret });
+  const free = await api(method, path.replace("%", unknown), { secret: a.secret });
+  assert.equal(free.status, taken.status, `${method} ${path}: same status for a free and a taken code`);
+  const text = (r: { body: unknown }, code: string) => JSON.stringify(r.body).replaceAll(code, "%");
+  assert.equal(text(free, unknown), text(taken, stranger.code), `${method} ${path}: same answer for a free and a taken code`);
+}
+const sendTo = async (code: string) => api("POST", "/v1/send", { secret: a.secret, body: { to: [code], track } });
+assert.equal((await sendTo(unknown)).status, (await sendTo(stranger.code)).status);
+assert.equal((await api("POST", "/v1/friends", { secret: a.secret, body: { code: unknown } })).status, 404, "adding still says the code is free");
+
 // a track goes over; b polls it, opens the chat, marks it heard; a sees the state
 assert.equal((await api("POST", "/v1/send", { secret: a.secret, body: { to: [b.code], track: { ...track, artworkUrl: "https://evil.example/x.jpg" } } })).status, 400);
 const sent = (await api("POST", "/v1/send", { secret: a.secret, body: { to: [b.code], track } })).body;

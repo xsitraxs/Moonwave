@@ -61,9 +61,15 @@ function me(c: Ctx): Row {
   return d;
 }
 
+/**
+ * Only adding a friend may say "no one has this code": it is the one place the answer is the point, and it has its own
+ * tight limit (30 an hour per device, 5 new devices an hour per address). Everywhere else an unknown code must look
+ * exactly like a code that is not your friend, or those routes become a way to test codes at the general 300 a minute.
+ */
 function deviceByCode(code: string) {
   return one("SELECT * FROM devices WHERE code = ?", code) ?? fail(404, "no one has this code");
 }
+const deviceOrNull = (code: string) => one("SELECT * FROM devices WHERE code = ?", code) ?? null;
 
 const pair = (x: number, y: number): [number, number] => (x < y ? [x, y] : [y, x]);
 const bump = (...ids: number[]) => ids.forEach((id) => run("UPDATE devices SET friends_v = friends_v + 1 WHERE id = ?", id));
@@ -183,7 +189,7 @@ async function addFriend(c: Ctx) {
 
 function acceptFriend(c: Ctx) {
   const d = me(c);
-  const other = deviceByCode(normCode(c.params[0]));
+  const other = deviceOrNull(normCode(c.params[0])) ?? fail(404, "no such request");
   const [a, b] = pair(Number(d.id), Number(other.id));
   const r = run("UPDATE friends SET accepted = 1 WHERE a = ? AND b = ? AND asked_by = ?", a, b, other.id);
   if (!r.changes) fail(404, "no such request");
@@ -194,7 +200,9 @@ function acceptFriend(c: Ctx) {
 /** Decline, cancel or unfriend; the messages between the two go too. */
 function removeFriend(c: Ctx) {
   const d = me(c);
-  const other = deviceByCode(normCode(c.params[0]));
+  const other = deviceOrNull(normCode(c.params[0]));
+  // nobody by that code: nothing to remove, answered like any other removal
+  if (!other) return send(c.res, 200, friendsOf(d));
   const [a, b] = pair(Number(d.id), Number(other.id));
   tx(() => {
     run("DELETE FROM friends WHERE a = ? AND b = ?", a, b);
@@ -205,9 +213,10 @@ function removeFriend(c: Ctx) {
 }
 
 function friendOrFail(d: Row, code: string) {
-  const other = deviceByCode(code);
+  const notFriends = () => fail(403, `not friends with ${code}`);
+  const other = deviceOrNull(code) ?? notFriends();
   const [a, b] = pair(Number(d.id), Number(other.id));
-  if (!one("SELECT 1 FROM friends WHERE a = ? AND b = ? AND accepted = 1", a, b)) fail(403, `not friends with ${code}`);
+  if (!one("SELECT 1 FROM friends WHERE a = ? AND b = ? AND accepted = 1", a, b)) notFriends();
   return other;
 }
 
@@ -302,8 +311,8 @@ function chat(c: Ctx) {
 
 function chatSeen(c: Ctx) {
   const d = me(c);
-  const other = deviceByCode(normCode(c.params[0]));
-  run("UPDATE messages SET seen = 1 WHERE recipient = ? AND sender = ? AND seen = 0", d.id, other.id);
+  const other = deviceOrNull(normCode(c.params[0]));
+  if (other) run("UPDATE messages SET seen = 1 WHERE recipient = ? AND sender = ? AND seen = 0", d.id, other.id);
   send(c.res, 204, null);
 }
 
