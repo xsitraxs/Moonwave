@@ -1,0 +1,45 @@
+# Static analysis of the renderer, the main process and the scripts (javascript-typescript covers TypeScript as well).
+#
+# Why not on pull requests: the analysis uploads its findings to the repository's code-scanning API, which needs the
+# security-events permission — a token that pull requests from forks (and from Dependabot) do not get. Running on every
+# push to main and once a week keeps the alerts current without a workflow that fails for reasons that are not code.
+# If code scanning is ever switched to GitHub's "default setup" in the repository settings, delete this file first:
+# the two cannot both be enabled.
+name: CodeQL
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "17 4 * * 1"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: Analyze
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+
+      - uses: github/codeql-action/init@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        with:
+          languages: javascript-typescript
+          # the app is bundled by electron-vite; nothing has to be compiled for the analysis, and "none" keeps the
+          # job independent of the Electron binary (CI skips downloading it)
+          build-mode: none
+
+      - uses: github/codeql-action/analyze@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        with:
+          category: "/language:javascript-typescript"

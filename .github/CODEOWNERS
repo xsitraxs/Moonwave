@@ -1,0 +1,14 @@
+# Who must review what. This file can only ask for a review; whether a review is *required* is a branch-protection
+# setting (Settings → Branches → Require review from Code Owners), which only the repository owner can turn on.
+#
+# PLACEHOLDER: replace @xsitraxs below with the account or team that should own the build and the server, if it is
+# not the owner of the repository. A CODEOWNERS entry naming a user who cannot be found is silently ignored, so this
+# has to be a real handle for the protection to mean anything.
+*       @xsitraxs
+
+# The pieces where a mistake costs the most: what gets signed and shipped, and what the server trusts.
+/.github/               @xsitraxs
+/scripts/               @xsitraxs
+/build*                 @xsitraxs
+/server/                @xsitraxs
+/SECURITY.md            @xsitraxs

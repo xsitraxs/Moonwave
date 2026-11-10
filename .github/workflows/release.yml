@@ -15,8 +15,10 @@ on:
       - "v*"
   workflow_dispatch: {}
 
+# Nothing here may write anything unless the step needs it: the token is read-only for the whole workflow and each
+# job widens it for itself (contents: write to attach the files, id-token/attestations to sign what was built).
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: release-${{ github.ref }}
@@ -29,6 +31,14 @@ env:
 jobs:
   release:
     name: Release · ${{ matrix.name }}
+    # the tag push is the only way in, and the environment is where the owner adds required reviewers or a deployment
+    # branch rule in the repository settings — this file can only name it, not configure it
+    environment: release
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+      artifact-metadata: write
     strategy:
       fail-fast: false
       matrix:
@@ -42,9 +52,9 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@2028fbc5c25fe9cf00d9f06a71cc4710d4507903 # v6.0.0
         with:
           node-version: 24
           cache: npm
@@ -54,7 +64,7 @@ jobs:
       # cache the Electron dist and the electron-builder tool archives (NSIS, AppImage tools, …) between runs —
       # GitHub's release downloads throttle/504 under simultaneous CI load (linux won the race once and passed; every
       # other job hit 504). Both caches are content-addressed and checksum-verified by electron-builder itself.
-      - uses: actions/cache@v4
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             ~/.cache/electron
@@ -159,6 +169,22 @@ jobs:
       - name: No secrets in the built files
         run: node scripts/scan-dist.mjs dist
 
+      # the same files that go into the release, so a download can be checked against a list signed by this workflow
+      - name: Checksums
+        shell: bash
+        run: node scripts/checksums.mjs dist
+
+      - name: Attest the provenance of every published file
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: |
+            dist/*.exe
+            dist/*.dmg
+            dist/*.zip
+            dist/*.AppImage
+            dist/*.deb
+            dist/SHA256SUMS.txt
+
       # the tag must be the version in package.json (modulo a missing patch: v2.4 means 2.4.0)
       - name: The tag matches the package version
         shell: bash
@@ -173,13 +199,13 @@ jobs:
           set -euo pipefail
           TAG="${GITHUB_REF_NAME}"
           shopt -s nullglob
-          files=(dist/*.exe dist/*.dmg dist/*.zip dist/*.AppImage dist/*.deb dist/latest*.yml dist/*.blockmap)
+          files=(dist/*.exe dist/*.dmg dist/*.zip dist/*.AppImage dist/*.deb dist/latest*.yml dist/*.blockmap dist/SHA256SUMS.txt)
           if [ ${#files[@]} -eq 0 ]; then echo "nothing to attach — verify-dist should have failed first"; exit 1; fi
           printf 'attaching:\n%s\n' "${files[@]}"
           gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "sc player $TAG" --generate-notes
           gh release upload "$TAG" "${files[@]}" --clobber
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: release-${{ matrix.name }}
           path: |
