@@ -32,6 +32,11 @@ export interface EngineEvents {
   advanced(track: Track): void;
   /** does the player mean to be heard right now? (the engine rebuilds only what the person actually wanted) */
   wanted(): boolean;
+  /**
+   * Is the playing track itself silent between these two positions (seconds), by its waveform? null = can't tell. The
+   * silence watchdog asks before it blames the graph for hearing nothing.
+   */
+  quietBetween(from: number, to: number): boolean | null;
 }
 
 let Hls: typeof HlsType | null = null;
@@ -278,8 +283,13 @@ class Deck {
   streamId = 0;
   /** bumped on every load: answers for an older track are ignored */
   gen = 0;
-  refreshed = false;
+  /** when the stream URL was last fetched again after a failure (0 = not on this load) */
+  refreshedAt = 0;
   mediaRecovered = false;
+  /** a seek asked for while the stream URL was still on its way: where to start once it attaches */
+  pendingSeek: number | null = null;
+  /** the progressive stream's "jump to the start position once known", removed on teardown so it can't hit the next source */
+  private onMetadata: (() => void) | null = null;
   /** a track is starting: the pause events the old source fires while switching are not a real pause */
   starting = false;
   /** 0..1, the crossfade's share of this deck */
@@ -311,6 +321,7 @@ class Deck {
     });
     on("timeupdate", () => {
       events?.time(this.audio.currentTime);
+      maybePrefetch();
       maybeCrossfade();
     });
     this.audio.addEventListener("error", () => {
@@ -406,6 +417,12 @@ class Deck {
     // a quiet passage is disproved by a position that moved while the analyser heard exact zero, for longer than a
     // track's silence ever lasts (a fade, a gap between tracks)
     if (performance.now() - this.routeSince <= ROUTE_SILENCE_MS) return false;
+    // the track is silent there by its own waveform (a hidden track after minutes of nothing, a long silent outro):
+    // exact zero is the right answer, so the window starts over once the music is back
+    if (this === active && events?.quietBetween(this.routeFrom, this.audio.currentTime)) {
+      this.routeSince = 0;
+      return false;
+    }
     return routeIsSilent({ running: true, level: this.routePeak, progressedSeconds: this.audio.currentTime - this.routeFrom, audible: audibleLevel(this.level) });
   }
 
@@ -419,14 +436,19 @@ class Deck {
   }
 
   teardown() {
+    if (this.onMetadata) this.audio.removeEventListener("loadedmetadata", this.onMetadata);
+    this.onMetadata = null;
     this.hls?.destroy();
     this.hls = null;
     this.audio.removeAttribute("src");
     this.audio.load();
   }
 
-  attach(info: StreamInfo, startAt: number, autoplay: boolean) {
+  attach(info: StreamInfo, from: number, autoplay: boolean) {
     this.teardown();
+    // the person dragged the position while the URL was being fetched: that is where they want to be
+    const startAt = this.pendingSeek ?? from;
+    this.pendingSeek = null;
     const H = Hls;
     if (info.protocol === "hls" && H?.isSupported()) {
       // no worker: the page's CSP stays strict, and remuxing a single audio stream is light
@@ -445,7 +467,15 @@ class Deck {
       hls.attachMedia(this.audio);
     } else {
       this.audio.src = info.url;
-      if (startAt > 0) this.audio.addEventListener("loadedmetadata", () => (this.audio.currentTime = startAt), { once: true });
+      if (startAt > 0) {
+        const el = this.audio;
+        const jump = () => {
+          this.onMetadata = null;
+          el.currentTime = startAt;
+        };
+        this.onMetadata = jump;
+        el.addEventListener("loadedmetadata", jump, { once: true });
+      }
     }
     if (autoplay) {
       this.starting = true;
@@ -457,15 +487,20 @@ class Deck {
     }
   }
 
-  /** The signed URL probably expired: get a new one once and continue where we were. */
+  /**
+   * The signed URL probably expired: get a new one and continue where we were. Once per REFRESH_AGAIN_MS — a long mix
+   * outlives more than one URL, and a single refresh per load used to end an hour-long set with "offline" at its
+   * second expiry; a refresh that fails again right away is a real failure and is reported.
+   */
   async recover(code: ErrorCode) {
     const track = this.track;
     if (!track) return;
-    if (this.refreshed) {
+    if (this.refreshedAt && performance.now() - this.refreshedAt < REFRESH_AGAIN_MS) {
       if (this === active) events?.error(code);
       return;
     }
-    this.refreshed = true;
+    this.refreshedAt = performance.now();
+    this.mediaRecovered = false;
     const at = this.audio.currentTime;
     const wasPlaying = !this.audio.paused;
     const gen = this.gen;
@@ -484,12 +519,13 @@ class Deck {
     const gen = ++this.gen;
     this.track = track;
     this.streamId = opts.streamId ?? track.id;
-    this.refreshed = false;
+    this.refreshedAt = 0;
+    this.pendingSeek = null;
     this.mediaRecovered = false;
     this.starting = opts.autoplay;
     this.teardown();
     try {
-      const info = await call("data:stream", this.streamId);
+      const info = (await takePrefetched(this.streamId)) ?? (await call("data:stream", this.streamId));
       if (info.protocol === "hls") await loadHls();
       if (gen !== this.gen) return false;
       this.attach(info, opts.startAt ?? 0, opts.autoplay);
@@ -507,10 +543,14 @@ class Deck {
   stop() {
     this.gen++;
     this.track = null;
+    this.pendingSeek = null;
     this.audio.pause();
     this.teardown();
   }
 }
+
+/** a stream URL refreshed after a failure may be refreshed again once it has played this long */
+const REFRESH_AGAIN_MS = 30_000;
 
 const decks = [new Deck(), new Deck()] as const;
 let active: Deck = decks[0];
@@ -542,7 +582,6 @@ function maybeCrossfade() {
   const from = active;
   const to = other();
   if (inLimbo.has(to.audio)) to.replaceElement();
-  const length = Math.max(0.5, left);
   to.level = 0;
   to.applyLevel();
   void to.load(next.track, { autoplay: true, streamId: next.streamId }).then((ok) => {
@@ -551,6 +590,10 @@ function maybeCrossfade() {
       if (to !== active) to.stop();
       return;
     }
+    // measured now, not when the load began: fetching the next stream takes a second or two, and a fade planned on the
+    // old figure outlasted the outgoing track, which then stopped mid-fade with the new one still half as loud
+    const remaining = from.audio.duration - from.audio.currentTime;
+    const length = Number.isFinite(remaining) ? Math.max(0.5, Math.min(crossfade, remaining)) : 0.5;
     // the next track is now the current one; the old deck fades out underneath
     active = to;
     events?.advanced(next.track);
@@ -571,6 +614,38 @@ function maybeCrossfade() {
       }, 50),
     };
   });
+}
+
+// ---- the next stream, asked for ahead -----------------------------------------------------------------------------
+
+/**
+ * Between two tracks without a crossfade the old one ends, and only then is the next stream's URL asked for (main asks
+ * SoundCloud, often twice): a second or two of silence at every change. Asked for a little before the end instead, the
+ * change waits only for the audio itself.
+ */
+const PREFETCH_BEFORE_S = 20;
+/** a URL fetched ahead is used only this soon after: it is signed and short-lived (an expired one is refreshed anyway) */
+const PREFETCH_FRESH_MS = 90_000;
+/** the request made ahead, kept as a promise: a crossfade starting while it is still on its way waits for it */
+let ahead: { streamId: number; at: number; info: Promise<StreamInfo | null> } | null = null;
+
+function maybePrefetch() {
+  // the crossfade has already taken (or is fetching) the next stream: asking now would fetch the same URL twice
+  if (preparing || fade) return;
+  const left = active.audio.duration - active.audio.currentTime;
+  if (!Number.isFinite(left) || left > PREFETCH_BEFORE_S + crossfade || active.audio.paused) return;
+  const next = events?.peekNext();
+  if (!next || ahead?.streamId === next.streamId) return;
+  // a failure here costs nothing: the change asks again the usual way
+  ahead = { streamId: next.streamId, at: performance.now(), info: call("data:stream", next.streamId).catch(() => null) };
+}
+
+/** The URL asked for ahead for this stream, once, while it is fresh; null to ask now. */
+async function takePrefetched(streamId: number): Promise<StreamInfo | null> {
+  const a = ahead;
+  if (!a || a.streamId !== streamId) return null;
+  ahead = null;
+  return performance.now() - a.at < PREFETCH_FRESH_MS ? a.info : null;
 }
 
 // ---- public -------------------------------------------------------------------------------------------------------
@@ -629,7 +704,11 @@ export function pause() {
 export function seek(seconds: number) {
   if (!Number.isFinite(seconds)) return;
   endFade();
-  active.audio.currentTime = Math.max(0, seconds);
+  const at = Math.max(0, seconds);
+  // still fetching the stream URL (nothing attached yet): setting the empty element's position would be lost when
+  // the stream attaches at the start it was asked for, so the deck starts there instead
+  if (active.track && !active.audio.src && !active.hls) active.pendingSeek = at;
+  else active.audio.currentTime = at;
 }
 
 /**

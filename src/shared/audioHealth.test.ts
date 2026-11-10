@@ -7,6 +7,7 @@ import {
   canRouteAudio,
   ROUTE_SILENCE_MS,
   routeIsSilent,
+  waveformQuiet,
   silenceVerdict,
   audioUtilityRole,
   exitText,
@@ -373,4 +374,22 @@ test("route: after fresh elements are made the graph may take them again — rec
   assert.equal(graphAction({ wanted: wantedGraph(true, false).size, hasChain: true, stranded: false, canRoute: true }), "keep");
   // a chain that carries is not flagged as silent even with the position advancing
   assert.equal(routeIsSilent({ running: true, level: 140, progressedSeconds: 9 }), false);
+});
+
+test("waveformQuiet: the track's own silence is told apart from a graph that carries nothing", () => {
+  // 100 samples over 100 s: loud, then silence from 40 s to 90 s (a hidden track follows), then loud again
+  const wave = Array.from({ length: 100 }, (_, i) => (i >= 40 && i < 90 ? 0.005 : 0.6));
+  // the window starts where sound was last heard (39.5 s): its first second is the tail of the music
+  assert.equal(waveformQuiet(wave, 100, 39.5, 60), true);
+  assert.equal(waveformQuiet(wave, 100, 45, 89), true);
+  // silence the waveform doesn't have: the graph is to blame
+  assert.equal(waveformQuiet(wave, 100, 10, 20), false);
+  assert.equal(waveformQuiet(wave, 100, 80, 95), false);
+  // nothing to go by: no verdict either way
+  assert.equal(waveformQuiet(null, 100, 10, 20), null);
+  assert.equal(waveformQuiet([], 100, 10, 20), null);
+  assert.equal(waveformQuiet(wave, 0, 10, 20), null);
+  assert.equal(waveformQuiet(wave, 100, 20, 20), null);
+  // a position past the waveform's end (a substitute of another length) stays inside the samples
+  assert.equal(waveformQuiet(wave, 100, 120, 130), false);
 });

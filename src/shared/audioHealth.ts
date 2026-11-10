@@ -247,6 +247,27 @@ export function routeIsSilent(s: { running: boolean; level: number | null; progr
   return s.running && s.level === 0 && s.progressedSeconds >= 0.5;
 }
 
+/** Below this (0..1 waveform scale) a stretch of a track is silence by its own waveform. */
+export const WAVEFORM_QUIET = 0.03;
+
+/**
+ * Whether the track itself is silent between `from` and `to` seconds, by the waveform SoundCloud draws for it: null
+ * when that can't be told (no waveform, no duration). The silence watchdog asks this before it blames the graph —
+ * a hidden track after minutes of digital silence, or a long silent outro, hears exact zero from a healthy route, and
+ * judging that as a dead graph used to cost the equalizer and the sky for the rest of the run.
+ *
+ * The first second of the window is skipped: the window starts where sound was last heard, so it begins on the tail
+ * of whatever was playing.
+ */
+export function waveformQuiet(samples: readonly number[] | null | undefined, durationSec: number, from: number, to: number): boolean | null {
+  if (!samples?.length || !(durationSec > 0) || !(to > from)) return null;
+  const at = (sec: number) => Math.max(0, Math.min(samples.length - 1, Math.floor((sec / durationSec) * samples.length)));
+  const start = at(Math.min(from + 1, to));
+  const end = at(to);
+  for (let i = start; i <= end; i++) if ((samples[i] ?? 0) >= WAVEFORM_QUIET) return false;
+  return true;
+}
+
 /** The crash tally a report prints. */
 export interface AudioCrashTally {
   audio: number;

@@ -35,7 +35,9 @@ export class JsonFile<T extends object> {
     this.timer = null;
     mkdirSync(dirname(this.path), { recursive: true });
     const tmp = `${this.path}.tmp`;
-    writeFileSync(tmp, JSON.stringify(this.data));
+    // likes, playlists, history and settings are nobody else's business on a shared computer: this user only (the
+    // rename keeps the mode; ignored on Windows)
+    writeFileSync(tmp, JSON.stringify(this.data), { mode: 0o600 });
     renameSync(tmp, this.path);
   }
 }

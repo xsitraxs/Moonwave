@@ -3,7 +3,7 @@ import { scriptStartMs } from "./boot";
 import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
 import { readFile, writeFile } from "node:fs/promises";
-import { release } from "node:os";
+import { homedir, release } from "node:os";
 import { join } from "node:path";
 import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, session, shell, type IpcMainInvokeEvent } from "electron";
 import { ISSUES_URL, RENDERER_DEFAULTS, type AuthStatus, type InvokeChannel, type InvokeMap, type PlayerCommand, type PlayerInfo, type RendererState, type Result } from "@shared/ipc";
@@ -34,6 +34,7 @@ import { backgroundSize, dropBackgrounds, keepImport, pickBackground, registerBa
 import { findWallpaper, workshopId } from "./system/steam-wallpaper";
 import { applyHotkeys, initHotkeys, suspendHotkeys } from "./system/hotkeys";
 import { log, logsDir } from "./system/log";
+import { redact } from "./system/redact";
 import { bringOverOldData } from "./system/data-move";
 import { loadReport, watchLoad } from "./system/diagnostics";
 import { audioReport, noteAudioHealth, noteChildProcessGone } from "./system/audio";
@@ -650,7 +651,8 @@ function registerIpc() {
       ...(await loadReport(p.look, memorySaver)),
       "",
       "--- the end of the log ---",
-      ...lines.map((l) => l.replace(/[A-Za-z0-9_-]{24,}/g, "…")),
+      // lines written by a version before the log redacted itself get the same treatment here
+      ...lines.map((l) => redact(l, homedir()).replace(/[A-Za-z0-9_-]{24,}/g, "…")),
     ].join("\n");
     const date = new Date().toISOString().slice(0, 10);
     const r = await dialog.showSaveDialog(...((main ? [main] : []) as [BrowserWindow]), {

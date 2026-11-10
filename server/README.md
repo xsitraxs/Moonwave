@@ -14,9 +14,10 @@ Caddy takes the certificate from Let's Encrypt itself and renews it (no e-mail n
 - **Messenger:** a random friend code, the name the user typed, friendships, and the tracks sent (SoundCloud id, title, artist, cover and page links). "Listening now" only when the user turns it on, and only the current track. Deleting the profile in the app (`DELETE /v1/me`) removes all of it.
 - **Workshop:** published themes — name, description, the appearance knobs, optional CSS (style only: no `url()`, `@import`, fonts or scripts; checked here and again in the app), an optional background image or video (up to 25 MB, type checked by its bytes) and a preview image. Three reports hide a theme until a moderator looks.
 - **Counter:** only while the person keeps it on (Settings → Messenger; a new install starts with it off). Once a day
-  per install — a random install id and the app version. No IP, no account, nothing else.
+  per install — a random install id and the app version. No IP, no account, nothing else. Rows older than 35 days
+  are deleted (the stats look back 30).
 - **Listening:** only while the person keeps it on. A track id, no device secret, no account — "Listening on
-  Moonwave" is written without asking anyone who listened.
+  Moonwave" is written without asking anyone who listened. Kept for 7 days.
 
 ## Deploy
 
