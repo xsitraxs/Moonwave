@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { allowPermission } from "./permissions-rules.ts";
+import { allowPermission, permissionUrl } from "./permissions-rules.ts";
 
 const APP = "file:///app/out/renderer/index.html";
 const isApp = (url: string) => url === APP || url.startsWith(`${APP}?`) || url.startsWith(`${APP}#`);
@@ -33,4 +33,39 @@ test("the app's permissions are not given to any other page", () => {
 test("a lookalike app address is not the app", () => {
   assert.equal(allowPermission(`${APP}.evil`, "fullscreen", isApp), false);
   assert.equal(allowPermission("file:///app/out/renderer/index2.html", "fullscreen", isApp), false);
+});
+
+test("packaged file:// permission checks read details.requestingUrl instead of bare file:/// origin", () => {
+  const url = permissionUrl({
+    requestingUrl: APP,
+    isMainFrame: true,
+    mainUrl: APP,
+    requestingOrigin: "file:///",
+  });
+  assert.equal(allowPermission(url, "speaker-selection", isApp), true);
+  assert.equal(allowPermission(url, "clipboard-sanitized-write", isApp), true);
+});
+
+test("a subframe never borrows the main window's URL when its own requestingUrl is empty or another site", () => {
+  const blankSubframe = permissionUrl({
+    requestingUrl: "",
+    isMainFrame: false,
+    mainUrl: APP,
+    requestingOrigin: "null",
+  });
+  assert.equal(allowPermission(blankSubframe, "fullscreen", isApp), false);
+
+  const crossSiteSubframe = permissionUrl({
+    requestingUrl: "https://captcha-delivery.com/frame",
+    isMainFrame: false,
+    mainUrl: APP,
+    requestingOrigin: "https://captcha-delivery.com",
+  });
+  assert.equal(allowPermission(crossSiteSubframe, "fullscreen", isApp), false);
+});
+
+test("a worker check without webContents falls back to requestingOrigin", () => {
+  const devApp = (u: string) => u.startsWith("http://localhost:5173");
+  const workerUrl = permissionUrl({ requestingOrigin: "http://localhost:5173/" });
+  assert.equal(allowPermission(workerUrl, "clipboard-sanitized-write", devApp), true);
 });

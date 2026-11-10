@@ -30,6 +30,25 @@ const APP_PERMISSIONS: ReadonlySet<string> = new Set([
 export type AppUrlCheck = (url: string) => boolean;
 
 /**
+ * Resolves the document URL a permission check or request actually came from.
+ *
+ * In a packaged build the app's page is `file:///.../out/renderer/index.html`, whose Chromium origin in
+ * `setPermissionCheckHandler` is just `file:///` (or empty) without the file path — `isAppUrl` needs the full URL,
+ * which Electron puts on `details.requestingUrl`. Falling back to `mainUrl` (`webContents.getURL()`) is safe only for
+ * the main frame itself (`isMainFrame !== false`), so a subframe can never borrow the app window's URL.
+ */
+export function permissionUrl(source: {
+  requestingUrl?: string;
+  isMainFrame?: boolean;
+  mainUrl?: string;
+  requestingOrigin?: string;
+}): string {
+  if (source.requestingUrl) return source.requestingUrl;
+  if (source.isMainFrame !== false && source.mainUrl) return source.mainUrl;
+  return source.requestingOrigin || "";
+}
+
+/**
  * Whether one permission, asked for by a page at `url`, is granted. The rule: a known app permission, from a page that
  * is the app itself — never from about:blank, a data: page, or any site the app happens to show in another window.
  */
