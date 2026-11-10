@@ -25,6 +25,14 @@ export interface Helpers {
   track(v: unknown): RoomTrack;
 }
 
+/**
+ * Open event streams per member and room. Each one is a timer, a listener and a copy of every change sent out, and
+ * nothing limited how many one device could hold. A new stream past this closes that member's oldest instead of being
+ * refused: after a dropped network the old one can stay "open" here for minutes, and the app reconnecting must win.
+ */
+const STREAMS_EACH = 3;
+const openStreams = new Map<string, (() => void)[]>();
+
 const person = (d: Row): Person => ({ id: Number(d.id), code: String(d.code), name: String(d.name) });
 
 export function roomRoutes(h: Helpers): [string, RegExp, (c: Ctx) => unknown][] {
@@ -159,6 +167,8 @@ export function roomRoutes(h: Helpers): [string, RegExp, (c: Ctx) => unknown][] 
     const r = rooms.get(id) ?? fail(404, "this room is closed");
     const me = Number(d.id);
     if (!r.members.some((m) => m.id === me)) fail(403, "not in this room");
+    // a stream is cheap to ask for and costs the server until it ends: reconnecting every 2 s is far below this
+    limit(`room-events:${d.id}`, 60, 60_000);
     c.res.writeHead(200, {
       "content-type": "text/event-stream; charset=utf-8",
       "cache-control": "no-store, no-transform",
@@ -178,16 +188,23 @@ export function roomRoutes(h: Helpers): [string, RegExp, (c: Ctx) => unknown][] 
     };
     const beat = setInterval(() => open && c.res.write(`: ${Date.now()}\n\n`), 15_000);
     const off = rooms.subscribe(id, out);
+    const key = `${id}:${me}`;
     const end = () => {
       if (!open) return;
       open = false;
       clearInterval(beat);
+      const left = (openStreams.get(key) ?? []).filter((f) => f !== end);
+      if (left.length) openStreams.set(key, left);
+      else openStreams.delete(key);
       off();
       rooms.disconnected(id, me);
       c.res.end();
     };
     c.req.on("close", end);
     c.res.on("error", end);
+    const mineOpen = [...(openStreams.get(key) ?? []), end];
+    openStreams.set(key, mineOpen);
+    while (mineOpen.length > STREAMS_EACH) mineOpen.shift()!();
     rooms.connected(id, me);
   }
 

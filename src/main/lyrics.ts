@@ -89,8 +89,38 @@ async function get<T>(path: string, params: Record<string, string | number>, sig
       continue;
     }
     if (!res.ok) throw new Error(`LRCLIB answered ${res.status}`);
-    return (await res.json()) as T;
+    return await readJson<T>(res);
   }
+}
+
+/**
+ * The most a lyrics answer may weigh. They come from other people's servers (LRCLIB is filled by anyone, Unison is a
+ * community catalog) into the main process: an answer that never ends must not fill its memory. A song's lyrics, even
+ * word-timed, are a small fraction of this.
+ */
+const MAX_ANSWER = 2 * 1024 * 1024;
+
+/** The answer's JSON, read only up to MAX_ANSWER (by its declared length first, then by what actually arrives). */
+async function readJson<T>(res: Response): Promise<T> {
+  if (Number(res.headers.get("content-length")) > MAX_ANSWER) {
+    await res.body?.cancel().catch(() => undefined);
+    throw new Error("the lyrics answer is too big");
+  }
+  const reader = res.body?.getReader();
+  if (!reader) throw new Error("the lyrics answer is empty");
+  const parts: Uint8Array[] = [];
+  let size = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > MAX_ANSWER) {
+      await reader.cancel().catch(() => undefined);
+      throw new Error("the lyrics answer is too big");
+    }
+    parts.push(value);
+  }
+  return JSON.parse(Buffer.concat(parts).toString("utf8")) as T;
 }
 
 /** "[01:02.34] words" lines; a line may carry several times. */
@@ -234,7 +264,7 @@ async function betterLyrics(v: { artist: string; title: string }, seconds: numbe
     }
     // 401: not in its cache (keys aren't handed out), 404 / 422: nothing
     if (!res.ok) return null;
-    const body = (await res.json()) as { ttml?: unknown };
+    const body = await readJson<{ ttml?: unknown }>(res);
     return typeof body.ttml === "string" ? fromTtml(body.ttml, v.artist, v.title, "betterlyrics") : null;
   } catch {
     return null;
@@ -258,7 +288,7 @@ async function unison(v: { artist: string; title: string }, durationMs: number):
     search.searchParams.set("q", `${v.artist} ${unbracketed(v.title)}`);
     const res = await net.fetch(search.href, { headers, signal: AbortSignal.timeout(10_000) });
     if (!res.ok) return null;
-    const hits = ((await res.json()) as { data?: UnisonHit[] }).data ?? [];
+    const hits = (await readJson<{ data?: UnisonHit[] }>(res)).data ?? [];
     const title = bare(v.title);
     const artist = normalize(primaryArtist(v.artist));
     const ok = hits.filter((h) => {
@@ -270,10 +300,11 @@ async function unison(v: { artist: string; title: string }, durationMs: number):
       return sameArtist && off <= 3000;
     });
     const best = ok.sort((a, b) => (b.matchScore ?? 0) - (a.matchScore ?? 0))[0];
-    if (!best) return null;
+    // the id goes into the next address: only a plain number, never a path of the catalog's choosing
+    if (!best || !Number.isSafeInteger(best.id) || best.id <= 0) return null;
     const one = await net.fetch(`${UNISON}/lyrics/${best.id}`, { headers, signal: AbortSignal.timeout(10_000) });
     if (!one.ok) return null;
-    const data = ((await one.json()) as { data?: { lyrics?: unknown } }).data;
+    const data = (await readJson<{ data?: { lyrics?: unknown } }>(one)).data;
     return typeof data?.lyrics === "string" ? fromTtml(data.lyrics, best.artist, best.song, "unison", best.id) : null;
   } catch {
     return null;

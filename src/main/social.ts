@@ -4,7 +4,7 @@ import { join as joinPath } from "node:path";
 import { app, nativeImage, net, Notification, type BrowserWindow } from "electron";
 import type { Look } from "@shared/ipc";
 import { sanitizeThemeCss } from "@shared/themeCss";
-import type { Friends, Message, RoomInvite, SocialProfile, SocialStatus, SocialTrack, SocialUpdate, ThemeLook, WsPage, WsReported, WsSort, WsThemeFull, SharedPlaylist } from "@shared/social";
+import { cleanThemeLook, type Friends, type Message, type RoomInvite, type SocialProfile, type SocialStatus, type SocialTrack, type SocialUpdate, type ThemeLook, type WsPage, type WsReported, type WsSort, type WsThemeFull, type SharedPlaylist } from "@shared/social";
 import { ScError } from "./soundcloud";
 import { prefs } from "./store";
 import { forgetSecret, getSecret, setSecret } from "./store/secrets";
@@ -386,8 +386,10 @@ const EXT: Record<string, string> = { "image/png": "png", "image/jpeg": "jpg", "
 export async function wsInstall(id: string): Promise<Look> {
   const t = await wsGet(id);
   const current = prefs().look;
+  // only the knobs a theme sets, in range: the look is spread into this machine's settings below
+  const look = cleanThemeLook(t.look, themeLook(current));
   let file = { bgFile: current.bgFile, bgFileType: current.bgFileType };
-  let bg = t.look.bg;
+  let bg = look.bg;
   if (t.background && EXT[t.background]) {
     const res = await net.fetch(`${BASE}/v1/themes/${encodeURIComponent(id)}/background`, { signal: AbortSignal.timeout(180_000) });
     if (!res.ok) throw new ScError("unknown", "The theme's background didn't download");
@@ -400,7 +402,7 @@ export async function wsInstall(id: string): Promise<Look> {
   const { css, dropped } = sanitizeThemeCss(t.css ?? "");
   if (dropped.length) log("main", `theme: ${dropped.length} declaration(s) of "${t.name}" left out (${dropped[0]!.reason})`);
   // themes from the old night design come in as studio ones
-  return { ...current, ...t.look, design: "studio", surface: t.look.surface ?? "", bg, ...file, lite: current.lite, css };
+  return { ...current, ...look, design: "studio", surface: look.surface ?? "", bg, ...file, lite: current.lite, css };
 }
 
 export async function wsLike(id: string) {

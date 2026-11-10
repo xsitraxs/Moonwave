@@ -220,3 +220,27 @@ export interface WsPage {
 }
 
 export type WsSort = "new" | "top";
+
+/**
+ * A theme's look as it arrives from the server, reduced to the knobs a theme may set, each in its range — what the
+ * server checks at publishing, checked again here. The look is spread into this machine's settings, so anything else
+ * in it (an older theme's leftovers, a server that has been tampered with) would land there unchecked: a setting the
+ * theme has no business changing, or a value that ends up in a style.
+ */
+export function cleanThemeLook(v: unknown, fallback: ThemeLook): ThemeLook {
+  const l = v && typeof v === "object" ? (v as Record<string, unknown>) : {};
+  const num = (x: unknown, lo: number, hi: number, d: number) => (typeof x === "number" && Number.isFinite(x) ? Math.round(Math.min(hi, Math.max(lo, x))) : d);
+  const colour = (x: unknown) => (typeof x === "string" && /^#[0-9a-f]{6}$/i.test(x) ? x : "");
+  const BGS = ["liquid", "cover", "file", "none"] as const;
+  return {
+    design: "studio",
+    bg: BGS.includes(l.bg as (typeof BGS)[number]) ? (l.bg as ThemeLook["bg"]) : fallback.bg,
+    bgBlur: num(l.bgBlur, 0, 40, fallback.bgBlur),
+    bgDim: num(l.bgDim, 0, 100, fallback.bgDim),
+    bgReact: num(l.bgReact, 0, 100, fallback.bgReact),
+    panelOpacity: num(l.panelOpacity, 10, 100, fallback.panelOpacity),
+    panelBlur: num(l.panelBlur, 0, 60, fallback.panelBlur),
+    accent: colour(l.accent),
+    surface: colour(l.surface),
+  };
+}
