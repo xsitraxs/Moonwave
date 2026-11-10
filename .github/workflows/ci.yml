@@ -235,28 +235,24 @@ jobs:
           } else {
             Write-Host "exited on start (code $($p.ExitCode))"
           }
-          Write-Host "--- what it printed (last 80 lines; addresses and logins masked) ---"
-          foreach ($f in @("start.out.log", "start.err.log")) {
+          $logFile = Join-Path $env:APPDATA "sc player\logs\main.log"
+          $combined = @()
+          foreach ($f in @("start.out.log", "start.err.log", $logFile)) {
             if (Test-Path $f) {
-              Get-Content $f -Tail 80 | ForEach-Object {
+              $combined += "=== $f ==="
+              $combined += Get-Content $f -Tail 40 | ForEach-Object {
                 ($_ -replace '://[^/@ ]+@', '://***@') -replace '\b\d{1,3}(\.\d{1,3}){3}\b', 'x.x.x.x'
               }
             }
           }
-          $logFile = Join-Path $env:APPDATA "sc player\logs\main.log"
-          Write-Host "--- how long the start took (the app's own log) ---"
-          if (Test-Path $logFile) {
-            Get-Content $logFile | Select-String "start:|uncaught:|page process gone|page didn't load" | ForEach-Object { $_.Line }
-          } else {
-            Write-Host "(no start line)"
-          }
-          if (-not $ok) { exit 1 }
-          if (-not (Test-Path $logFile) -or -not (Select-String -Path $logFile -Pattern "start: page loaded" -Quiet)) {
-            Write-Error "the packaged app never reached 'start: page loaded'"
-            exit 1
-          }
-          if (Select-String -Path $logFile -Pattern "page process gone|page didn't load|uncaught:" -Quiet) {
-            Write-Error "the packaged app logged a startup crash"
+          $combined | ForEach-Object { Write-Host $_ }
+          $pageLoaded = (Test-Path $logFile) -and (Select-String -Path $logFile -Pattern "start: page loaded" -Quiet)
+          $crashed = (Test-Path $logFile) -and (Select-String -Path $logFile -Pattern "page process gone|page didn't load|uncaught:" -Quiet)
+          if ((-not $ok) -or (-not $pageLoaded) -or $crashed) {
+            $text = (($combined -join "`n") -replace '[\x00-\x08\x0B\x0C\x0E-\x1F]', ' ')
+            if ($text.Length -gt 2000) { $text = $text.Substring($text.Length - 2000) }
+            $b64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes("ok=$ok loaded=$pageLoaded crashed=$crashed`n$text"))
+            Write-Output "::error title=start-log-tail-b64::$b64"
             exit 1
           }
 
@@ -269,14 +265,22 @@ jobs:
           sleep 25
           if kill -0 "$pid" 2>/dev/null; then kill "$pid"; ok=1; echo "running after 25 s"; else ok=0; echo "exited on start"; fi
           wait "$pid" 2>/dev/null || true
-          echo "--- what it printed (last 80 lines; addresses and logins masked) ---"
-          tail -n 80 start.log | sed -E 's#://[^/@ ]+@#://***@#g; s#[0-9]{1,3}(\.[0-9]{1,3}){3}#x.x.x.x#g'
           LOG_FILE="$HOME/Library/Application Support/sc player/logs/main.log"
-          echo "--- how long the start took (the app's own log) ---"
-          grep -E "start:|uncaught:|page process gone|page didn't load" "$LOG_FILE" || echo "(no start line)"
-          [ "$ok" = 1 ]
-          grep -q "start: page loaded" "$LOG_FILE"
-          ! grep -qE "page process gone|page didn't load|uncaught:" "$LOG_FILE"
+          {
+            echo "=== start.log ==="
+            tail -n 40 start.log 2>/dev/null || true
+            echo "=== main.log ==="
+            tail -n 40 "$LOG_FILE" 2>/dev/null || echo "(no main.log)"
+          } | sed -E 's#://[^/@ ]+@#://***@#g; s#[0-9]{1,3}(\.[0-9]{1,3}){3}#x.x.x.x#g' > combined.log
+          cat combined.log
+          loaded=0; crashed=0
+          if [ -f "$LOG_FILE" ] && grep -q "start: page loaded" "$LOG_FILE"; then loaded=1; fi
+          if [ -f "$LOG_FILE" ] && grep -qE "page process gone|page didn't load|uncaught:" "$LOG_FILE"; then crashed=1; fi
+          if [ "$ok" != 1 ] || [ "$loaded" != 1 ] || [ "$crashed" != 0 ]; then
+            b64="$( (echo "ok=$ok loaded=$loaded crashed=$crashed"; tail -c 2000 combined.log) | tr '\r\n' '  ' | base64 | tr -d '\n' )"
+            echo "::error title=start-log-tail-b64::$b64"
+            exit 1
+          fi
 
       - name: The app starts (Linux)
         if: runner.os == 'Linux'
@@ -289,14 +293,22 @@ jobs:
           sleep 25
           if kill -0 "$pid" 2>/dev/null; then kill "$pid"; ok=1; echo "running after 25 s"; else ok=0; echo "exited on start"; fi
           wait "$pid" 2>/dev/null || true
-          echo "--- what it printed (last 80 lines; addresses and logins masked) ---"
-          tail -n 80 start.log | sed -E 's#://[^/@ ]+@#://***@#g; s#[0-9]{1,3}(\.[0-9]{1,3}){3}#x.x.x.x#g'
           LOG_FILE="$HOME/.config/sc player/logs/main.log"
-          echo "--- how long the start took (the app's own log) ---"
-          grep -E "start:|uncaught:|page process gone|page didn't load" "$LOG_FILE" || echo "(no start line)"
-          [ "$ok" = 1 ]
-          grep -q "start: page loaded" "$LOG_FILE"
-          ! grep -qE "page process gone|page didn't load|uncaught:" "$LOG_FILE"
+          {
+            echo "=== start.log ==="
+            tail -n 40 start.log 2>/dev/null || true
+            echo "=== main.log ==="
+            tail -n 40 "$LOG_FILE" 2>/dev/null || echo "(no main.log)"
+          } | sed -E 's#://[^/@ ]+@#://***@#g; s#[0-9]{1,3}(\.[0-9]{1,3}){3}#x.x.x.x#g' > combined.log
+          cat combined.log
+          loaded=0; crashed=0
+          if [ -f "$LOG_FILE" ] && grep -q "start: page loaded" "$LOG_FILE"; then loaded=1; fi
+          if [ -f "$LOG_FILE" ] && grep -qE "page process gone|page didn't load|uncaught:" "$LOG_FILE"; then crashed=1; fi
+          if [ "$ok" != 1 ] || [ "$loaded" != 1 ] || [ "$crashed" != 0 ]; then
+            b64="$( (echo "ok=$ok loaded=$loaded crashed=$crashed"; tail -c 2000 combined.log) | tr '\r\n' '  ' | base64 | tr -d '\n' )"
+            echo "::error title=start-log-tail-b64::$b64"
+            exit 1
+          fi
 
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:

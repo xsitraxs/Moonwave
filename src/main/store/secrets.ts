@@ -2,7 +2,7 @@ import { chmodSync, readFileSync, renameSync, rmSync, writeFileSync } from "node
 import { join } from "node:path";
 import { app, safeStorage } from "electron";
 import { log } from "../system/log";
-import { SECRETS_DISABLED_SUFFIX, looksLikeSecretsFile, planForBackend, type StoragePlan } from "@shared/secureStorage";
+import { SECRETS_DISABLED_SUFFIX, looksLikeSecretsFile, planForBackend, storageBackendForPlatform, type StoragePlan } from "@shared/secureStorage";
 
 /**
  * Tokens and secrets, encrypted with the OS (DPAPI on Windows, Keychain on macOS, libsecret/kwallet on Linux) through
@@ -36,7 +36,10 @@ const quarantine = () => `${path()}${SECRETS_DISABLED_SUFFIX}`;
 let plan: StoragePlan | null = null;
 function prepare() {
   if (plan || !app.isReady()) return;
-  const backend = safeStorage.getSelectedStorageBackend();
+  // Electron exposes getSelectedStorageBackend() only on Linux (#if BUILDFLAG(IS_LINUX)); calling it unconditionally
+  // throws TypeError on Windows and macOS before the main window is created.
+  const getLinuxBackend = (safeStorage as Partial<Pick<typeof safeStorage, "getSelectedStorageBackend">>).getSelectedStorageBackend;
+  const backend = storageBackendForPlatform(process.platform, getLinuxBackend ? () => getLinuxBackend.call(safeStorage) : undefined);
   plan = planForBackend(backend, safeStorage.isEncryptionAvailable());
   if (plan === "ephemeral") {
     log("main", `secrets: no secure storage on this desktop (${backend || "unavailable"}) — secrets are kept for this run only`);
