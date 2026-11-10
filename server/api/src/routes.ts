@@ -820,7 +820,7 @@ function invitePage(c: Ctx) {
   <p>Open the app to add them as a friend: then you can send each other tracks and listen together.</p>
   <div class="code">${code}</div>
   <a class="open" href="${app}">Open Moonwave</a>
-  <span class="get">No Moonwave yet? <a href="https://github.com/xsitraxs/scplayer-fix/releases/latest">Download it</a>, then open this link again.</span>
+  <span class="get">No Moonwave yet? <a href="https://github.com/xsitraxs/Moonwave/releases/latest">Download it</a>, then open this link again.</span>
 </main></body></html>`;
   c.res.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "public, max-age=3600", "x-content-type-options": "nosniff", "content-security-policy": "default-src 'none'; style-src 'unsafe-inline'" });
   c.res.end(html);

@@ -51,7 +51,9 @@ export interface PlayerInfo {
  * the same repository — they used to be written out separately, and a build could download from one project while
  * pointing its users at another. `package.json` → build.publish names it too, for electron-builder's own metadata.
  */
-export const UPDATE_REPO = { owner: "xsitraxs", repo: "scplayer-fix" } as const;
+// the repository was called scplayer-fix before the rename: GitHub redirects that name here, so builds from before
+// still find this feed
+export const UPDATE_REPO = { owner: "xsitraxs", repo: "Moonwave" } as const;
 /** The releases page the app opens (a portable build can only be told a new version exists). */
 export const RELEASES_URL = `https://github.com/${UPDATE_REPO.owner}/${UPDATE_REPO.repo}/releases/latest`;
 /** The project's own pages, so a report or a link never sends someone to the project this one was forked from. */

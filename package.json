@@ -167,7 +167,7 @@
       "executableName": "moonwave",
       "category": "Audio",
       "synopsis": "A SoundCloud player: no ads, lyrics word by word, friends to listen with",
-      "maintainer": "xsitraxs <https://github.com/xsitraxs/scplayer-fix>",
+      "maintainer": "xsitraxs <https://github.com/xsitraxs/Moonwave>",
       "desktop": {
         "entry": {
           "Name": "Moonwave",
@@ -207,7 +207,7 @@
     "publish": {
       "provider": "github",
       "owner": "xsitraxs",
-      "repo": "scplayer-fix"
+      "repo": "Moonwave"
     }
   },
   "dependencies": {

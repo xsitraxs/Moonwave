@@ -8,7 +8,7 @@ const { autoUpdater } = electronUpdater;
 const EVERY = 6 * 3600 * 1000;
 
 /**
- * Updates from this project's own GitHub Releases (xsitraxs/scplayer-fix). The installed app downloads the new version
+ * Updates from this project's own GitHub Releases (xsitraxs/Moonwave). The installed app downloads the new version
  * when asked and installs it on restart. A portable .exe can't replace itself, so it is only told that a new version
  * exists (with a link to the release). Off in development.
  *
