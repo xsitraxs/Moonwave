@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { SECRETS_DISABLED_SUFFIX, looksLikeSecretsFile, planForBackend, scPartitionFor } from "./secureStorage.ts";
+import { SECRETS_DISABLED_SUFFIX, looksLikeSecretsFile, planForBackend, scPartitionFor, storageBackendForPlatform } from "./secureStorage.ts";
 
 // ---- when nothing may be written at rest ----------------------------------------------------------------------
 
@@ -20,6 +20,19 @@ test("storage: the real sealed backends stay system", () => {
   assert.equal(planForBackend("dpapi", true), "system");
   assert.equal(planForBackend("gnome_libsecret", true), "system");
   assert.equal(planForBackend("kwallet6", true), "system");
+});
+
+test("storage: Windows and macOS never call Linux-only getSelectedStorageBackend (undefined there in Electron)", () => {
+  const mustNotRun = (): string => {
+    throw new TypeError("safeStorage.getSelectedStorageBackend is not a function");
+  };
+  assert.equal(storageBackendForPlatform("win32", undefined), "dpapi");
+  assert.equal(storageBackendForPlatform("win32", mustNotRun), "dpapi");
+  assert.equal(storageBackendForPlatform("darwin", undefined), "keychain");
+  assert.equal(storageBackendForPlatform("darwin", mustNotRun), "keychain");
+  assert.equal(storageBackendForPlatform("linux", () => "gnome_libsecret"), "gnome_libsecret");
+  assert.equal(storageBackendForPlatform("linux", () => "basic_text"), "basic_text");
+  assert.equal(storageBackendForPlatform("linux", undefined), "");
 });
 
 // ---- the SoundCloud session matches the storage plan -----------------------------------------------------------

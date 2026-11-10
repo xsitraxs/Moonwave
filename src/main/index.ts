@@ -759,6 +759,10 @@ app.on("before-quit", () => {
   stopBrowserSignIn();
 });
 process.on("uncaughtException", (err) => log("main", `uncaught: ${err.stack ?? err.message}`));
+process.on("unhandledRejection", (reason) => {
+  const detail = reason instanceof Error ? (reason.stack ?? reason.message) : String(reason);
+  log("main", `uncaught: unhandled rejection: ${detail}`);
+});
 
 /**
  * Started with an encryption key other than the one on disk (seen right after an update, while the old copy was still

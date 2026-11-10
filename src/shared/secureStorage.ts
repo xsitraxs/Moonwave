@@ -12,6 +12,21 @@
 
 export type StoragePlan = "system" | "ephemeral";
 
+/**
+ * Resolves the storage backend name across platforms. Electron compiles `safeStorage.getSelectedStorageBackend()` only
+ * on Linux (`#if BUILDFLAG(IS_LINUX)`); on Windows and macOS the method is `undefined` at runtime and Chromium always
+ * uses DPAPI or Keychain respectively.
+ */
+export function storageBackendForPlatform(
+  platform: string,
+  getSelectedStorageBackend?: () => string,
+): string {
+  if (platform === "win32") return "dpapi";
+  if (platform === "darwin") return "keychain";
+  if (platform === "linux") return typeof getSelectedStorageBackend === "function" ? getSelectedStorageBackend() : "";
+  return "";
+}
+
 /** The plan for this run, from safeStorage's backend name and whether it reports encryption as available. */
 export function planForBackend(backend: string, encryptionAvailable: boolean): StoragePlan {
   if (!encryptionAvailable) return "ephemeral";
