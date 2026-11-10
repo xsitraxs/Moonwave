@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, test } from "node:test";
-import { parseLatestYml, verifyDist } from "./verify-dist.mjs";
+import { fusesTarget, parseLatestYml, unpackedApp, verifyDist, verifyFuses } from "./verify-dist.mjs";
 
 const cleanup = [];
 afterEach(() => {
@@ -112,4 +112,37 @@ test("a tag like v2.4 matches package.json 2.4.0", () => {
   const { dir, writeYml, yml } = fakeDist({ version: "2.4.0" });
   writeYml("latest-linux.yml", yml("2.4.0", [["sc-player-v2.3-x86_64.AppImage", 4096]]));
   assert.deepEqual(verifyDist({ dir, platform: "linux", expectVersion: "2.4" }), []);
+});
+
+// ---- fuses -----------------------------------------------------------------------------------------------------------
+
+test("fuses: a dist/ with only installers left has no unpacked app to read, and that is not a problem", async () => {
+  const { dir } = fakeDist();
+  assert.equal(unpackedApp(dir, "linux"), null);
+  assert.equal(unpackedApp(dir, "win32"), null);
+  assert.deepEqual(await verifyFuses({ dir, platform: "linux" }), []);
+});
+
+test("fuses: the unpacked app is found in each platform's folder", () => {
+  const { dir } = fakeDist();
+  mkdirSync(join(dir, "linux-unpacked"));
+  mkdirSync(join(dir, "win-unpacked"));
+  mkdirSync(join(dir, "mac-arm64", "sc player.app"), { recursive: true });
+  writeFileSync(join(dir, "linux-unpacked", "sc-player"), "x");
+  writeFileSync(join(dir, "win-unpacked", "sc player.exe"), "x");
+  assert.equal(unpackedApp(dir, "linux"), join(dir, "linux-unpacked"));
+  assert.equal(unpackedApp(dir, "win32"), join(dir, "win-unpacked"));
+  assert.equal(unpackedApp(dir, "darwin"), join(dir, "mac-arm64", "sc player.app"));
+  assert.equal(fusesTarget(join(dir, "linux-unpacked"), "linux"), join(dir, "linux-unpacked", "sc-player"));
+  assert.equal(fusesTarget(join(dir, "win-unpacked"), "win32"), join(dir, "win-unpacked", "sc player.exe"));
+});
+
+test("fuses: an app whose binary has no fuse wire fails, and says the hook did not run", async () => {
+  const { dir } = fakeDist();
+  mkdirSync(join(dir, "linux-unpacked"));
+  // a file that is not an Electron binary at all
+  writeFileSync(join(dir, "linux-unpacked", "sc-player"), "not an electron binary");
+  const problems = await verifyFuses({ dir, platform: "linux" });
+  assert.equal(problems.length, 1);
+  assert.match(problems[0], /fuses\.mjs did not run/);
 });
