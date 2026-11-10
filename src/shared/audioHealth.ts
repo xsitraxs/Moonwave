@@ -239,7 +239,10 @@ export const ROUTE_SILENCE_MS = 6_000;
  * graph never carries a sample, which is what an element torn out of the graph *into* a chain that cannot play it
  * looks like (a graphics process that died under the routing, a context that recovered into a graph with no input).
  */
-export function routeIsSilent(s: { running: boolean; level: number | null; progressedSeconds: number }): boolean {
+export function routeIsSilent(s: { running: boolean; level: number | null; progressedSeconds: number; audible?: boolean }): boolean {
+  // muted or at volume 0 the deck's own gain (which sits before the analyser) is 0, so the analyser hears exact zero
+  // from a perfectly healthy route: that silence is the person's, and proves nothing about the graph
+  if (s.audible === false) return false;
   // a playing deck that has moved on by any real amount while the analyser heard exact zero
   return s.running && s.level === 0 && s.progressedSeconds >= 0.5;
 }

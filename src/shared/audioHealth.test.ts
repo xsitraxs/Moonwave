@@ -316,6 +316,12 @@ test("route: it needs a running graph and real progress before anything is concl
   assert.ok(ROUTE_SILENCE_MS >= 3_000);
 });
 
+test("route: a muted deck (or one at volume 0) is never judged silent — the person turned it down, not the graph", () => {
+  assert.equal(routeIsSilent({ running: true, level: 0, progressedSeconds: 30, audible: false }), false);
+  // audible and silent is still the fault it always was
+  assert.equal(routeIsSilent({ running: true, level: 0, progressedSeconds: 30, audible: true }), true);
+});
+
 // ---- who asks for the chain (the equalizer without the sky is the case the silence hid in) -----------------------
 
 test("wantedGraph: the equalizer alone asks for the chain — the sky is not required to carry the sound", () => {

@@ -1,4 +1,4 @@
-export const PROTOCOL = "scplayer";
+export const PROTOCOL = "moonwave";
 
 /**
  * Any printable token without spaces is taken: SoundCloud checks it right after (the account is asked for), and
@@ -6,7 +6,7 @@ export const PROTOCOL = "scplayer";
  */
 export const TOKEN = /^[\x21-\x7e]{8,4096}$/;
 
-/** The code from a friend link (`scplayer://friend/SKY-XXXXX`) among arguments, if there is one. */
+/** The code from a friend link (`moonwave://friend/SKY-XXXXX`) among arguments, if there is one. */
 export function parseFriendFromArgs(argv: string[]): string | null {
   for (const arg of argv) {
     if (!arg.toLowerCase().startsWith(`${PROTOCOL}://friend/`)) continue;
@@ -24,7 +24,7 @@ export interface SignInLink {
 }
 
 /**
- * The token and state from a `scplayer://signin?token=…&state=…` link among arguments, if there is a usable one.
+ * The token and state from a `moonwave://signin?token=…&state=…` link among arguments, if there is a usable one.
  *
  * The state is kept as it came (only quotes and trailing slashes are dropped) because it is compared, never used as
  * a value itself. A link without one is still returned — the caller asks the person first before such a sign-in.
@@ -59,7 +59,7 @@ export function parseSignInLinkFromArgs(argv: string[], onLog?: (msg: string) =>
   return null;
 }
 
-/** The token from a `scplayer://signin?token=…` link among arguments, if there is one. */
+/** The token from a `moonwave://signin?token=…` link among arguments, if there is one. */
 export function parseTokenFromArgs(argv: string[], onLog?: (msg: string) => void): string | null {
   return parseSignInLinkFromArgs(argv, onLog)?.token ?? null;
 }

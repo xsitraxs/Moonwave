@@ -149,7 +149,7 @@ if (process.env.ADMIN_TOKEN) {
 }
 assert.equal((await api("GET", "/v1/admin/themes", { admin: "wrong-token-wrong-token-wrong" })).status, 404);
 
-// what sc player is playing: anonymous ids, newest first, counted per day
+// what Moonwave is playing: anonymous ids, newest first, counted per day
 assert.equal((await api("POST", "/v1/listening", { body: { id: 555 } })).status, 204);
 assert.equal((await api("POST", "/v1/listening", { body: { id: 777 } })).status, 204);
 assert.equal((await api("POST", "/v1/listening", { body: { id: 555 } })).status, 204);

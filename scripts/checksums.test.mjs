@@ -16,12 +16,12 @@ function fakeDist() {
   const dir = mkdtempSync(join(tmpdir(), "checksums-"));
   cleanup.push(dir);
   for (const name of [
-    "sc-player-setup-v2.3.exe",
-    "sc-player-setup-v2.3.exe.blockmap",
-    "sc-player-2.3.2-arm64.dmg",
-    "sc-player-2.3.2-arm64.zip",
-    "sc-player-v2.3-x86_64.AppImage",
-    "sc-player-v2.3-amd64.deb",
+    "moonwave-setup-v2.3.exe",
+    "moonwave-setup-v2.3.exe.blockmap",
+    "moonwave-2.3.2-arm64.dmg",
+    "moonwave-2.3.2-arm64.zip",
+    "moonwave-v2.3-x86_64.AppImage",
+    "moonwave-v2.3-amd64.deb",
     "latest.yml",
     "latest-mac.yml",
     "latest-linux.yml",
@@ -41,20 +41,20 @@ test("only the release-attached files are listed, sorted, and nothing else", () 
     "latest-linux.yml",
     "latest-mac.yml",
     "latest.yml",
-    "sc-player-2.3.2-arm64.dmg",
-    "sc-player-2.3.2-arm64.zip",
-    "sc-player-setup-v2.3.exe",
-    "sc-player-setup-v2.3.exe.blockmap",
-    "sc-player-v2.3-amd64.deb",
-    "sc-player-v2.3-x86_64.AppImage",
+    "moonwave-2.3.2-arm64.dmg",
+    "moonwave-2.3.2-arm64.zip",
+    "moonwave-setup-v2.3.exe",
+    "moonwave-setup-v2.3.exe.blockmap",
+    "moonwave-v2.3-amd64.deb",
+    "moonwave-v2.3-x86_64.AppImage",
   ]);
 });
 
 test("each line is the sha256 of the file, in sha256sum's `hash  name` shape", () => {
   const dir = fakeDist();
-  const lines = sumsFor(dir, ["sc-player-setup-v2.3.exe"]);
-  const expected = createHash("sha256").update(readFileSync(join(dir, "sc-player-setup-v2.3.exe"))).digest("hex");
-  assert.deepEqual(lines, [`${expected}  sc-player-setup-v2.3.exe`]);
+  const lines = sumsFor(dir, ["moonwave-setup-v2.3.exe"]);
+  const expected = createHash("sha256").update(readFileSync(join(dir, "moonwave-setup-v2.3.exe"))).digest("hex");
+  assert.deepEqual(lines, [`${expected}  moonwave-setup-v2.3.exe`]);
   assert.match(lines[0], /^[0-9a-f]{64} {2}\S/);
 });
 

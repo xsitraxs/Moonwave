@@ -1,4 +1,4 @@
-# sc player
+# Moonwave
 
 The project rules for every agent live in AGENTS.md:
 

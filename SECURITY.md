@@ -38,7 +38,7 @@ These are known and accepted for now, not open bugs. They are listed so that nob
 future version knows where to look first.
 
 - **The browser sign-in's token is in the process arguments while it is passed.** The bookmark on soundcloud.com opens
-  `scplayer://signin?token=…`; Windows starts (or hands the link to) the app with that address as a command-line
+  `moonwave://signin?token=…`; Windows starts (or hands the link to) the app with that address as a command-line
   argument, so any local process can read the token there for the moment before the app stores it. The link itself is
   only acted on silently when it carries the one-time state the app handed out for that sign-in (see
   `src/main/soundcloud/browser-signin.ts`); anything else asks the person first. Moving the token off the command line
@@ -60,7 +60,7 @@ future version knows where to look first.
 
 **Известные принятые риски.** Это не баги, а решения, известные и принятые на сегодня:
 
-- **Токен входа через браузер виден в аргументах процесса** на время передачи: ссылка `scplayer://signin?token=…`
+- **Токен входа через браузер виден в аргументах процесса** на время передачи: ссылка `moonwave://signin?token=…`
   приходит в командной строке, и любой локальный процесс может прочитать её до того, как приложение сохранит токен.
   Без вопроса такая ссылка принимается, только если несёт одноразовый state, выданный этой попыткой входа.
 - **Учётные данные встроенного прокси есть в каждой сборке** (`proxy.local.json` компилируется внутрь): их можно

@@ -65,7 +65,7 @@ export default async function setElectronFuses(context) {
   const platform = context.electronPlatformName || packager.platform?.name || process.platform;
   const binary = electronBinaryIn(appOutDir, {
     productFilename: packager.appInfo.productFilename,
-    // Linux takes the executable name from build.linux.executableName ("sc-player"); electron-builder's default is the
+    // Linux takes the executable name from build.linux.executableName ("moonwave"); electron-builder's default is the
     // lowercased product name
     executableName: packager.platformSpecificBuildOptions?.executableName || packager.appInfo.productFilename.toLowerCase().replace(/\s+/g, "-"),
     platform,

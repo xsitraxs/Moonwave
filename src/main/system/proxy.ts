@@ -12,9 +12,9 @@ import { onNetTrouble } from "./net-trouble";
  * page's session) and updates. "system" follows Windows, "direct" uses none, "custom" an address like
  * socks5://127.0.0.1:1080 or http://host:8080 (http when no scheme is given). A username and password are answered
  * when the proxy asks (HTTP proxies; Chromium can't log in to SOCKS proxies); the password is kept encrypted.
- * "builtin" is sc player's own proxy (server/README.md), for SoundCloud only. "auto" is the user's own connection
- * (Windows settings: their VPN, zapret or nothing) while SoundCloud opens through it, and sc player's proxy only when
- * it doesn't — the server carries only those who need it. In a build without sc player's proxy "auto" is "system".
+ * "builtin" is Moonwave's own proxy (server/README.md), for SoundCloud only. "auto" is the user's own connection
+ * (Windows settings: their VPN, zapret or nothing) while SoundCloud opens through it, and Moonwave's proxy only when
+ * it doesn't — the server carries only those who need it. In a build without Moonwave's proxy "auto" is "system".
  */
 export function proxyRules(url: string): string | null {
   const m = url.trim().match(/^(?:(https?|socks[45]?):\/\/)?(?:[^@/\s]*@)?([\w.-]+|\[[0-9a-f:]+\]):(\d{1,5})\/?$/i);
@@ -23,12 +23,12 @@ export function proxyRules(url: string): string | null {
   return `${scheme}://${m[2]}:${m[3]}`;
 }
 
-/** Does this build carry sc player's own proxy (proxy.local.json at build time)? */
+/** Does this build carry Moonwave's own proxy (proxy.local.json at build time)? */
 export const hasBuiltinProxy = () => __SC_PROXY__ !== null;
 
 /**
- * What sc player reaches besides SoundCloud — updates and GitHub, lyrics, its own server, playlist imports, Whisper's
- * model, Steam — goes straight, never through sc player's proxy (it carries SoundCloud only and refuses other hosts).
+ * What Moonwave reaches besides SoundCloud — updates and GitHub, lyrics, its own server, playlist imports, Whisper's
+ * model, Steam — goes straight, never through Moonwave's proxy (it carries SoundCloud only and refuses other hosts).
  * A host the app starts to use goes on this list, or it fails for those whose SoundCloud goes through the proxy.
  */
 const DIRECT = [
@@ -62,7 +62,7 @@ const DIRECT = [
 ];
 
 /**
- * The built-in proxy as fixed rules: everything through it but the hosts above (and sc player's own server). Not a
+ * The built-in proxy as fixed rules: everything through it but the hosts above (and Moonwave's own server). Not a
  * PAC script: Chromium treats a PAC script as mandatory and runs it in a process of its own; where that process
  * can't start (security software, seen 2026-11-03) every request failed with ERR_MANDATORY_PROXY_CONFIGURATION_FAILED,
  * GitHub's too. Fixed rules need no such process (~15 MB less as well).
@@ -208,7 +208,7 @@ async function go(next: Route) {
   // off a connection that doesn't work: drop what hangs on it; back to the user's own: let running downloads finish
   await setAll(next === "ours" ? builtinRules(__SC_PROXY__) : { mode: "system" }, next === "ours");
   if (next === "ours") await logInToBuiltin();
-  if (changed) log("main", `proxy auto: SoundCloud now goes ${next === "ours" ? "through sc player's proxy" : "over the user's own connection"}`);
+  if (changed) log("main", `proxy auto: SoundCloud now goes ${next === "ours" ? "through Moonwave's proxy" : "over the user's own connection"}`);
 }
 
 /** Is the user's own connection enough? Switches either way; resolves with whether the route changed. */
@@ -221,7 +221,7 @@ function check(): Promise<boolean> {
     checkedAt = Date.now();
     const before = route;
     await go(own ? "own" : "ours");
-    // on sc player's proxy: look every 10 minutes whether the user's own works again (a VPN turned on, zapret started)
+    // on Moonwave's proxy: look every 10 minutes whether the user's own works again (a VPN turned on, zapret started)
     clearTimeout(timer);
     timer = setTimeout(() => void check(), route === "ours" ? 10 * 60_000 : 60 * 60_000);
     return before !== route;
@@ -241,7 +241,7 @@ export function initProxyAuto() {
 export function initProxyAuth(getUsername: () => string) {
   app.on("login", (event, _webContents, _details, authInfo, callback) => {
     if (!authInfo.isProxy) return;
-    // sc player's own proxy logs in with the build's credentials
+    // Moonwave's own proxy logs in with the build's credentials
     if (__SC_PROXY__ && authInfo.host === __SC_PROXY__.host) {
       event.preventDefault();
       callback(__SC_PROXY__.username, __SC_PROXY__.password);

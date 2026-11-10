@@ -210,7 +210,7 @@ function FriendsListening() {
 }
 
 /**
- * What was played in sc player lately, by anyone who shares it anonymously: the server keeps only SoundCloud ids, so
+ * What was played in Moonwave lately, by anyone who shares it anonymously: the server keeps only SoundCloud ids, so
  * titles and covers come from SoundCloud (and hidden artists and words stay hidden).
  */
 function ScListening() {

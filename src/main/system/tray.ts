@@ -46,7 +46,7 @@ const cut = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` 
 function rebuild() {
   if (!tray || !deps) return;
   const t = info.track;
-  const title = t ? `${t.artist} — ${t.title}` : "sc player";
+  const title = t ? `${t.artist} — ${t.title}` : "Moonwave";
   tray.setToolTip(cut(title, 120));
   tray.setContextMenu(
     Menu.buildFromTemplate([

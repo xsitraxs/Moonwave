@@ -1,14 +1,15 @@
-// Renders the app icon — the sound-moon (assets/app-icon.svg) — to build/icon.png, 512×512; electron-builder turns it
-// into the Windows .ico. The window, taskbar and tray use the small-size version (assets/app-icon-small.svg: thicker
-// strokes, no stars) as resources/icon.png. Run: node scripts/make-icon.mjs
+// Renders Moonwave's icons. The app icon (assets/app-icon.png, 1024×1024 with its rounded corners already clear) becomes
+// build/icon.png, 512×512, which electron-builder turns into the Windows .ico and the macOS .icns; the window, taskbar
+// and tray use a 256 px copy (resources/icon.png). The title bar draws assets/app-icon-small.svg, the same picture in
+// flat shapes, because the painted icon turns to mush at 20 px. Run: node scripts/make-icon.mjs
 import { mkdirSync } from "node:fs";
 import sharp from "sharp";
 
 mkdirSync("build", { recursive: true });
-await sharp("assets/app-icon.svg", { density: 1200 }).resize(512, 512).png().toFile("build/icon.png");
-// the window and the tray (bundled with main): the small-size version
+await sharp("assets/app-icon.png").resize(512, 512, { kernel: "lanczos3" }).png().toFile("build/icon.png");
+// the window and the tray (bundled with main)
 mkdirSync("resources", { recursive: true });
-await sharp("assets/app-icon-small.svg", { density: 1200 }).resize(256, 256).png().toFile("resources/icon.png");
+await sharp("assets/app-icon.png").resize(256, 256, { kernel: "lanczos3" }).png().toFile("resources/icon.png");
 console.log("build/icon.png, resources/icon.png");
 
 // the macOS menu bar: a black-on-clear "template" (macOS colours it), 16 pt and its @2x

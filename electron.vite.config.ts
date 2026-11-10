@@ -14,18 +14,22 @@ const shared = { "@shared": resolve("src/shared") };
  * - api-v2.soundcloud.com is the API's host for direct fetches kept for completeness; the page reads streams and the
  *   lyrics-sync decoder pulls the HLS segments/playlists itself, so the CDNs matter most:
  * - *.sndcdn.com (artwork, streams) and *.soundcloud.cloud (media streaming) are SoundCloud's real media hosts;
- * - our own server never appears in the page: every social/room/workshop call goes through main (src/main/social.ts),
- *   which is why __SC_API__ is not interpolated here;
+ * - our own server's API is called from main only (src/main/social.ts), so it is not in connect-src; but the
+ *   workshop's theme previews are plain <img src="<server>/v1/themes/<id>/preview"> in the page (social.ts →
+ *   withPreview), so the server's origin from server.local.json is allowed under img-src and nowhere else. Without it
+ *   every preview in the Workshop is blocked in a packaged build (the dev server has no CSP, so it never shows there);
  * - data:/blob: under img-src/media-src are the workshop's locally chosen background and capture previews;
  *   data: under media-src is the dev demo tone (src/main/demo.ts). If SoundCloud grows a new media domain, streams
  *   break loudly (not silently) — add the domain here, never a blanket https:.
  */
 function csp(): Plugin {
+  // the workshop's previews come straight from Moonwave's server (see above); a build without a server has none
+  const server = serverApi();
   const policy = [
     "default-src 'self'",
     "script-src 'self'",
     "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data: blob: https://*.sndcdn.com",
+    `img-src 'self' data: blob: https://*.sndcdn.com${server ? ` ${new URL(server).origin}` : ""}`,
     "media-src 'self' blob: data: https://*.sndcdn.com https://*.soundcloud.cloud",
     "connect-src 'self' https://api-v2.soundcloud.com https://*.sndcdn.com https://*.soundcloud.cloud",
     "font-src 'self' data:",
@@ -65,7 +69,7 @@ function builtinProxy() {
   }
 }
 
-/** sc player's own server (server/README.md): server.local.json next to package.json — { "api": "https://…" }. */
+/** Moonwave's own server (server/README.md): server.local.json next to package.json — { "api": "https://…" }. */
 function serverApi() {
   try {
     const c = JSON.parse(readFileSync("server.local.json", "utf8")) as Record<string, unknown>;

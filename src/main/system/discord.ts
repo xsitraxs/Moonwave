@@ -1,15 +1,15 @@
 import { connect, type Socket } from "node:net";
 import { join } from "node:path";
-import { RELEASES_URL, type PlayerInfo } from "@shared/ipc";
+import { DISCORD_CLIENT_ID, RELEASES_URL, type PlayerInfo } from "@shared/ipc";
 import { artwork, isLocalTrack } from "@shared/types";
 import { log } from "./log";
 
 /**
- * "Listening to sc player" on the Discord profile (Settings → Notifications): the track, artist, cover and time, sent
- * to the Discord app on this computer over its local pipe — nothing goes through sc player's server. Discord closed or
+ * "Listening to Moonwave" on the Discord profile (Settings → Notifications): the track, artist, cover and time, sent
+ * to the Discord app on this computer over its local pipe — nothing goes through Moonwave's server. Discord closed or
  * started later: tried again every 15 s, quietly. Paused or stopped: the status is cleared, as music apps do.
  */
-const CLIENT_ID = "1565037878671843408";
+const CLIENT_ID = DISCORD_CLIENT_ID;
 const RETRY_MS = 15_000;
 // Discord takes about five activity updates per 20 s; a burst (skipping through tracks) sends only the last one
 const MIN_GAP_MS = 4_000;
@@ -176,7 +176,7 @@ function activity(info: PlayerInfo): object | null {
     state: field(t.artist || "Unknown artist"),
     ...(start ? { timestamps: { start, ...(end ? { end } : {}) } } : {}),
     ...(cover ? { assets: { large_image: cover, large_text: field(t.title) } } : {}),
-    buttons: [...(link ? [{ label: "Listen on SoundCloud", url: link }] : []), { label: "Get sc player", url: RELEASES_URL }],
+    buttons: [...(link ? [{ label: "Listen on SoundCloud", url: link }] : []), { label: "Get Moonwave", url: RELEASES_URL }],
   };
 }
 
@@ -188,6 +188,8 @@ export function updateDiscord(info: PlayerInfo) {
 
 /** Settings → "Show in Discord": connects (and keeps trying) when on; clears the status and lets go when off. */
 export function setDiscordEnabled(on: boolean) {
+  // no Discord application of Moonwave's own yet (see DISCORD_CLIENT_ID): nothing is ever sent, whatever the setting says
+  if (!CLIENT_ID) on = false;
   if (on === enabled) return;
   enabled = on;
   if (on) {

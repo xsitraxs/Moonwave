@@ -131,7 +131,7 @@ function stopWorker() {
 
 function startWorker() {
   if (worker) return worker;
-  const w = utilityProcess.fork(join(import.meta.dirname, "lyrics-worker.js"), [], { serviceName: "sc player lyrics sync" });
+  const w = utilityProcess.fork(join(import.meta.dirname, "lyrics-worker.js"), [], { serviceName: "Moonwave lyrics sync" });
   w.on("message", (r: Reply) => waiting.get(r.id)?.(r));
   w.on("exit", (code) => {
     if (worker === w) worker = null;

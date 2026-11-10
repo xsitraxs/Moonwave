@@ -1,7 +1,7 @@
 // first: the moment our code began (see boot.ts)
 import { scriptStartMs } from "./boot";
 import { createHash } from "node:crypto";
-import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { readFile, writeFile } from "node:fs/promises";
 import { release } from "node:os";
 import { join } from "node:path";
@@ -34,6 +34,7 @@ import { backgroundSize, dropBackgrounds, keepImport, pickBackground, registerBa
 import { findWallpaper, workshopId } from "./system/steam-wallpaper";
 import { applyHotkeys, initHotkeys, suspendHotkeys } from "./system/hotkeys";
 import { log, logsDir } from "./system/log";
+import { bringOverOldData } from "./system/data-move";
 import { loadReport, watchLoad } from "./system/diagnostics";
 import { audioReport, noteAudioHealth, noteChildProcessGone } from "./system/audio";
 import { netCheck } from "./system/netcheck";
@@ -53,21 +54,9 @@ let quitting = false;
 let playerInfo: PlayerInfo = { track: null, playing: false };
 const command = (c: PlayerCommand) => send(main, "player:command", c);
 
-// The app was called "sky player" before: move its data (settings, sign-in) to the new folder once. If the new folder
-// already exists without settings (a first start that couldn't move the old one), it is set aside, not deleted.
-{
-  const old = join(app.getPath("appData"), "sky player");
-  const current = app.getPath("userData");
-  const has = (dir: string) => existsSync(join(dir, "settings.json"));
-  if (old !== current && has(old) && !has(current)) {
-    try {
-      if (existsSync(current)) renameSync(current, `${current}.unused-${Date.now()}`);
-      renameSync(old, current);
-    } catch {
-      /* in use or not allowed: start fresh */
-    }
-  }
-}
+// The app was published as "sc player" (and "sky player" before that): its data is brought into Moonwave's folder once,
+// copied so the original sc player keeps working if it is installed too (src/main/system/data-move.ts)
+bringOverOldData(app.getPath("appData"), app.getPath("userData"), process.platform, (line) => log("main", line));
 
 function devProfile(): string | undefined {
   return process.env.SKY_PROFILE || process.argv.find((a) => a.startsWith("--sky-profile="))?.slice("--sky-profile=".length) || undefined;
@@ -76,11 +65,11 @@ function devProfile(): string | undefined {
 /** SKY_DEMO=1 in development: made-up data instead of SoundCloud (src/main/demo.ts). */
 const DEMO = !app.isPackaged && process.env.SKY_DEMO === "1";
 // the demo keeps its own settings, history and sign-in, apart from the real ones
-if (DEMO) app.setPath("userData", join(app.getPath("appData"), "sc player demo"));
+if (DEMO) app.setPath("userData", join(app.getPath("appData"), "Moonwave demo"));
 // SKY_PROFILE=<name> in development: real SoundCloud with a data folder of its own (signed out, fresh settings); a
-// scplayer:// link started by Windows carries it as --sky-profile=<name> (no environment then), so it reaches this
+// moonwave:// link started by Windows carries it as --sky-profile=<name> (no environment then), so it reaches this
 // instance and not the main profile
-else if (!app.isPackaged && devProfile()) app.setPath("userData", join(app.getPath("appData"), `sc player ${devProfile()!.replace(/[^\w-]/g, "")}`));
+else if (!app.isPackaged && devProfile()) app.setPath("userData", join(app.getPath("appData"), `Moonwave ${devProfile()!.replace(/[^\w-]/g, "")}`));
 // music from this computer is answered by local-tracks, everything else by SoundCloud
 // and likes are kept on this computer (Settings → Playback), SoundCloud's shown with them
 const data: MusicProvider = withLocalLikes(withLocalTracks(DEMO ? new DemoProvider() : provider), () => prefs().localLikes);
@@ -134,11 +123,11 @@ const graphicsStatus = (): { gpuCompositing: string; webgl: string } => {
 /** the system for a report and the log: Windows 10.0.19045, macOS 15.1, Linux 6.8.0-49-generic */
 const systemName = () => (process.platform === "darwin" ? `macOS ${process.getSystemVersion()}` : process.platform === "linux" ? `Linux ${release()}` : `Windows ${release()}`);
 // which build wrote this file: without it two runs of different installers look like one app behaving inconsistently
-log("main", `start: sc player ${app.getVersion()}, Electron ${process.versions.electron}, ${systemName()}, ${process.arch}${process.env.PORTABLE_EXECUTABLE_DIR ? ", portable" : ""}`);
+log("main", `start: Moonwave ${app.getVersion()}, Electron ${process.versions.electron}, ${systemName()}, ${process.arch}${process.env.PORTABLE_EXECUTABLE_DIR ? ", portable" : ""}`);
 if (audioSandboxOff || gpuSandboxOff) {
   log("main", `sandbox: ${[audioSandboxOff ? "AudioServiceSandbox off" : "", gpuSandboxOff ? "gpu-sandbox off" : ""].filter(Boolean).join(", ")}`);
 }
-// a second copy (a click on a scplayer:// link, the menu entry again) hands its arguments over and leaves — it must
+// a second copy (a click on a moonwave:// link, the menu entry again) hands its arguments over and leaves — it must
 // not run the start below as well (it signed in, set the proxy and wrote files before quitting)
 const firstInstance = app.requestSingleInstanceLock();
 if (!firstInstance) app.quit();
@@ -186,7 +175,7 @@ app.on("child-process-gone", (_e, d) => {
 });
 setCommunityLyrics((t) => social.approvedLyrics(t));
 registerBackgroundScheme();
-app.setAppUserModelId("com.skythemontage.scplayer");
+app.setAppUserModelId("io.github.xsitraxs.moonwave");
 
 // ---- IPC ------------------------------------------------------------------------------------------------------------
 
@@ -454,7 +443,7 @@ function registerIpc() {
     const { text, count } = exportLocal();
     const date = new Date().toISOString().slice(0, 10);
     const r = await dialog.showSaveDialog(...((main ? [main] : []) as [BrowserWindow]), {
-      defaultPath: join(app.getPath("documents"), `sc player playlists ${date}.json`),
+      defaultPath: join(app.getPath("documents"), `Moonwave playlists ${date}.json`),
       filters: [{ name: m().playlistsFile, extensions: ["json"] }],
     });
     if (r.canceled || !r.filePath) return null;
@@ -653,7 +642,7 @@ function registerIpc() {
     const lines = [...(await read("main.old.log")), ...(await read("main.log"))].filter(Boolean).slice(-400);
     const version = app.getVersion();
     const text = [
-      `sc player ${version}${app.isPackaged ? "" : " (development)"}${process.env.PORTABLE_EXECUTABLE_DIR ? " portable" : ""}`,
+      `Moonwave ${version}${app.isPackaged ? "" : " (development)"}${process.env.PORTABLE_EXECUTABLE_DIR ? " portable" : ""}`,
       `${systemName()} (${process.arch})`,
       ...audioReport(),
       `signed in to SoundCloud: ${signedIn() ? "yes" : "no"}; messenger: ${social.myCode() ? "yes" : "no"}`,
@@ -665,13 +654,13 @@ function registerIpc() {
     ].join("\n");
     const date = new Date().toISOString().slice(0, 10);
     const r = await dialog.showSaveDialog(...((main ? [main] : []) as [BrowserWindow]), {
-      defaultPath: join(app.getPath("documents"), `sc player report ${date}.txt`),
+      defaultPath: join(app.getPath("documents"), `Moonwave report ${date}.txt`),
       filters: [{ name: m().textFile, extensions: ["txt"] }],
     });
     if (r.canceled || !r.filePath) return false;
     await writeFile(r.filePath, text, "utf8");
     shell.showItemInFolder(r.filePath);
-    const body = `sc player ${version}, ${systemName()}\n\nWhat happened:\n\n\nWhat I expected:\n\n\n(The report file ${r.filePath.split(/[\\/]/).pop()} is attached.)`;
+    const body = `Moonwave ${version}, ${systemName()}\n\nWhat happened:\n\n\nWhat I expected:\n\n\n(The report file ${r.filePath.split(/[\\/]/).pop()} is attached.)`;
     void shell.openExternal(`${ISSUES_URL}/new?title=${encodeURIComponent("Problem: ")}&body=${encodeURIComponent(body)}`);
     return true;
   });
@@ -728,12 +717,12 @@ function allowAudioCors() {
 
 // ---- lifecycle ------------------------------------------------------------------------------------------------------
 
-/** The browser sign-in's link (scplayer://signin?token=…&state=…) arrives as a second instance's arguments. */
+/** The browser sign-in's link (moonwave://signin?token=…&state=…) arrives as a second instance's arguments. */
 async function signInFromBrowser(argv: string[]) {
   const link = signInLinkFromArgs(argv);
   if (!link) return;
   // quietly only when this run is waiting for a link AND the link carries the state its helper page was given. Any
-  // page can open scplayer://signin?token=… while the app waits, so a link without the state (a bookmark from an
+  // page can open moonwave://signin?token=… while the app waits, so a link without the state (a bookmark from an
   // earlier session, or someone else's) is put to the person first, as is one that arrives after the 15 minutes.
   if (!matchesBrowserState(link.state)) {
     const ask: Electron.MessageBoxOptions = {
@@ -765,7 +754,7 @@ async function signInFromBrowser(argv: string[]) {
   send(main, "auth:changed", status);
 }
 
-/** A friend's link (scplayer://friend/SKY-XXXXX): the page opens the Inbox and asks before adding them. */
+/** A friend's link (moonwave://friend/SKY-XXXXX): the page opens the Inbox and asks before adding them. */
 function friendLink(argv: string[]) {
   const code = friendFromArgs(argv);
   if (code) send(main, "social:friendLink", code);

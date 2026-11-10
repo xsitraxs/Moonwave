@@ -1,8 +1,8 @@
 {
-  "name": "sc-player-api",
+  "name": "moonwave-api",
   "private": true,
   "type": "module",
-  "description": "sc player's server: track messenger, theme workshop, anonymous user count. No dependencies: Node 24 runs the TypeScript itself.",
+  "description": "Moonwave's server: track messenger, theme workshop, anonymous user count. No dependencies: Node 24 runs the TypeScript itself.",
   "engines": { "node": ">=24" },
   "scripts": {
     "start": "node src/main.ts",

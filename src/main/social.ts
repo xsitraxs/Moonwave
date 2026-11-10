@@ -14,7 +14,7 @@ import { appIcon, showWindow } from "./system/tray";
 import { send } from "./windows/main-window";
 
 /**
- * sc player's own server (server/README.md): the messenger, the workshop, the user count. The address comes with the
+ * Moonwave's own server (server/README.md): the messenger, the workshop, the user count. The address comes with the
  * build (server.local.json); in development SC_API may point at a local one. The device's secret is kept encrypted;
  * the page never sees it or the server's address beyond picture links.
  */
@@ -66,7 +66,7 @@ export async function api<T>(
 ): Promise<T> {
   if (!BASE) throw new ScError("unavailable", "no server in this build");
   // what this app can do: the server sends room invitations only to apps that can join
-  const headers: Record<string, string> = { "user-agent": `scplayer/${app.getVersion()}`, "x-sc-features": "rooms" };
+  const headers: Record<string, string> = { "user-agent": `moonwave/${app.getVersion()}`, "x-sc-features": "rooms" };
   const secret = getSecret("socialSecret");
   if (opts.admin) headers.authorization = `Admin ${opts.admin}`;
   else if (opts.auth !== false && secret) headers.authorization = `Bearer ${secret}`;
@@ -81,7 +81,7 @@ export async function api<T>(
       signal: AbortSignal.timeout(opts.timeout ?? 15_000),
     });
   } catch {
-    throw new ScError("offline", "sc player's server didn't answer");
+    throw new ScError("offline", "Moonwave's server didn't answer");
   }
   // the backup's sealed bytes
   if (opts.binary && res.ok) return (await res.arrayBuffer()) as T;
@@ -283,7 +283,7 @@ function invitePopup(inv: RoomInvite) {
   if (!prefs().socialPopups || !Notification.isSupported() || (w?.isVisible() && w.isFocused())) return;
   const n = new Notification({
     title: `${inv.name || inv.by} invites you to listen together`,
-    body: inv.track ? `Now: ${inv.track.title} — ${inv.track.artist}` : "Open sc player to join",
+    body: inv.track ? `Now: ${inv.track.title} — ${inv.track.artist}` : "Open Moonwave to join",
     icon: appIcon(),
   });
   n.on("click", () => {
@@ -293,7 +293,7 @@ function invitePopup(inv: RoomInvite) {
   n.show();
 }
 
-// ---- what sc player is playing --------------------------------------------------------------------------------------
+// ---- what Moonwave is playing --------------------------------------------------------------------------------------
 
 /** A track played for a while: its id to the server, anonymously (no device secret goes with it). */
 export async function listened(trackId: number) {
@@ -501,7 +501,7 @@ export async function setModerator(key: string | null): Promise<boolean> {
 
 // ---- start --------------------------------------------------------------------------------------------------------
 
-/** "Still on", every 5 minutes while the app runs (Count me as a user): how many people use sc player at once. */
+/** "Still on", every 5 minutes while the app runs (Count me as a user): how many people use Moonwave at once. */
 function stillOn() {
   if (!counted()) return;
   void api("POST", "/v1/online", { body: { install: loc().install }, auth: false, timeout: 10_000 }).catch(() => undefined);

@@ -12,7 +12,7 @@ import { Row, Section } from "./Controls";
 const key = ["backup"] as const;
 
 /**
- * Settings → Account → Backup: the transfer key of the copy kept on sc player's server (likes, own playlists and
+ * Settings → Account → Backup: the transfer key of the copy kept on Moonwave's server (likes, own playlists and
  * lyrics, the friend code), and bringing another computer's copy here by its key.
  */
 export default function Backup() {

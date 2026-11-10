@@ -1,5 +1,5 @@
 // Builds the app for the system it runs on. Releases are called v1, v1.1, v2.2.1 … : package.json keeps a semver
-// version (2.3.2) for Electron, the files get the short name (sc-player-setup-v2.3.exe).
+// version (2.3.2) for Electron, the files get the short name (moonwave-setup-v2.3.exe).
 //   Windows: the installer and the portable .exe        (npm run dist, on Windows)
 //   macOS:   .dmg and .zip, Apple Silicon and Intel     (on a Mac — the GitHub workflow "Release")
 //   Linux:   .AppImage and .deb, x64                    (on Linux — the same workflow)
@@ -27,12 +27,12 @@ const builder = (...args) => run("npx", ["electron-builder", ...args, "--publish
 
 if (process.platform === "darwin") {
   // both in one run: latest-mac.yml then lists both (the update check picks the one for this Mac)
-  builder("--mac", "dmg", "zip", "--arm64", "--x64", `-c.mac.artifactName=sc-player-${short}-\${arch}.\${ext}`);
+  builder("--mac", "dmg", "zip", "--arm64", "--x64", `-c.mac.artifactName=moonwave-${short}-\${arch}.\${ext}`);
 } else if (process.platform === "linux") {
-  builder("--linux", "AppImage", "deb", "--x64", `-c.appImage.artifactName=sc-player-${short}-x86_64.\${ext}`, `-c.deb.artifactName=sc-player-${short}-amd64.\${ext}`);
+  builder("--linux", "AppImage", "deb", "--x64", `-c.appImage.artifactName=moonwave-${short}-x86_64.\${ext}`, `-c.deb.artifactName=moonwave-${short}-amd64.\${ext}`);
 } else {
-  builder("--win", "nsis", "portable", `-c.nsis.artifactName=sc-player-setup-${short}.\${ext}`, `-c.portable.artifactName=sc-player-portable-${short}.\${ext}`);
+  builder("--win", "nsis", "portable", `-c.nsis.artifactName=moonwave-setup-${short}.\${ext}`, `-c.portable.artifactName=moonwave-portable-${short}.\${ext}`);
 }
 // a release is not done when the installers exist — it is done when the update metadata exists too (see verify-dist.mjs)
 run("node", ["scripts/verify-dist.mjs"]);
-console.log(`\nsc player ${short} (${version}) → dist/`);
+console.log(`\nMoonwave ${short} (${version}) → dist/`);

@@ -136,7 +136,7 @@ export interface LyricWord {
 
 /**
  * "own": words the user typed or pasted for this track (kept on this computer); "community": someone's timed words,
- * approved by the moderator on sc player's server
+ * approved by the moderator on Moonwave's server
  */
 export type LyricsSource = "lrclib" | "betterlyrics" | "unison" | "own" | "community";
 

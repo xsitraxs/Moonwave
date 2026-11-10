@@ -1,11 +1,11 @@
-// How many people got sc player, from GitHub's own download counters (nothing is collected from the app).
+// How many people got Moonwave, from GitHub's own download counters (nothing is collected from the app).
 //   npm run stats
 // GitHub counts downloads, not people: the installer counts include in-app updates and test downloads, and
 // latest.yml is fetched by every update check (on start and every few hours), so it only hints at how often
 // the app is running.
 const REPO = "xsitraxs/scplayer-fix";
 
-const headers = { Accept: "application/vnd.github+json", "User-Agent": "sc-player-stats" };
+const headers = { Accept: "application/vnd.github+json", "User-Agent": "moonwave-stats" };
 if (process.env.GITHUB_TOKEN) headers.Authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
 
 const releases = [];

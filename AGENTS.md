@@ -1,6 +1,6 @@
-# sc player — notes for coding agents and contributors
+# Moonwave — notes for coding agents and contributors
 
-sc player is a free, unofficial SoundCloud desktop client (Electron + React + TypeScript) for Windows, macOS and Linux,
+Moonwave is a free, unofficial SoundCloud desktop client (Electron + React + TypeScript) for Windows, macOS and Linux,
 with its own small server (`server/`). These are the project's working rules. They apply to people and AI agents alike
 (Claude Code, Codex, …).
 
@@ -40,7 +40,7 @@ npm run dev                      # the app; add SKY_PROFILE=<name> for a separat
 npm run typecheck && npm run lint && npm test
 ```
 
-- **Test instances use their own profile:** `SKY_PROFILE=test npm run dev` keeps its data in `%APPDATA%\sc player test`
+- **Test instances use their own profile:** `SKY_PROFILE=test npm run dev` keeps its data in `%APPDATA%\Moonwave test`
   (or the platform's equivalent). Never run tests in, or change, a real user's installed app or its data. Delete test
   profiles afterwards.
 - **`SC_API=http://127.0.0.1:8099`** points a dev build at a local server instead of the one in `server.local.json`.

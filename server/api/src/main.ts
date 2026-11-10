@@ -3,7 +3,7 @@ import { HttpError, ipOf, limit, send, trustProxyFrom } from "./http.ts";
 import { route } from "./routes.ts";
 
 /**
- * sc player's own server: the track messenger (friend codes, no accounts), the theme workshop and a pseudonymous
+ * Moonwave's own server: the track messenger (friend codes, no accounts), the theme workshop and a pseudonymous
  * count of running apps. JSON over HTTP behind Caddy (TLS); data in SQLite under DATA_DIR.
  */
 const PORT = Number(process.env.PORT ?? 8080);
@@ -29,6 +29,6 @@ const server = createServer(async (req, res) => {
 
 server.requestTimeout = 60_000;
 server.headersTimeout = 15_000;
-server.listen(PORT, () => console.log(`sc player api on :${PORT}`));
+server.listen(PORT, () => console.log(`Moonwave api on :${PORT}`));
 
 for (const sig of ["SIGINT", "SIGTERM"] as const) process.on(sig, () => server.close(() => process.exit(0)));

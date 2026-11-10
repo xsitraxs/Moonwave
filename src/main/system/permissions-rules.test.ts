@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { allowPermission, permissionUrl } from "./permissions-rules.ts";
+import { allowPermission, allowPermissionCheck, permissionUrl } from "./permissions-rules.ts";
 
 const APP = "file:///app/out/renderer/index.html";
 const isApp = (url: string) => url === APP || url.startsWith(`${APP}?`) || url.startsWith(`${APP}#`);
@@ -68,4 +68,24 @@ test("a worker check without webContents falls back to requestingOrigin", () => 
   const devApp = (u: string) => u.startsWith("http://localhost:5173");
   const workerUrl = permissionUrl({ requestingOrigin: "http://localhost:5173/" });
   assert.equal(allowPermission(workerUrl, "clipboard-sanitized-write", devApp), true);
+});
+
+test("the audio media check (enumerateDevices naming the outputs) passes for the app's page only", () => {
+  assert.equal(allowPermissionCheck(APP, "media", "audio", isApp), true);
+  for (const url of ["https://soundcloud.com/", "https://vk.com/audio", "about:blank", "", "file:///etc/passwd"]) {
+    assert.equal(allowPermissionCheck(url, "media", "audio", isApp), false, url);
+  }
+});
+
+test("the media check stays closed for video and unknown media, and a request never gets media", () => {
+  assert.equal(allowPermissionCheck(APP, "media", "video", isApp), false);
+  assert.equal(allowPermissionCheck(APP, "media", "unknown", isApp), false);
+  assert.equal(allowPermissionCheck(APP, "media", undefined, isApp), false);
+  assert.equal(allowPermission(APP, "media", isApp), false);
+});
+
+test("other checks follow the request rules", () => {
+  assert.equal(allowPermissionCheck(APP, "speaker-selection", undefined, isApp), true);
+  assert.equal(allowPermissionCheck(APP, "notifications", undefined, isApp), false);
+  assert.equal(allowPermissionCheck("https://soundcloud.com/", "fullscreen", undefined, isApp), false);
 });

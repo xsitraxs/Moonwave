@@ -7,12 +7,12 @@ import iconPath from "../../../resources/icon.png?asset";
 import { log } from "./log";
 
 /**
- * Linux: the .deb installs a menu entry (and with it the scplayer:// links for the browser sign-in and friend links);
+ * Linux: the .deb installs a menu entry (and with it the moonwave:// links for the browser sign-in and friend links);
  * an AppImage is one file anywhere, so it writes its own entry the first time it runs (and again when it moves).
  * Start with the system goes through ~/.config/autostart, as desktops expect.
  */
 
-const NAME = "sc-player";
+const NAME = "moonwave";
 const dataHome = () => process.env.XDG_DATA_HOME || join(homedir(), ".local", "share");
 const configHome = () => process.env.XDG_CONFIG_HOME || join(homedir(), ".config");
 
@@ -38,7 +38,7 @@ function entry(exec: string, extra: string[] = []) {
   return [
     "[Desktop Entry]",
     "Type=Application",
-    "Name=sc player",
+    "Name=Moonwave",
     "Comment=SoundCloud player",
     `Exec=${exec}`,
     `Icon=${NAME}`,
@@ -62,7 +62,7 @@ export function integrateLinux() {
     log("main", `linux: couldn't place the icon: ${String(err)}`);
   }
   const apps = join(dataHome(), "applications");
-  if (writeIfChanged(join(apps, `${NAME}.desktop`), entry(`${quoted(launcher())} %U`, ["MimeType=x-scheme-handler/scplayer;"]))) {
+  if (writeIfChanged(join(apps, `${NAME}.desktop`), entry(`${quoted(launcher())} %U`, ["MimeType=x-scheme-handler/moonwave;"]))) {
     log("main", "linux: menu entry written for the AppImage");
     // the desktop learns about the new link handler; missing tools are fine
     try {

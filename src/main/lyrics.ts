@@ -17,7 +17,7 @@ import { log } from "./system/log";
  * so a few cleaned-up variants are tried. What the user picks by hand is remembered per track.
  */
 const API = "https://lrclib.net/api";
-const UA = () => `sc player/${app.getVersion()} (${REPO_URL})`;
+const UA = () => `Moonwave/${app.getVersion()} (${REPO_URL})`;
 
 interface Raw {
   id: number;
@@ -323,7 +323,7 @@ export function mergeOwnLyrics(from: Record<string, { text: string; at: number }
 /** The user's own words for a track, as typed (sent for review from here). */
 export const ownText = (trackId: number) => ownFile().get().byTrack[String(trackId)]?.text ?? null;
 
-// ---- lyrics people made (approved by the moderator, on sc player's server) ----------------------------------------
+// ---- lyrics people made (approved by the moderator, on Moonwave's server) ----------------------------------------
 
 type Community = (trackId: number) => Promise<{ lrc: string; by: string } | null>;
 let community: Community | null = null;

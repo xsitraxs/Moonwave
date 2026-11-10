@@ -14,12 +14,12 @@ export { PROTOCOL, TOKEN };
  *
  * The browser shows a helper page (written to a folder of its own under the temp directory) with a bookmark to drag
  * to the bookmarks bar. After signing in on soundcloud.com as usual, a click on that bookmark reads the site's own
- * `oauth_token` cookie (readable by the page's scripts) and hands it to the app through the `scplayer://` link:
+ * `oauth_token` cookie (readable by the page's scripts) and hands it to the app through the `moonwave://` link:
  * Windows starts the app with that link and the running app gets it as a second instance's arguments. Nothing leaves
  * the computer.
  *
  * A link is taken without a question only while the user is waiting AND its one-time state is the one this run handed
- * to the helper page: any web page can open `scplayer://signin?token=…`, and without the state it could sign the app
+ * to the helper page: any web page can open `moonwave://signin?token=…`, and without the state it could sign the app
  * into someone else's account while the user sits at the sign-in screen. A bookmark made in an earlier session has no
  * such state (or an old one), so it still works, but asks first — which keeps the one-click way and puts the decision
  * in front of the person. The link handler stays registered after a sign-in and goes with "Cancel".
@@ -63,7 +63,7 @@ function dropHelperDir() {
   helperDir = null;
 }
 
-/** scplayer:// links open this app: a sign-in from the browser, a friend's link. Set at every start (installed). */
+/** moonwave:// links open this app: a sign-in from the browser, a friend's link. Set at every start (installed). */
 export function registerLinks() {
   if (process.platform === "darwin") {
     if (process.defaultApp) {
@@ -77,7 +77,7 @@ export function registerLinks() {
   }
 }
 
-/** The code from a friend link (`scplayer://friend/SKY-XXXXX`) among a new instance's arguments, if there is one. */
+/** The code from a friend link (`moonwave://friend/SKY-XXXXX`) among a new instance's arguments, if there is one. */
 export const friendFromArgs = parseFriendFromArgs;
 
 export function startBrowserSignIn() {
@@ -87,7 +87,7 @@ export function startBrowserSignIn() {
   dropHelperDir();
   // a folder of its own, created with owner-only rights: a fixed name under the shared temp directory could be
   // replaced by another local user's file (or read by them) between writing the page and the browser opening it
-  helperDir = mkdtempSync(join(app.getPath("temp"), "sc-player-"));
+  helperDir = mkdtempSync(join(app.getPath("temp"), "moonwave-"));
   const page = join(helperDir, "sign-in.html");
   writeFileSync(page, helperPage(wait.state!), { encoding: "utf8", mode: 0o600 });
   log("main", "login: browser sign-in started");
@@ -105,7 +105,7 @@ export function stopBrowserSignIn() {
   finishBrowserSignIn();
 }
 
-/** A sign-in link (`scplayer://signin?token=…&state=…`) among a new instance's arguments, if there is one. */
+/** A sign-in link (`moonwave://signin?token=…&state=…`) among a new instance's arguments, if there is one. */
 export function signInLinkFromArgs(argv: string[]) {
   return parseSignInLinkFromArgs(argv, (msg) => log("main", msg));
 }
@@ -119,16 +119,16 @@ function helperPage(state: string) {
   const bookmarklet = `(()=>{if(!/(^|\\.)soundcloud\\.com$/.test(location.hostname)){alert("${notScMsg}");return}const m=document.cookie.match(/(?:^|;\\s*)oauth_token=([^;]+)/);if(!m){alert("${notLoggedInMsg}");return}location.href="${PROTOCOL}://signin?token="+encodeURIComponent(m[1])+"&state=${state}"})()`;
   const href = `javascript:${encodeURIComponent(bookmarklet)}`;
 
-  const title = isRu ? "sc player — вход через браузер" : "sc player — sign in with your browser";
+  const title = isRu ? "Moonwave — вход через браузер" : "Moonwave — sign in with your browser";
   const h1 = isRu ? "Вход через браузер" : "Sign in with your browser";
   const lead = isRu ? "Это займёт минуту, а в следующий раз — в один клик." : "It takes a minute, and next time it's one click.";
   const dragNotice = isRu ? "Перетащите на панель закладок, а не нажимайте здесь." : "Drag it to the bookmarks bar instead of clicking.";
   const step1 = isRu
     ? `<b>Перетащите эту кнопку на панель закладок</b> (не нажимайте здесь):<br>
-      <a class="bookmark" href="${href}" onclick="alert('${dragNotice}');return false">sc player sign-in</a><br>
+      <a class="bookmark" href="${href}" onclick="alert('${dragNotice}');return false">Moonwave sign-in</a><br>
       <span class="muted">Нет панели закладок? Нажмите <kbd>${modKey}</kbd>+<kbd>Shift</kbd>+<kbd>B</kbd>.</span>`
     : `<b>Drag this button to your bookmarks bar</b> (don't click it here):<br>
-      <a class="bookmark" href="${href}" onclick="alert('${dragNotice}');return false">sc player sign-in</a><br>
+      <a class="bookmark" href="${href}" onclick="alert('${dragNotice}');return false">Moonwave sign-in</a><br>
       <span class="muted">No bookmarks bar? Press <kbd>${modKey}</kbd>+<kbd>Shift</kbd>+<kbd>B</kbd>.</span>`;
   const step2 = isRu
     ? `<b>Войдите в SoundCloud</b> в этом браузере как обычно: <a href="https://soundcloud.com/signin">soundcloud.com/signin</a>.<br>
@@ -136,11 +136,11 @@ function helperPage(state: string) {
     : `<b>Sign in to SoundCloud</b> in this browser as usual: <a href="https://soundcloud.com/signin">soundcloud.com/signin</a>.<br>
       <span class="muted">Already signed in here? Just open <a href="https://soundcloud.com/">soundcloud.com</a>.</span>`;
   const step3 = isRu
-    ? `<b>На soundcloud.com нажмите закладку «sc player sign-in».</b> Браузер спросит, открыть ли sc player — подтвердите. sc player выполнит вход, и эту вкладку можно закрыть. После перезапуска приложения закладка тоже работает, но приложение сначала спросит подтверждение.`
-    : `<b>On soundcloud.com, click the “sc player sign-in” bookmark.</b> The browser asks whether to open sc player — allow it. sc player signs in and this tab can be closed. After the app restarts the bookmark still works, but the app asks you to confirm first.`;
+    ? `<b>На soundcloud.com нажмите закладку «Moonwave sign-in».</b> Браузер спросит, открыть ли Moonwave — подтвердите. Moonwave выполнит вход, и эту вкладку можно закрыть. После перезапуска приложения закладка тоже работает, но приложение сначала спросит подтверждение.`
+    : `<b>On soundcloud.com, click the “Moonwave sign-in” bookmark.</b> The browser asks whether to open Moonwave — allow it. Moonwave signs in and this tab can be closed. After the app restarts the bookmark still works, but the app asks you to confirm first.`;
   const footer = isRu
-    ? `Закладка лишь передаёт ваш вход SoundCloud в sc player на этом компьютере; она никуда ничего не отправляет. Относитесь к ней как к паролю: не делитесь снимками экрана адреса, который она открывает.`
-    : `The bookmark only passes your SoundCloud sign-in to sc player on this computer; it sends nothing anywhere else. Treat it like a password: don't share screenshots of the address it opens.`;
+    ? `Закладка лишь передаёт ваш вход SoundCloud в Moonwave на этом компьютере; она никуда ничего не отправляет. Относитесь к ней как к паролю: не делитесь снимками экрана адреса, который она открывает.`
+    : `The bookmark only passes your SoundCloud sign-in to Moonwave on this computer; it sends nothing anywhere else. Treat it like a password: don't share screenshots of the address it opens.`;
 
   return `<!doctype html>
 <html lang="${isRu ? "ru" : "en"}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">

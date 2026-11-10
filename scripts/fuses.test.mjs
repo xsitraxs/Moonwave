@@ -17,11 +17,11 @@ test("the fuses match what the task asks for: no Node mode, no NODE_OPTIONS, no 
 });
 
 test("the packed executable is found where each platform puts it", () => {
-  const names = { productFilename: "sc player", executableName: "sc-player", platform: "linux" };
-  assert.equal(electronBinaryIn("/out/mac-arm64", { ...names, platform: "darwin" }), join("/out/mac-arm64", "sc player.app"));
-  assert.equal(electronBinaryIn("/out/win-unpacked", { ...names, platform: "win32" }), join("/out/win-unpacked", "sc player.exe"));
+  const names = { productFilename: "Moonwave", executableName: "moonwave", platform: "linux" };
+  assert.equal(electronBinaryIn("/out/mac-arm64", { ...names, platform: "darwin" }), join("/out/mac-arm64", "Moonwave.app"));
+  assert.equal(electronBinaryIn("/out/win-unpacked", { ...names, platform: "win32" }), join("/out/win-unpacked", "Moonwave.exe"));
   // Linux: build.linux.executableName, not the product name with its space
-  assert.equal(electronBinaryIn("/out/linux-unpacked", names), join("/out/linux-unpacked", "sc-player"));
+  assert.equal(electronBinaryIn("/out/linux-unpacked", names), join("/out/linux-unpacked", "moonwave"));
 });
 
 test("a wire is only accepted when every fuse has its expected state", () => {

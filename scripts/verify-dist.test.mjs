@@ -36,17 +36,17 @@ function fakeDist({ version = "2.3.2" } = {}) {
   const dir = mkdtempSync(join(tmpdir(), "verify-dist-"));
   cleanup.push(dir);
   const file = (name, size = 4096) => writeFileSync(join(dir, name), Buffer.alloc(size, 1));
-  file("sc-player-setup-v2.3.exe");
-  file("sc-player-setup-v2.3.exe.blockmap");
-  file("sc-player-portable-v2.3.exe");
-  file("sc-player-2.3.2-arm64.dmg");
-  file("sc-player-2.3.2-x64.dmg");
-  file("sc-player-2.3.2-arm64.zip");
-  file("sc-player-2.3.2-arm64.zip.blockmap");
-  file("sc-player-2.3.2-x64.zip");
-  file("sc-player-2.3.2-x64.zip.blockmap");
-  file("sc-player-v2.3-x86_64.AppImage");
-  file("sc-player-v2.3-amd64.deb");
+  file("moonwave-setup-v2.3.exe");
+  file("moonwave-setup-v2.3.exe.blockmap");
+  file("moonwave-portable-v2.3.exe");
+  file("moonwave-2.3.2-arm64.dmg");
+  file("moonwave-2.3.2-x64.dmg");
+  file("moonwave-2.3.2-arm64.zip");
+  file("moonwave-2.3.2-arm64.zip.blockmap");
+  file("moonwave-2.3.2-x64.zip");
+  file("moonwave-2.3.2-x64.zip.blockmap");
+  file("moonwave-v2.3-x86_64.AppImage");
+  file("moonwave-v2.3-amd64.deb");
   const writeYml = (name, text) => writeFileSync(join(dir, name), text);
   const yml = (versionOverride, entries) =>
     [
@@ -81,33 +81,33 @@ test("latest.yml parses: version, the files list, sizes and optional blockMapSiz
   const text = [
     "version: 2.3.2",
     "files:",
-    "  - url: sc-player-setup-v2.3.2.exe",
+    "  - url: moonwave-setup-v2.3.2.exe",
     "    sha512: AAA",
     "    size: 12345",
     "    blockMapSize: 321",
     "  - url: other.exe",
     "    size: 67",
-    "path: sc-player-setup-v2.3.2.exe",
+    "path: moonwave-setup-v2.3.2.exe",
     "sha512: AAA",
     "",
   ].join("\n");
   const yml = parseLatestYml(text);
   assert.equal(yml.version, "2.3.2");
-  assert.equal(yml.path, "sc-player-setup-v2.3.2.exe");
+  assert.equal(yml.path, "moonwave-setup-v2.3.2.exe");
   assert.deepEqual(yml.files, [
-    { url: "sc-player-setup-v2.3.2.exe", size: 12345, blockMapSize: 321 },
+    { url: "moonwave-setup-v2.3.2.exe", size: 12345, blockMapSize: 321 },
     { url: "other.exe", size: 67, blockMapSize: null },
   ]);
 });
 
 test("windows: a complete build passes; missing NSIS blockmap fails", () => {
   const { dir, writeYml, yml } = fakeDist();
-  writeYml("latest.yml", yml(undefined, [["sc-player-setup-v2.3.exe", 4096]]));
+  writeYml("latest.yml", yml(undefined, [["moonwave-setup-v2.3.exe", 4096]]));
   assert.deepEqual(verifyDist({ dir, platform: "win32", expectVersion: "2.3.2" }), []);
 
-  unlinkSync(join(dir, "sc-player-setup-v2.3.exe.blockmap"));
+  unlinkSync(join(dir, "moonwave-setup-v2.3.exe.blockmap"));
   const problems = verifyDist({ dir, platform: "win32", expectVersion: "2.3.2" });
-  assert.ok(problems.some((p) => /missing blockmap sc-player-setup-v2\.3\.exe\.blockmap/.test(p)));
+  assert.ok(problems.some((p) => /missing blockmap moonwave-setup-v2\.3\.exe\.blockmap/.test(p)));
 });
 
 test("windows: missing latest.yml fails, and says so", () => {
@@ -118,7 +118,7 @@ test("windows: missing latest.yml fails, and says so", () => {
 
 test("windows: a version that does not match package.json fails", () => {
   const { dir, writeYml, yml } = fakeDist({ version: "2.3.1" });
-  writeYml("latest.yml", yml(undefined, [["sc-player-setup-v2.3.exe", 4096]]));
+  writeYml("latest.yml", yml(undefined, [["moonwave-setup-v2.3.exe", 4096]]));
   const problems = verifyDist({ dir, platform: "win32", expectVersion: "2.3.2" });
   assert.ok(problems.some((p) => /version 2\.3\.1 != package\.json 2\.3\.2/.test(p)));
 });
@@ -126,8 +126,8 @@ test("windows: a version that does not match package.json fails", () => {
 test("windows: the portable exe in latest.yml fails — it can never self-update", () => {
   const { dir, writeYml, yml } = fakeDist();
   writeYml("latest.yml", yml(undefined, [
-    ["sc-player-setup-v2.3.exe", 4096],
-    ["sc-player-portable-v2.3.exe", 4096],
+    ["moonwave-setup-v2.3.exe", 4096],
+    ["moonwave-portable-v2.3.exe", 4096],
   ]));
   const problems = verifyDist({ dir, platform: "win32", expectVersion: "2.3.2" });
   assert.ok(problems.some((p) => /portable/i.test(p)));
@@ -135,42 +135,42 @@ test("windows: the portable exe in latest.yml fails — it can never self-update
 
 test("windows: a listed file that does not exist fails; a wrong size fails", () => {
   const { dir, writeYml, yml } = fakeDist();
-  writeYml("latest.yml", yml(undefined, [["sc-player-setup-v2.3.exe", 1]]));
+  writeYml("latest.yml", yml(undefined, [["moonwave-setup-v2.3.exe", 1]]));
   const problems = verifyDist({ dir, platform: "win32", expectVersion: "2.3.2" });
   assert.ok(problems.some((p) => /size 4096 != latest\.yml size 1/.test(p)));
 
-  writeYml("latest.yml", yml(undefined, [["sc-player-setup-v9.9.exe", 1]]));
+  writeYml("latest.yml", yml(undefined, [["moonwave-setup-v9.9.exe", 1]]));
   const missing = verifyDist({ dir, platform: "win32", expectVersion: "2.3.2" });
-  assert.ok(missing.some((p) => /lists sc-player-setup-v9\.9\.exe but it is not in/.test(p)));
+  assert.ok(missing.some((p) => /lists moonwave-setup-v9\.9\.exe but it is not in/.test(p)));
 });
 
 test("macOS: a complete build passes; zip or zip.blockmap missing fails", () => {
   const { dir, writeYml, yml } = fakeDist();
-  writeYml("latest-mac.yml", yml(undefined, [["sc-player-2.3.2-arm64.zip", 4096]]));
+  writeYml("latest-mac.yml", yml(undefined, [["moonwave-2.3.2-arm64.zip", 4096]]));
   assert.deepEqual(verifyDist({ dir, platform: "darwin", expectVersion: "2.3.2" }), []);
 
-  unlinkSync(join(dir, "sc-player-2.3.2-arm64.zip.blockmap"));
+  unlinkSync(join(dir, "moonwave-2.3.2-arm64.zip.blockmap"));
   const noBlockmap = verifyDist({ dir, platform: "darwin", expectVersion: "2.3.2" });
-  assert.ok(noBlockmap.some((p) => /missing blockmap sc-player-2\.3\.2-arm64\.zip\.blockmap/.test(p)));
+  assert.ok(noBlockmap.some((p) => /missing blockmap moonwave-2\.3\.2-arm64\.zip\.blockmap/.test(p)));
 
-  writeYml("latest-mac.yml", yml(undefined, [["sc-player-2.3.2-arm64.dmg", 4096]]));
+  writeYml("latest-mac.yml", yml(undefined, [["moonwave-2.3.2-arm64.dmg", 4096]]));
   const problems = verifyDist({ dir, platform: "darwin", expectVersion: "2.3.2" });
   assert.ok(problems.some((p) => /does not list a .zip/.test(p)));
 });
 
 test("linux: a complete build passes; AppImage not listed fails", () => {
   const { dir, writeYml, yml } = fakeDist();
-  writeYml("latest-linux.yml", yml(undefined, [["sc-player-v2.3-x86_64.AppImage", 4096]]));
+  writeYml("latest-linux.yml", yml(undefined, [["moonwave-v2.3-x86_64.AppImage", 4096]]));
   assert.deepEqual(verifyDist({ dir, platform: "linux", expectVersion: "2.3.2" }), []);
 
-  writeYml("latest-linux.yml", yml(undefined, [["sc-player-v2.3-amd64.deb", 4096]]));
+  writeYml("latest-linux.yml", yml(undefined, [["moonwave-v2.3-amd64.deb", 4096]]));
   const problems = verifyDist({ dir, platform: "linux", expectVersion: "2.3.2" });
   assert.ok(problems.some((p) => /does not list the AppImage/.test(p)));
 });
 
 test("a tag like v2.4 matches package.json 2.4.0", () => {
   const { dir, writeYml, yml } = fakeDist({ version: "2.4.0" });
-  writeYml("latest-linux.yml", yml("2.4.0", [["sc-player-v2.3-x86_64.AppImage", 4096]]));
+  writeYml("latest-linux.yml", yml("2.4.0", [["moonwave-v2.3-x86_64.AppImage", 4096]]));
   assert.deepEqual(verifyDist({ dir, platform: "linux", expectVersion: "2.4" }), []);
 });
 
@@ -187,24 +187,24 @@ test("fuses: every unpacked app is found, including both mac (x64) and mac-arm64
   const { dir } = fakeDist();
   mkdirSync(join(dir, "linux-unpacked"));
   mkdirSync(join(dir, "win-unpacked"));
-  mkdirSync(join(dir, "mac", "sc player.app"), { recursive: true });
-  mkdirSync(join(dir, "mac-arm64", "sc player.app"), { recursive: true });
-  writeFileSync(join(dir, "linux-unpacked", "sc-player"), "x");
-  writeFileSync(join(dir, "win-unpacked", "sc player.exe"), "x");
+  mkdirSync(join(dir, "mac", "Moonwave.app"), { recursive: true });
+  mkdirSync(join(dir, "mac-arm64", "Moonwave.app"), { recursive: true });
+  writeFileSync(join(dir, "linux-unpacked", "moonwave"), "x");
+  writeFileSync(join(dir, "win-unpacked", "Moonwave.exe"), "x");
   assert.equal(unpackedApp(dir, "linux"), join(dir, "linux-unpacked"));
   assert.equal(unpackedApp(dir, "win32"), join(dir, "win-unpacked"));
   assert.deepEqual(unpackedApps(dir, "darwin"), [
-    join(dir, "mac", "sc player.app"),
-    join(dir, "mac-arm64", "sc player.app"),
+    join(dir, "mac", "Moonwave.app"),
+    join(dir, "mac-arm64", "Moonwave.app"),
   ]);
-  assert.equal(fusesTarget(join(dir, "linux-unpacked"), "linux"), join(dir, "linux-unpacked", "sc-player"));
-  assert.equal(fusesTarget(join(dir, "win-unpacked"), "win32"), join(dir, "win-unpacked", "sc player.exe"));
+  assert.equal(fusesTarget(join(dir, "linux-unpacked"), "linux"), join(dir, "linux-unpacked", "moonwave"));
+  assert.equal(fusesTarget(join(dir, "win-unpacked"), "win32"), join(dir, "win-unpacked", "Moonwave.exe"));
 });
 
 test("fuses: an app whose binary has no fuse wire fails, and says the hook did not run", async () => {
   const { dir } = fakeDist();
   mkdirSync(join(dir, "linux-unpacked"));
-  writeFileSync(join(dir, "linux-unpacked", "sc-player"), "not an electron binary");
+  writeFileSync(join(dir, "linux-unpacked", "moonwave"), "not an electron binary");
   const problems = await verifyFuses({ dir, platform: "linux" });
   assert.equal(problems.length, 1);
   assert.match(problems[0], /fuses\.mjs did not run/);
@@ -213,7 +213,7 @@ test("fuses: an app whose binary has no fuse wire fails, and says the hook did n
 test("fuses + ASAR integrity (macOS): checks both mac and mac-arm64 Info.plist hashes against app.asar", async () => {
   const { dir } = fakeDist();
   for (const folder of ["mac", "mac-arm64"]) {
-    const appDir = join(dir, folder, "sc player.app");
+    const appDir = join(dir, folder, "Moonwave.app");
     const fw = join(appDir, "Contents", "Frameworks", "Electron Framework.framework", "Electron Framework");
     writeFuseCarrier(fw);
     await flipFuses(appDir, { version: FuseVersion.V1, ...FUSES, resetAdHocDarwinSignature: false });
@@ -227,7 +227,7 @@ test("fuses + ASAR integrity (macOS): checks both mac and mac-arm64 Info.plist h
 
   // Tamper only mac-arm64's Info.plist hash: verifyFuses must catch the second bundle too
   writeFileSync(
-    join(dir, "mac-arm64", "sc player.app", "Contents", "Info.plist"),
+    join(dir, "mac-arm64", "Moonwave.app", "Contents", "Info.plist"),
     plist.build({ ElectronAsarIntegrity: { "Resources/app.asar": { algorithm: "SHA256", hash: "0".repeat(64) } } }),
   );
   const bad = await verifyFuses({ dir, platform: "darwin", checkCodesign: false });
@@ -239,7 +239,7 @@ test("fuses + ASAR integrity (Windows): checks the INTEGRITY/ELECTRONASAR PE res
   const { dir } = fakeDist();
   const unpacked = join(dir, "win-unpacked");
   mkdirSync(unpacked, { recursive: true });
-  const exePath = join(unpacked, "sc player.exe");
+  const exePath = join(unpacked, "Moonwave.exe");
   const exe0 = resedit.NtExecutable.from(readFileSync("node_modules/electron-winstaller/vendor/rcedit.exe"));
   const rdata = exe0.getAllSections().find((s) => s.info.name.startsWith(".rdata"));
   const wire = Buffer.concat([Buffer.from(SENTINEL), Buffer.from([1, 9, 49, 48, 49, 49, 48, 48, 48, 49, 49])]);

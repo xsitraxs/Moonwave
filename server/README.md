@@ -1,4 +1,4 @@
-# sc player server
+# Moonwave server
 
 One small VPS runs everything the app needs from its own side:
 
@@ -15,30 +15,30 @@ Caddy takes the certificate from Let's Encrypt itself and renews it (no e-mail n
 - **Workshop:** published themes — name, description, the appearance knobs, optional CSS (style only: no `url()`, `@import`, fonts or scripts; checked here and again in the app), an optional background image or video (up to 25 MB, type checked by its bytes) and a preview image. Three reports hide a theme until a moderator looks.
 - **Counter:** only while the person keeps it on (Settings → Messenger; a new install starts with it off). Once a day
   per install — a random install id and the app version. No IP, no account, nothing else.
-- **Listening:** only while the person keeps it on. A track id, no device secret, no account — "Listening on sc
-  player" is written without asking anyone who listened.
+- **Listening:** only while the person keeps it on. A track id, no device secret, no account — "Listening on
+  Moonwave" is written without asking anyone who listened.
 
 ## Deploy
 
 On a fresh Ubuntu/Debian VPS (1 vCPU / 1 GB is plenty):
 
 ```bash
-ssh -i ~/.ssh/sc-player-vps root@<ip>
+ssh -i ~/.ssh/moonwave-vps root@<ip>
 curl -fsSL https://get.docker.com | sh
 ufw allow 22,80,443/tcp && ufw allow 443/udp && ufw --force enable
-mkdir -p /opt/sc-player
+mkdir -p /opt/moonwave
 ```
 
 From this folder on your PC:
 
 ```bash
-scp -i ~/.ssh/sc-player-vps -r caddy api docker-compose.yml .env.example root@<ip>:/opt/sc-player/
+scp -i ~/.ssh/moonwave-vps -r caddy api docker-compose.yml .env.example root@<ip>:/opt/moonwave/
 ```
 
 On the server:
 
 ```bash
-cd /opt/sc-player
+cd /opt/moonwave
 cp .env.example .env && nano .env      # domain, proxy password and secret name, admin token
 docker compose up -d --build
 curl https://<domain>/v1/health         # {"ok":true}
@@ -73,7 +73,7 @@ curl -X DELETE -H "Authorization: Admin $ADMIN_TOKEN" https://<domain>/v1/themes
 Backup (the database and theme files live in the `api-data` volume):
 
 ```bash
-docker run --rm -v sc-player_api-data:/d -v $PWD:/b alpine tar czf /b/api-data-$(date +%F).tgz -C /d .
+docker run --rm -v moonwave_api-data:/d -v $PWD:/b alpine tar czf /b/api-data-$(date +%F).tgz -C /d .
 ```
 
 ## Developing

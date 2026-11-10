@@ -127,7 +127,7 @@ export function ColorPicker({
         {sample === "text" && (
           <>
             <span className="text-2xl font-semibold leading-none text-white">Aa</span>
-            <span className="mt-1.5 text-[11px] text-white/60">sc player</span>
+            <span className="mt-1.5 text-[11px] text-white/60">Moonwave</span>
           </>
         )}
       </div>

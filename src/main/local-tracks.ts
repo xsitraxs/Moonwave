@@ -161,7 +161,7 @@ export function serveLocalTracks() {
 export function withLocalTracks(p: MusicProvider): MusicProvider {
   const local = (id: number) => {
     const f = byId(id);
-    if (!f) throw new ScError("not_found", "This file isn't in sc player any more");
+    if (!f) throw new ScError("not_found", "This file isn't in Moonwave any more");
     return f;
   };
   const own: Partial<MusicProvider> = {
