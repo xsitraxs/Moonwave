@@ -19,6 +19,8 @@ const MAX_PARALLEL = 4;
 const MAX_TRIES = 4;
 const CACHE_LIMIT = 300;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+/** same redaction everywhere: no token-like runs anywhere in a log line */
+const redactSecrets = (s: string) => s.replace(/[A-Za-z0-9_-]{20,}/g, "…").slice(0, 240);
 
 /**
  * The only way to api-v2. Gentle with SoundCloud: at most 4 requests at a time, identical GETs share one request and
@@ -116,7 +118,9 @@ export class ScHttp {
           if (!(await reportNetTrouble())) await sleep(1000);
           continue;
         }
-        throw new ScError("offline", (err as Error).message);
+        // the query never reaches the log (it carries the client_id); the message may, redacted
+        log("main", `http: ${method} ${url.pathname} → network error: ${redactSecrets((err as Error).message)}`);
+        throw new ScError("offline", redactSecrets((err as Error).message));
       }
 
       if (res.status === 429) {
@@ -124,11 +128,12 @@ export class ScHttp {
         const wait = Number.isFinite(header) && header > 0 ? header * 1000 : Math.min(30_000, 2000 * 2 ** attempt);
         this.pausedUntil = Math.max(this.pausedUntil, Date.now() + wait);
         if (attempt < MAX_TRIES - 1) continue;
+        log("main", `http: ${method} ${url.pathname} → ${res.status} (retry budget spent, asked for ${res.headers.get("retry-after") ?? "?"} s)`);
         throw new ScError("rate_limited", `SoundCloud asks to slow down (retry in ${Math.round(wait / 1000)} s)`);
       }
       if (res.status === 401 || res.status === 403) {
         // what refused it, for the log: SoundCloud itself or its bot protection (DataDome); no tokens, no query
-        const text = (await res.text().catch(() => "")).replace(/[A-Za-z0-9_-]{20,}/g, "…").slice(0, 240);
+        const text = redactSecrets(await res.text().catch(() => ""));
         const datadome = res.headers.has("x-datadome") || /datadome|captcha-delivery/i.test(text);
         log("main", `http: ${method} ${url.pathname} → ${res.status}${datadome ? " [DataDome]" : ""} ${res.headers.get("content-type") ?? ""} ${text}`);
         // the bot protection wants a person checked (actions: likes, playlists); not the token's fault
@@ -148,16 +153,27 @@ export class ScHttp {
         }
         throw new ScError(token ? "unauthorized" : "unavailable", `SoundCloud answered ${res.status}`);
       }
-      if (res.status === 404) throw new ScError("not_found", `not found: ${url.pathname}`);
+      if (res.status === 404) {
+        // deliberately visible: a not_found that isn't logged is indistinguishable from a wrong method or path
+        const text = redactSecrets(await res.text().catch(() => ""));
+        log("main", `http: ${method} ${url.pathname} → 404 ${text}`);
+        throw new ScError("not_found", `not found: ${url.pathname}`);
+      }
       if (res.status >= 500) {
         if (!serverRetried) {
           serverRetried = true;
           await sleep(1500);
           continue;
         }
+        const text = redactSecrets(await res.text().catch(() => ""));
+        log("main", `http: ${method} ${url.pathname} → ${res.status} ${text}`);
         throw new ScError("unknown", `SoundCloud server error ${res.status}`);
       }
-      if (!res.ok) throw new ScError("unknown", `SoundCloud answered ${res.status}`);
+      if (!res.ok) {
+        const text = redactSecrets(await res.text().catch(() => ""));
+        log("main", `http: ${method} ${url.pathname} → ${res.status} ${res.headers.get("content-type") ?? ""} ${text}`);
+        throw new ScError("unknown", `SoundCloud answered ${res.status}`);
+      }
 
       const text = await res.text();
       if (!text) return undefined as T;
