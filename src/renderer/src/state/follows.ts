@@ -92,10 +92,13 @@ export async function toggleFollow(user: { id: number; permalinkUrl: string }) {
 }
 
 /**
- * After the check: try the write again. Unlike likes there is no refresh channel for the followed ids, so a success
- * on the site that the app never saw can't be confirmed — the write itself is the source of truth.
+ * After the check: try the write again. The site itself is the source of truth, and since the app hears the site's
+ * writes (follows:synced), the desired state may already hold by now — the person may have followed on soundcloud.com
+ * in the check window and the app already re-read the list. Then there is nothing to retry and the answer is yes;
+ * otherwise the write itself decides.
  */
 async function retryFollow(user: { id: number }, followed: boolean): Promise<boolean> {
+  if (useFollows.getState().ids.has(user.id) === followed) return true;
   try {
     await call("data:setFollowed", user.id, followed);
   } catch {
