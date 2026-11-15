@@ -527,8 +527,8 @@ export class WebSessionProvider implements MusicProvider {
   }
 
   async follow(userId: number): Promise<void> {
-    // SoundCloud's own client writes to /me/followings/{userId} (unlike likes, which go to /users/{id}/track_likes/{id})
-    await this.http.json(`/me/followings/${userId}`, {}, { method: "PUT", auth: "required" });
+    // The create verb for following is POST, not PUT. SoundCloud's web client endpoint table sends myFollowingsCreate as POST to /me/followings/:id and myFollowingsDelete as DELETE — a live DELETE works while a live PUT answers 404 with an empty body, i.e. the PUT route simply doesn't exist. Likes differ: the like endpoint uses PUT. A POST gets stopped by bot protection instead (403 + DataDome = the "verify" code), which is what the check dialog is for.
+    await this.http.json(`/me/followings/${userId}`, {}, { method: "POST", auth: "required" });
     this.followed?.add(userId);
     // the followings list was cached for a minute: show the new follow right away
     this.http.clearCache();
