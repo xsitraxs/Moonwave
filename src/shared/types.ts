@@ -142,8 +142,17 @@ export type LyricsSource = "lrclib" | "betterlyrics" | "unison" | "own" | "commu
 
 /** A Wallpaper Engine wallpaper from the Steam Workshop, looked for on this computer (main/system/steam-wallpaper). */
 export type SteamWallpaper =
-  | { found: true; id: string; title: string; sizeMb: number; /** scbg://import/… for the page to read it */ url: string }
-  | { found: false; id: string; reason: "link" | "missing" | "not-video" };
+  | {
+      found: true;
+      id: string;
+      title: string;
+      sizeMb: number;
+      /** scbg://import/… for the page to read it */
+      url: string;
+      /** a video wallpaper, or the picture (usually an animated preview) of a scene / web wallpaper */
+      kind: "video" | "image";
+    }
+  | { found: false; id: string; reason: "link" | "missing" | "not-video" | "no-preview" };
 
 /** The backup of what lives only on this computer (main/backup): its transfer key, when it last went out. */
 export interface BackupStatus {

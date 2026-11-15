@@ -124,16 +124,22 @@ export async function pickBackground(win: BrowserWindow | null): Promise<{ file:
   return { file, type };
 }
 
-/** An imported video kept as it is (no 2K copy): copied like a picked file. */
-export function keepImport(url: string): { file: string; type: "video" } {
+/**
+ * An imported wallpaper kept as it is (no 2K copy for a video, the picture for a scene / web wallpaper): copied like a
+ * picked file. The type is read off the extension — a scene preview arrives here as an image, an .mp4 as a video.
+ */
+export function keepImport(url: string): { file: string; type: "image" | "video" } {
   const src = importPath(url);
-  if (!src) throw new Error("This video isn't there any more");
+  if (!src) throw new Error("This wallpaper isn't there any more");
+  const ext = extname(src).toLowerCase();
+  const type = VIDEO.includes(ext) ? "video" : IMAGE.includes(ext) ? "image" : null;
+  if (!type) throw new Error("This file type can't be a background");
   if (statSync(src).size > MAX_BYTES) throw new Error("The file is too big for a background (300 MB at most)");
   mkdirSync(folder(), { recursive: true });
   dropBackgrounds();
-  const file = `bg-${Date.now()}${extname(src).toLowerCase()}`;
+  const file = `bg-${Date.now()}${ext}`;
   copyFileSync(src, join(folder(), file));
-  return { file, type: "video" };
+  return { file, type };
 }
 
 /** The size of the current own background (to know whether it fits the workshop); 0 when there is none. */

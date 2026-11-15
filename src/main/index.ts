@@ -26,6 +26,7 @@ import { m } from "./i18n";
 import { readImport, resolveItem } from "./import/sources";
 import { openVkBookmark, readVk } from "./import/vk";
 import * as rooms from "./rooms";
+import * as followsWatch from "./soundcloud/follows-watch";
 import * as social from "./social";
 import { patchRenderer, prefs, store } from "./store";
 import { getSecret, secretsEphemeral, setSecret, unopenedSecrets } from "./store/secrets";
@@ -418,6 +419,8 @@ function registerIpc() {
   handle("data:userTracks", (_e, u, c) => data.getUserTracks(id(u), cursor(c)));
   handle("data:userPlaylists", (_e, u, c) => data.getUserPlaylists(id(u), cursor(c)));
   handle("data:followings", (_e, u, c) => data.getFollowings(u === "me" ? "me" : id(u), cursor(c)));
+  handle("data:followedIds", (_e, refresh) => data.getFollowedIds(refresh === true));
+  handle("data:setFollowed", (_e, u, on) => (on === true ? data.follow(id(u)) : data.unfollow(id(u))));
   handle("data:tracks", (_e, ids) => data.getTracks(Array.isArray(ids) ? ids.map(id) : bad("ids")));
   handle("data:sourceIds", (_e, source) => {
     const s = queueSource(source);
@@ -677,7 +680,7 @@ function registerIpc() {
   handle("hotkeys:suspend", (_e, on) => {
     send(main, "hotkeys:failed", suspendHotkeys(on === true));
   });
-  handle("app:info", () => ({ version: app.getVersion(), portable: !!process.env.PORTABLE_EXECUTABLE_DIR, packaged: app.isPackaged, logsDir: logsDir(), builtinProxy: hasBuiltinProxy(), proxyRoute: proxyRoute(), memorySaver, secretsPersist: !secretsEphemeral(), graphics: graphicsStatus() }));
+  handle("app:info", () => ({ version: app.getVersion(), portable: !!process.env.PORTABLE_EXECUTABLE_DIR, packaged: app.isPackaged, logsDir: logsDir(), builtinProxy: hasBuiltinProxy(), proxyRoute: proxyRoute(), memorySaver, secretsPersist: !secretsEphemeral(), graphics: graphicsStatus(), demo: DEMO }));
   handle("app:relaunch", () => {
     relaunchApp();
     app.quit();
@@ -1020,6 +1023,8 @@ void app.whenReady().then(async () => {
   log("main", `start: set up in ${Math.round(process.uptime() * 1000) - readyMs} ms after ready`);
   updater.initUpdater(() => main, () => prefs().checkUpdates);
   social.initSocial(() => main);
+  // the person may follow on soundcloud.com itself inside the check window: hear that write and re-read the list (the page keeps the counter and the buttons honest)
+  followsWatch.initFollowsWatch(data, () => main);
   initBackup();
   rooms.initRooms(() => main);
   // back in front: the messenger catches up at once

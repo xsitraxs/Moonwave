@@ -29,6 +29,11 @@ export interface MusicProvider {
   getUserPlaylists(userId: number, cursor?: string | null): Promise<Page<Playlist>>;
   /** the people a user follows ("me" = the signed-in account) */
   getFollowings(userId: number | "me", cursor?: string | null): Promise<Page<User>>;
+  /** ids of every account the signed-in user follows (for the follow buttons); read once a session, kept up to date by follow / unfollow. `true` re-reads the site (a change the app never saw, e.g. done on the site in the check window) */
+  getFollowedIds(refresh?: boolean): Promise<number[]>;
+  /** follow an account on SoundCloud (like / unlike, this goes to the account, not this computer) */
+  follow(userId: number): Promise<void>;
+  unfollow(userId: number): Promise<void>;
   resolve(url: string): Promise<Resolved>;
   /** full tracks by id, in the given order (unavailable ones left out); up to 200 ids */
   getTracks(ids: number[]): Promise<Track[]>;

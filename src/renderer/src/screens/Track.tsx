@@ -10,6 +10,8 @@ import { useT } from "@/i18n";
 import { compactNumber, duration } from "@/lib/format";
 import { call } from "@/lib/sky";
 import { useNav } from "@/state/nav";
+import { toggleFollow, useFollowed } from "@/state/follows";
+import { useAuth } from "@/state/auth";
 import { canPlay, player, usePlayer } from "@/state/player";
 import { useUi } from "@/state/ui";
 
@@ -26,6 +28,9 @@ export default function Track({ id }: { id: number }) {
   const [more, setMore] = useState(false);
   const current = usePlayer((s) => s.queue[s.index]?.id === id);
   const playing = usePlayer((s) => s.queue[s.index]?.id === id && (s.status === "playing" || s.status === "loading"));
+  // hooks above the early returns; the artist's own id is only known after the details load
+  const signedIn = useAuth((s) => s.status?.mode === "session");
+  const artistFollowed = useFollowed(details.data?.track.user.id);
   const d = details.data;
   const protectedTrack = !!d && d.track.playability !== "ok";
   const others = useAlternatives(id, protectedTrack);
@@ -57,9 +62,16 @@ export default function Track({ id }: { id: number }) {
             {tr.playability !== "ok" && <span className="ml-2 rounded-sm border border-current px-1">{t[tr.playability]}</span>}
           </div>
           <h1 className={`display-heading my-1 line-clamp-2 text-4xl leading-tight ${current ? "text-glow" : "text-text"}`}>{tr.title}</h1>
-          <button type="button" className="text-lg text-muted hover:text-text hover:underline" onClick={() => go({ name: "profile", userId: tr.user.id })}>
-            {tr.artist}
-          </button>
+          <div className="flex flex-wrap items-center gap-3">
+            <button type="button" className="text-lg text-muted hover:text-text hover:underline" onClick={() => go({ name: "profile", userId: tr.user.id })}>
+              {tr.artist}
+            </button>
+            {signedIn && (
+              <PaperButton className="!px-3 !py-1 text-sm" aria-pressed={artistFollowed} onClick={() => void toggleFollow(tr.user)}>
+                <Icon name={artistFollowed ? "check" : "plus"} size={14} /> {artistFollowed ? t.unfollow : t.follow}
+              </PaperButton>
+            )}
+          </div>
           {meta && <div className="mt-1 font-type text-sm text-muted">{meta}</div>}
           {stats.length > 0 && <div className="mt-1 font-type text-xs text-muted">{stats.join(" · ")}</div>}
           <div className="mt-4 flex flex-wrap gap-3">

@@ -9,8 +9,9 @@ import { useUi } from "@/state/ui";
 const MAX_BACKGROUND = 300 * 1024 * 1024;
 
 /**
- * A Wallpaper Engine video wallpaper as the background, by its Steam Workshop link: found where Steam keeps it (or
- * subscribed to in Steam first — the dialog waits for the download), then made into a 2K copy here.
+ * A Wallpaper Engine wallpaper as the background, by its Steam Workshop link: found where Steam keeps it (or subscribed
+ * to in Steam first — the dialog waits for the download). A video wallpaper becomes the background (made 2K here); a
+ * scene or web wallpaper goes in as its preview picture, the only part of it this app can honestly draw.
  */
 export default function SteamImport({ onClose }: { onClose: () => void }) {
   const t = useT();
@@ -37,7 +38,8 @@ export default function SteamImport({ onClose }: { onClose: () => void }) {
     if (!waiting || !found || found.found) return;
     const timer = setInterval(() => {
       void call("bg:steamFind", found.id).then((r) => {
-        if (r.found || r.reason === "not-video") {
+        // no-preview is terminal here too: had Steam's download add one, the poll would have found it by now
+        if (r.found || r.reason === "not-video" || r.reason === "no-preview") {
           setFound(r);
           setWaiting(false);
         }
@@ -54,19 +56,27 @@ export default function SteamImport({ onClose }: { onClose: () => void }) {
 
   const go = async () => {
     if (!found?.found) return;
-    setProgress(0);
     try {
+      const { prefs, setPref } = useSettings.getState();
+      // a scene's or a web wallpaper's preview: one picture, no probing and no 2K make — it goes in as it is
+      if (found.kind === "image") {
+        const res = await call("bg:keepImport", found.url);
+        setPref("look", { ...prefs.look, bg: "file", bgFile: res.file, bgFileType: res.type });
+        toast(t.steamDone);
+        onClose();
+        return;
+      }
+      setProgress(0);
       const { height, duration } = await probe(found.url);
       // already 2K or less at a modest bitrate: kept as it is, a copy would only lose quality
       const light = height <= 1440 && (found.sizeMb * 8 * 1048576) / Math.max(1, duration) <= 16_000_000;
-      let res: { file: string; type: "video" };
+      let res: { file: string; type: "image" | "video" };
       if (original || light) res = await call("bg:keepImport", found.url);
       else {
         let video = await to2K(found.url, (p) => setProgress(p));
         if (video.byteLength > MAX_BACKGROUND) video = await fitTo(found.url, MAX_BACKGROUND, (p) => setProgress(p));
         res = await call("bg:saveVideo", video);
       }
-      const { prefs, setPref } = useSettings.getState();
       setPref("look", { ...prefs.look, bg: "file", bgFile: res.file, bgFileType: res.type });
       toast(t.steamDone);
       onClose();
@@ -104,7 +114,7 @@ export default function SteamImport({ onClose }: { onClose: () => void }) {
 
         {found && !found.found && (
           <div className="mt-3 text-sm text-muted">
-            {found.reason === "link" ? t.steamBadLink : found.reason === "not-video" ? t.steamNotVideo : waiting ? t.steamWaiting : t.steamMissing}
+            {found.reason === "link" ? t.steamBadLink : found.reason === "not-video" ? t.steamNotVideo : found.reason === "no-preview" ? t.steamNoPreview : waiting ? t.steamWaiting : t.steamMissing}
             {found.reason === "missing" && !waiting && (
               <div className="mt-2">
                 <button
@@ -126,14 +136,16 @@ export default function SteamImport({ onClose }: { onClose: () => void }) {
           <div className="mt-4">
             <div className="rounded-md bg-white/[0.04] px-3 py-2">
               <div className="truncate text-sm font-semibold text-text">{found.title}</div>
-              <div className="text-xs text-muted">{t.steamSize(found.sizeMb)}</div>
+              <div className="text-xs text-muted">{t.steamSize(found.sizeMb, found.kind)}</div>
             </div>
             {progress === null ? (
               <>
-                <label className="mt-3 flex items-center gap-2 text-sm text-text">
-                  <input type="checkbox" checked={original} onChange={(e) => setOriginal(e.target.checked)} />
-                  {t.steamKeepOriginal}
-                </label>
+                {found.kind === "video" && (
+                  <label className="mt-3 flex items-center gap-2 text-sm text-text">
+                    <input type="checkbox" checked={original} onChange={(e) => setOriginal(e.target.checked)} />
+                    {t.steamKeepOriginal}
+                  </label>
+                )}
                 <div className="mt-4 flex justify-end gap-2">
                   <button type="button" onClick={onClose} className="s-btn">
                     {t.cancel}

@@ -59,6 +59,7 @@ export class WebSessionProvider implements MusicProvider {
   reset() {
     this.meId = null;
     this.liked = null;
+    this.followed = null;
     this.playlists.clear();
     this.http.clearCache();
   }
@@ -116,6 +117,20 @@ export class WebSessionProvider implements MusicProvider {
         const t = this.track(pick(item));
         if (t) ids.push(t.id);
       }
+      href = res.next_href ?? null;
+    }
+    return ids;
+  }
+
+  /** Every account id of a paged api-v2 collection of users, 200 per request (the same cap as the track lists). */
+  private async collectUserIds(path: string): Promise<number[]> {
+    const ids: number[] = [];
+    let href: string | null = path;
+    let first = true;
+    while (href && ids.length < MAX_SOURCE_IDS) {
+      const res: RawCollection<RawUser> = await this.http.json<RawCollection<RawUser>>(href, first ? { limit: 200, linked_partitioning: 1 } : {}, { ttl: LIST_TTL });
+      first = false;
+      for (const u of collection(res, "followings")) if (typeof u?.id === "number") ids.push(u.id);
       href = res.next_href ?? null;
     }
     return ids;
@@ -500,6 +515,34 @@ export class WebSessionProvider implements MusicProvider {
   async unlike(trackId: number): Promise<void> {
     await this.http.json(`/users/${await this.myId()}/track_likes/${trackId}`, {}, { method: "DELETE", auth: "required" });
     this.liked?.delete(trackId);
+    this.http.clearCache();
+  }
+
+  /** what the user follows, read once per session and kept up to date by follow / unfollow */
+  private followed: Set<number> | null = null;
+
+  async getFollowedIds(refresh?: boolean): Promise<number[]> {
+    // a change written on the site (the check window) bypasses every cache of this class, or the page would be
+    // told the old list back
+    if (refresh) {
+      this.followed = null;
+      this.http.clearCache();
+    }
+    this.followed ??= new Set(await this.collectUserIds(`/users/${await this.myId()}/followings`));
+    return [...this.followed];
+  }
+
+  async follow(userId: number): Promise<void> {
+    // The create verb for following is POST, not PUT. SoundCloud's web client endpoint table sends myFollowingsCreate as POST to /me/followings/:id and myFollowingsDelete as DELETE — a live DELETE works while a live PUT answers 404 with an empty body, i.e. the PUT route simply doesn't exist. Likes differ: the like endpoint uses PUT. A POST gets stopped by bot protection instead (403 + DataDome = the "verify" code), which is what the check dialog is for.
+    await this.http.json(`/me/followings/${userId}`, {}, { method: "POST", auth: "required" });
+    this.followed?.add(userId);
+    // the followings list was cached for a minute: show the new follow right away
+    this.http.clearCache();
+  }
+
+  async unfollow(userId: number): Promise<void> {
+    await this.http.json(`/me/followings/${userId}`, {}, { method: "DELETE", auth: "required" });
+    this.followed?.delete(userId);
     this.http.clearCache();
   }
 }
