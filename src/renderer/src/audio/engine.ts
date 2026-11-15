@@ -1036,7 +1036,14 @@ export function retrySound() {
  * Nothing is fetched eagerly while the person isn't listening; the next thing that asks gets a working tract.
  */
 function healDeadElements(): boolean {
-  if (!decks.some((d) => inLimbo.has(d.audio))) return false;
+  // Whether the existing chain can still be the sound path. An element handed to Web Audio never comes back, so a
+  // deck inside a chain that cannot carry (or that nothing wants, so it will be closed) is dead to the speakers even
+  // though no teardown ran and nothing was marked at close — the old signature (a closed context, marked by
+  // teardownChain) was the only way this heal noticed, which left "the graph held the sound but carried nothing"
+  // silent forever: every rebuild reloaded the same captured element into the same silent graph.
+  // The healthy chain is the only one worth keeping the elements in; everything else gets a fresh tract.
+  const chainSound = !routeGivenUp && graphWanted.size > 0 && canRoute() && !!ctx && stateOf(ctx) === "running";
+  if (!decks.some((d) => inLimbo.has(d.audio) || (routedElements.has(d.audio) && !chainSound))) return false;
   endFade();
   preparing = false;
   // Both decks, not just the one playing: a deck left holding an element from the old graph answers no route() and
@@ -1048,6 +1055,9 @@ function healDeadElements(): boolean {
   }
   chainCarries = false;
   rebuildChain();
+  // fresh elements must be told where the sound leaves the app: without this a chosen output device is silently
+  // forgotten whenever the tract is healed
+  if (sinkId) void applySink();
   return true;
 }
 
