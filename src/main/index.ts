@@ -26,6 +26,7 @@ import { m } from "./i18n";
 import { readImport, resolveItem } from "./import/sources";
 import { openVkBookmark, readVk } from "./import/vk";
 import * as rooms from "./rooms";
+import * as followsWatch from "./soundcloud/follows-watch";
 import * as social from "./social";
 import { patchRenderer, prefs, store } from "./store";
 import { getSecret, secretsEphemeral, setSecret, unopenedSecrets } from "./store/secrets";
@@ -1022,6 +1023,8 @@ void app.whenReady().then(async () => {
   log("main", `start: set up in ${Math.round(process.uptime() * 1000) - readyMs} ms after ready`);
   updater.initUpdater(() => main, () => prefs().checkUpdates);
   social.initSocial(() => main);
+  // the person may follow on soundcloud.com itself inside the check window: hear that write and re-read the list (the page keeps the counter and the buttons honest)
+  followsWatch.initFollowsWatch(data, () => main);
   initBackup();
   rooms.initRooms(() => main);
   // back in front: the messenger catches up at once

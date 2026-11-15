@@ -162,7 +162,7 @@ export class DemoProvider implements MusicProvider {
   getLikedIds = async () => LIKES.map((t) => t.id);
   like = async () => undefined;
   unlike = async () => undefined;
-  getFollowedIds = async () => [...this.followedIds];
+  getFollowedIds = async (_refresh?: boolean) => [...this.followedIds];
   follow = async (userId: number) => void this.followedIds.add(userId);
   unfollow = async (userId: number) => void this.followedIds.delete(userId);
 }

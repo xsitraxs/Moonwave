@@ -521,7 +521,13 @@ export class WebSessionProvider implements MusicProvider {
   /** what the user follows, read once per session and kept up to date by follow / unfollow */
   private followed: Set<number> | null = null;
 
-  async getFollowedIds(): Promise<number[]> {
+  async getFollowedIds(refresh?: boolean): Promise<number[]> {
+    // a change written on the site (the check window) bypasses every cache of this class, or the page would be
+    // told the old list back
+    if (refresh) {
+      this.followed = null;
+      this.http.clearCache();
+    }
     this.followed ??= new Set(await this.collectUserIds(`/users/${await this.myId()}/followings`));
     return [...this.followed];
   }

@@ -579,6 +579,8 @@ export interface EventMap {
   "audio:crashed": AudioCrashEvent;
   /** the graphics process died (or Chromium fell back to software rendering): what it reports now — the page re-decides whether routing is safe */
   "graphics:status": { gpuCompositing: string; webgl: string };
+  /** the person followed/unfollowed on soundcloud.com itself, inside the app's check window: the followed ids read again from the site (no deltas to guess from) */
+  "follows:synced": { ids: number[] };
 }
 
 export type InvokeChannel = keyof InvokeMap;
@@ -722,7 +724,7 @@ export const INVOKE_CHANNELS = [
   "update:download",
   "update:install",
 ] as const satisfies readonly InvokeChannel[];
-export const EVENT_CHANNELS = ["win:activity", "win:maximized", "auth:changed", "auth:browserRefused", "player:command", "hotkeys:failed", "update:status", "social:update", "social:open", "social:friendLink", "lyricsSync:status", "room:state", "audio:crashed", "graphics:status"] as const satisfies readonly (keyof EventMap)[];
+export const EVENT_CHANNELS = ["win:activity", "win:maximized", "auth:changed", "auth:browserRefused", "player:command", "hotkeys:failed", "update:status", "social:update", "social:open", "social:friendLink", "lyricsSync:status", "room:state", "audio:crashed", "graphics:status", "follows:synced"] as const satisfies readonly (keyof EventMap)[];
 
 type MissingInvoke = Exclude<InvokeChannel, (typeof INVOKE_CHANNELS)[number]>;
 type MissingEvent = Exclude<keyof EventMap, (typeof EVENT_CHANNELS)[number]>;
