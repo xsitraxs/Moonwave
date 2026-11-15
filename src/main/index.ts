@@ -1,25 +1,26 @@
 // first: the moment our code began (see boot.ts)
 import { scriptStartMs } from "./boot";
 import { createHash } from "node:crypto";
-import { readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { readFile, writeFile } from "node:fs/promises";
 import { homedir, release } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, session, shell, type IpcMainInvokeEvent } from "electron";
 import { ISSUES_URL, RENDERER_DEFAULTS, type AuthStatus, type InvokeChannel, type InvokeMap, type PlayerCommand, type PlayerInfo, type RendererState, type Result } from "@shared/ipc";
 import { audioUtilityRole } from "@shared/audioHealth";
-import { isStatusBreakpoint, mergeDisabledFeatures, nextGpuSandboxOffOnCrash, shouldDisableAudioSandbox, shouldDisableGpuSandbox } from "@shared/windowsSandbox";
+import { mergeDisabledFeatures, nextAudioCrashFallback, nextGpuSandboxOffOnCrash, shouldDisableAudioSandbox, shouldDisableGpuSandbox, shouldRunAudioInProcess } from "@shared/windowsSandbox";
 import type { MusicProvider, SearchKind } from "@shared/provider";
 import type { RoomOp, SocialTrack } from "@shared/social";
 import type { ImportItem, QueueSource, SyncRequest, Track, LyricsSuggestionState } from "@shared/types";
 import { DemoProvider } from "./demo";
 import { backupNow, backupStatus, initBackup, restoreBackup } from "./backup";
 import { flushLocalLikes, savedPlaylists, setPlaylistSaved, visiblePlaylists, withLocalLikes } from "./local-likes";
-import { addDroppedFiles, addLocalFiles, flushLocalTracks, isLocalTrack, localLibrary, removeLocalTrack, serveLocalTracks, showLocalTrack, withLocalTracks } from "./local-tracks";
+import { addDroppedFiles, addLocalFiles, flushLocalTracks, isLocalTrack, localLibrary, removeLocalTrack, showLocalTrack, serveLocalTracks, withLocalTracks } from "./local-tracks";
 import { addLocal, copiesOf, copyLocal, createLocal, deleteLocal, exportLocal, importLocal, flushLocalPlaylists, isLocal, localIds, localPlaylist, localPlaylists, localTracks, MAX_TRACKS, renameLocal, setLocalTracks } from "./local-playlists";
 import { communityLyrics, flushLyrics, forgetLyrics, lyricsFor, ownText, pickLyrics, searchLyrics, setCommunityLyrics, setOwnLyrics } from "./lyrics";
 import { deleteModel, downloadModel, flushLyricsSync, onSyncStatus, syncedBefore, syncStatus, syncWords } from "./lyrics-sync";
 import { auth, authStatus, chromeUserAgent, provider, ScError, scSession, finishBrowserSignIn, friendFromArgs, matchesBrowserState, registerLinks, signInLinkFromArgs, startBrowserSignIn, stopBrowserSignIn, toErrorInfo, waitingForBrowser } from "./soundcloud";
+import { relaunchOptions } from "./soundcloud/browser-signin-url";
 import { flushAlternatives } from "./soundcloud/alternatives";
 import { m } from "./i18n";
 import { readImport, resolveItem } from "./import/sources";
@@ -96,10 +97,18 @@ const audioSandboxOff = shouldDisableAudioSandbox({
   osRelease: release(),
   crashedBefore: savedMain.winAudioSandboxOff,
 });
-if (audioSandboxOff) {
+const audioInProcess = shouldRunAudioInProcess({
+  platform: process.platform,
+  crashedWithSandboxOff: savedMain.winAudioInProcess,
+});
+const disabledAudioFeatures = [
+  ...(audioSandboxOff ? ["AudioServiceSandbox"] : []),
+  ...(audioInProcess ? ["AudioServiceOutOfProcess"] : []),
+];
+if (disabledAudioFeatures.length) {
   app.commandLine.appendSwitch(
     "disable-features",
-    mergeDisabledFeatures(app.commandLine.getSwitchValue("disable-features"), ["AudioServiceSandbox"]),
+    mergeDisabledFeatures(app.commandLine.getSwitchValue("disable-features"), disabledAudioFeatures),
   );
 }
 const gpuSandboxOff =
@@ -125,22 +134,48 @@ const graphicsStatus = (): { gpuCompositing: string; webgl: string } => {
 const systemName = () => (process.platform === "darwin" ? `macOS ${process.getSystemVersion()}` : process.platform === "linux" ? `Linux ${release()}` : `Windows ${release()}`);
 // which build wrote this file: without it two runs of different installers look like one app behaving inconsistently
 log("main", `start: Moonwave ${app.getVersion()}, Electron ${process.versions.electron}, ${systemName()}, ${process.arch}${process.env.PORTABLE_EXECUTABLE_DIR ? ", portable" : ""}`);
-if (audioSandboxOff || gpuSandboxOff) {
-  log("main", `sandbox: ${[audioSandboxOff ? "AudioServiceSandbox off" : "", gpuSandboxOff ? "gpu-sandbox off" : ""].filter(Boolean).join(", ")}`);
+if (audioSandboxOff || audioInProcess || gpuSandboxOff) {
+  log(
+    "main",
+    `sandbox: ${[audioSandboxOff ? "AudioServiceSandbox off" : "", audioInProcess ? "AudioServiceOutOfProcess off" : "", gpuSandboxOff ? "gpu-sandbox off" : ""].filter(Boolean).join(", ")}`,
+  );
 }
 // a second copy (a click on a moonwave:// link, the menu entry again) hands its arguments over and leaves — it must
 // not run the start below as well (it signed in, set the proxy and wrote files before quitting)
 const firstInstance = app.requestSingleInstanceLock();
-if (!firstInstance) app.quit();
+if (!firstInstance) {
+  log("main", "start: another instance is already running — handing over and quitting");
+  app.quit();
+}
+let loggedMissingRuntime = false;
 // the graphics process failing is what leaves an empty window; Chromium retries and then draws without it
 app.on("child-process-gone", (_e, d) => {
   if (d.reason === "clean-exit") return;
   log("main", `${d.type}${d.name ? ` (${d.name})` : ""} process gone: ${d.reason} (exit ${d.exitCode})`);
   if (firstInstance && process.platform === "win32") {
-    if (audioUtilityRole(d.type, d.name) === "audio" && isStatusBreakpoint(d.exitCode) && !store().get().winAudioSandboxOff) {
+    const saved = store().get();
+    const audioFallback = nextAudioCrashFallback({
+      platform: process.platform,
+      isAudioUtility: audioUtilityRole(d.type, d.name) === "audio",
+      reason: d.reason,
+      exitCode: d.exitCode,
+      runtimeIntact: existsSync(join(dirname(process.execPath), "icudtl.dat")),
+      audioSandboxDisabledThisRun: audioSandboxOff,
+      audioInProcessThisRun: audioInProcess,
+      savedSandboxOff: saved.winAudioSandboxOff === true,
+      savedInProcess: saved.winAudioInProcess === true,
+    });
+    if (audioFallback === "missing-runtime" && !loggedMissingRuntime) {
+      loggedMissingRuntime = true;
+      log("main", "audio: runtime files next to the executable are missing (temp folder cleaned while running); child processes cannot start — restart Moonwave");
+    } else if (audioFallback === "disable-sandbox") {
       store().patch({ winAudioSandboxOff: true });
       store().flush();
       log("main", "audio: AudioService crashed with STATUS_BREAKPOINT; next start will disable AudioServiceSandbox");
+    } else if (audioFallback === "run-in-process") {
+      store().patch({ winAudioInProcess: true });
+      store().flush();
+      log("main", "audio: AudioService crashed with STATUS_BREAKPOINT with AudioServiceSandbox already off; next start will run AudioService in-process");
     }
     const nextGpu = nextGpuSandboxOffOnCrash({
       platform: process.platform,
@@ -172,6 +207,28 @@ app.on("child-process-gone", (_e, d) => {
     const report = () => send(main, "graphics:status", graphicsStatus());
     report();
     setTimeout(report, 5000);
+  }
+});
+const relaunchApp = () =>
+  app.relaunch(
+    relaunchOptions({
+      argv: process.argv,
+      portableExecutableFile: process.env.PORTABLE_EXECUTABLE_FILE,
+      appImage: process.env.APPIMAGE,
+    }),
+  );
+
+let lastLoggedGraphics: string | null = null;
+// On fast starts index.html finishes loading before the GPU process sends its initial feature info, so
+// getGPUFeatureStatus() briefly reports disabled_software / disabled_off. Refresh the page's routing gate as soon as
+// Chromium's GPU info arrives (and whenever it changes later).
+app.on("gpu-info-update", () => {
+  const status = graphicsStatus();
+  send(main, "graphics:status", status);
+  const key = `${status.gpuCompositing}|${status.webgl}`;
+  if (lastLoggedGraphics !== null && key !== lastLoggedGraphics) {
+    lastLoggedGraphics = key;
+    log("main", `graphics: gpu_compositing ${status.gpuCompositing}, webgl ${status.webgl}`);
   }
 });
 setCommunityLyrics((t) => social.approvedLyrics(t));
@@ -622,7 +679,7 @@ function registerIpc() {
   });
   handle("app:info", () => ({ version: app.getVersion(), portable: !!process.env.PORTABLE_EXECUTABLE_DIR, packaged: app.isPackaged, logsDir: logsDir(), builtinProxy: hasBuiltinProxy(), proxyRoute: proxyRoute(), memorySaver, secretsPersist: !secretsEphemeral(), graphics: graphicsStatus() }));
   handle("app:relaunch", () => {
-    app.relaunch({ args: process.argv.slice(1).filter((a) => a !== "--updated") });
+    relaunchApp();
     app.quit();
   });
   handle("log:write", (_e, message) => log("page", str(message, "message")));
@@ -831,7 +888,7 @@ function restartForKey(): boolean {
   }
   writeFileSync(mark, tried);
   log("main", `${bad.length} saved secret(s) can't be opened: restarting once to read the key again`);
-  app.relaunch({ args: process.argv.slice(1).filter((a) => a !== "--updated") });
+  relaunchApp();
   app.exit(0);
   return true;
 }
@@ -921,6 +978,8 @@ void app.whenReady().then(async () => {
   });
   main.webContents.once("did-finish-load", () => {
     const status = graphicsStatus();
+    lastLoggedGraphics = `${status.gpuCompositing}|${status.webgl}`;
+    send(main, "graphics:status", status);
     log("main", `start: page loaded; ${systemName()}; gpu_compositing ${status.gpuCompositing}, webgl ${status.webgl}${memorySaver ? "; memory saver on" : ""}`);
   });
   onSyncStatus((s) => send(main, "lyricsSync:status", s));

@@ -63,3 +63,44 @@ export function parseSignInLinkFromArgs(argv: string[], onLog?: (msg: string) =>
 export function parseTokenFromArgs(argv: string[], onLog?: (msg: string) => void): string | null {
   return parseSignInLinkFromArgs(argv, onLog)?.token ?? null;
 }
+
+/**
+ * Executable and arguments registered for `moonwave://` links on Windows and Linux.
+ *
+ * - Normally (`preferRunning: false`): registers `portableExecutableFile || execPath`, so links clicked after a
+ *   portable build exits still start the outer `.exe` rather than pointing at a deleted `%TEMP%` directory.
+ * - While waiting for browser sign-in (`preferRunning: true`): registers the already-running `execPath` directly.
+ *   On Windows portable builds this hands the link straight to the unpacked `Moonwave.exe` instead of launching a
+ *   second NSIS self-extractor (which otherwise re-unpacks ~200 MB and, on shared-temp builds, deletes `$INSTDIR`
+ *   files like `icudtl.dat` out from under the running app when the second instance exits).
+ */
+export function protocolHandlerArgs(input: {
+  defaultApp: boolean;
+  execPath: string;
+  appPath: string;
+  skyProfile?: string;
+  portableExecutableFile?: string;
+  preferRunning?: boolean;
+}): [string, string[]] {
+  if (input.defaultApp) {
+    const profile = input.skyProfile ? [`--sky-profile=${input.skyProfile.replace(/[^\w-]/g, "")}`] : [];
+    return [input.execPath, [input.appPath, ...profile]];
+  }
+  if (input.preferRunning) return [input.execPath, []];
+  return [input.portableExecutableFile || input.execPath, []];
+}
+
+/**
+ * Options passed to `app.relaunch()` so portable builds (Windows NSIS portable, Linux AppImage) relaunch their outer
+ * launcher file rather than the temporary unpacked binary inside `%TEMP%` or a FUSE mount that disappears on exit.
+ */
+export function relaunchOptions(input: {
+  argv: readonly string[];
+  portableExecutableFile?: string;
+  appImage?: string;
+}): { execPath?: string; args: string[] } {
+  const args = input.argv.slice(1).filter((a) => a !== "--updated");
+  const outer = input.portableExecutableFile || input.appImage;
+  return outer ? { execPath: outer, args } : { args };
+}
+

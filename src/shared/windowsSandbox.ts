@@ -49,6 +49,57 @@ export function shouldDisableAudioSandbox(input: {
 }
 
 /**
+ * Whether Chromium's `AudioServiceOutOfProcess` feature should be disabled so `AudioService` runs on Chromium's
+ * dedicated `AudioThread` inside the main process.
+ *
+ * Kept out-of-process by default so WASAPI driver faults remain isolated from the main window; enabled only after
+ * `AudioService` still crashed with `STATUS_BREAKPOINT` even with `AudioServiceSandbox` already off and runtime files
+ * (`icudtl.dat`) intact on disk (e.g. CET shadow-stack or third-party audio APO hooks in child utility processes).
+ */
+export function shouldRunAudioInProcess(input: {
+  platform: string;
+  crashedWithSandboxOff?: boolean;
+}): boolean {
+  if (input.platform !== "win32") return false;
+  return input.crashedWithSandboxOff === true;
+}
+
+export type AudioCrashFallbackAction = "none" | "missing-runtime" | "disable-sandbox" | "run-in-process";
+
+/**
+ * Decides what to persist after a Windows `Audio Service` utility process crashes.
+ *
+ * - `"missing-runtime"`: `icudtl.dat` next to `process.execPath` is gone (for example, a shared portable `%TEMP%`
+ *   directory was cleaned while the app was still open), causing `CHECK(InitializeICU())` → `STATUS_BREAKPOINT`.
+ *   Never persists a sandbox/in-process flag for a missing file on disk.
+ * - `"disable-sandbox"`: `AudioServiceSandbox` was still active on this run; disable it on the next start.
+ * - `"run-in-process"`: `AudioServiceSandbox` was already off on this run and `icudtl.dat` is present, yet the child
+ *   process still died with `STATUS_BREAKPOINT`; run `AudioService` in-process on the next start.
+ */
+export function nextAudioCrashFallback(input: {
+  platform: string;
+  isAudioUtility: boolean;
+  reason: string;
+  exitCode: number;
+  runtimeIntact: boolean;
+  audioSandboxDisabledThisRun: boolean;
+  audioInProcessThisRun: boolean;
+  savedSandboxOff: boolean;
+  savedInProcess: boolean;
+}): AudioCrashFallbackAction {
+  if (input.platform !== "win32" || !input.isAudioUtility || input.reason === "clean-exit") return "none";
+  if (!isStatusBreakpoint(input.exitCode)) return "none";
+  if (!input.runtimeIntact) return "missing-runtime";
+  if (!input.audioSandboxDisabledThisRun) {
+    return input.savedSandboxOff ? "none" : "disable-sandbox";
+  }
+  if (!input.audioInProcessThisRun && !input.savedInProcess) {
+    return "run-in-process";
+  }
+  return "none";
+}
+
+/**
  * Next persisted `winGpuSandboxOff` flag after a Windows `GPU` child-process exit, or `null` when nothing changes.
  *
  * - GPU sandbox stays ON by default for everyone.
