@@ -8,10 +8,19 @@ import { useUi } from "./ui";
 
 /**
  * The people the signed-in user follows, for the follow buttons. Unlike likes there is no local fallback: following
- * happens on SoundCloud itself, so without a session the buttons stay hidden. Read once after sign-in; a click
- * changes the set right away, and a failure puts it back.
+ * happens on SoundCloud itself, so without a session the buttons stay hidden. Read once after sign-in.
+ *
+ * The follow write is the site's, not the app's: SoundCloud answers this app's POST /me/followings/{id} with its own
+ * check (403 + DataDome) every time it comes from here, while the same write from the site inside the check window
+ * goes through. So «Подписаться» opens the artist's page in a window of the app's session, the site does the write,
+ * and the app hears it (follows:synced, from main) or re-reads the list when the window closes. Nothing flips until
+ * the site has actually written. «Вы подписаны» (unfollow) stays in the app: its DELETE passes every time.
  */
 export const useFollows = create<{ ids: Set<number>; ready: boolean }>(() => ({ ids: new Set(), ready: false }));
+
+/** whether this run is SKY_DEMO=1 (fake data): there is no site to send a person to, the demo provider answers instantly */
+let demoFlag: Promise<boolean> | null = null;
+const isDemo = () => (demoFlag ??= call("app:info").then((i) => i.demo === true).catch(() => false));
 
 let loading: Promise<void> | null = null;
 
@@ -25,6 +34,23 @@ function load() {
 
 const canFollow = () => useAuth.getState().status?.mode === "session";
 
+/**
+ * The followed ids read again from the site (main heard the site's write, or the check window just closed): the
+ * counter moves by the set diff — never a guessed delta — the lists re-fetch, the buttons follow.
+ */
+function applySyncedIds(ids: number[]) {
+  const prev = useFollows.getState();
+  const next = new Set(ids);
+  if (prev.ready) {
+    let delta = 0;
+    for (const id of next) if (!prev.ids.has(id)) delta++;
+    for (const id of prev.ids) if (!next.has(id)) delta--;
+    if (delta !== 0) bumpFollowingsCount(delta);
+  }
+  useFollows.setState({ ids: next, ready: true });
+  void queryClient.invalidateQueries({ queryKey: ["followings"] });
+}
+
 export function initFollows() {
   let mode = useAuth.getState().status?.mode;
   const reload = () => {
@@ -37,20 +63,8 @@ export function initFollows() {
     mode = s.status?.mode;
     reload();
   });
-  // a follow written on soundcloud.com itself (in the app's check window): main heard the write and re-read the list.
-  // The counter moves by the set diff, so it stays exact whatever the site did; the lists re-fetch; the buttons follow
-  on("follows:synced", ({ ids }) => {
-    const prev = useFollows.getState();
-    const next = new Set(ids);
-    if (prev.ready) {
-      let delta = 0;
-      for (const id of next) if (!prev.ids.has(id)) delta++;
-      for (const id of prev.ids) if (!next.has(id)) delta--;
-      if (delta !== 0) bumpFollowingsCount(delta);
-    }
-    useFollows.setState({ ids: next, ready: true });
-    void queryClient.invalidateQueries({ queryKey: ["followings"] });
-  });
+  // a follow written on soundcloud.com itself (in the app's check window): main heard the write and re-read the list
+  on("follows:synced", ({ ids }) => applySyncedIds(ids));
 }
 
 export const useFollowed = (id: number | undefined) => useFollows((s) => id !== undefined && s.ids.has(id));
@@ -68,11 +82,9 @@ function bumpFollowingsCount(delta: number) {
   useAuth.setState({ status: { ...st, user: { ...st.user, followingsCount: Math.max(0, n + delta) } } });
 }
 
-/** Follow / unfollow the account on SoundCloud, optimistically. The check dialog comes up when bot protection refuses. */
-export async function toggleFollow(user: { id: number; permalinkUrl: string }) {
-  const before = useFollows.getState().ids;
-  const followed = !before.has(user.id);
-  const ids = new Set(before);
+/** The demo build's follow: fake data answers instantly, nothing to hand to a site. */
+async function applyAppFollow(user: { id: number; permalinkUrl: string }, followed: boolean) {
+  const ids = new Set(useFollows.getState().ids);
   if (followed) ids.add(user.id);
   else ids.delete(user.id);
   useFollows.setState({ ids });
@@ -88,6 +100,46 @@ export async function toggleFollow(user: { id: number; permalinkUrl: string }) {
     useFollows.setState({ ids: back });
     if (errorCode(err) === "verify") askCheck({ action: followed ? t.follow : t.unfollow, url: user.permalinkUrl, retry: () => retryFollow(user, followed) });
     else useUi.getState().showToast(followed ? t.followFailed : t.unfollowFailed);
+  }
+}
+
+export async function toggleFollow(user: { id: number; permalinkUrl: string }) {
+  const before = useFollows.getState().ids;
+  const wantFollow = !before.has(user.id);
+
+  if (await isDemo()) return applyAppFollow(user, wantFollow);
+
+  if (wantFollow) {
+    // The site does the write (see the note at the top of this file): the window opens on the artist's page, and when
+    // it closes the list is re-read once more — in case the watcher never heard the site's write for some reason
+    try {
+      await call("auth:check", user.permalinkUrl);
+    } catch {
+      /* the window may already be open (the call only focuses it) — the same flow follows from there */
+    }
+    const ids = await call("data:followedIds", true).catch(() => null);
+    if (ids) applySyncedIds(ids);
+    const done = useFollows.getState().ids.has(user.id);
+    if (!done) useUi.getState().showToast(t.followNotDone);
+    else void queryClient.invalidateQueries({ queryKey: ["followings", "me"] });
+    return;
+  }
+
+  // Unfollow goes straight through: the site lets the app's DELETE pass (2xx every time), so it is optimistic with a
+  // rollback, exactly like a like — and it never needs the window.
+  const ids = new Set(before);
+  ids.delete(user.id);
+  useFollows.setState({ ids });
+  try {
+    await call("data:setFollowed", user.id, false);
+    bumpFollowingsCount(-1);
+    void queryClient.invalidateQueries({ queryKey: ["followings", "me"] });
+  } catch (err) {
+    const back = new Set(useFollows.getState().ids);
+    back.add(user.id);
+    useFollows.setState({ ids: back });
+    if (errorCode(err) === "verify") askCheck({ action: t.unfollow, url: user.permalinkUrl, retry: () => retryFollow(user, false) });
+    else useUi.getState().showToast(t.unfollowFailed);
   }
 }
 

@@ -172,6 +172,8 @@ export const en = {
   unfollow: "Following",
   followFailed: "Couldn't follow the account",
   unfollowFailed: "Couldn't unfollow the account",
+  /** shown when the artist's page was opened for the site's own follow and the person closed it without following */
+  followNotDone: "Not followed yet — press Follow on the artist's page in the SoundCloud window",
   addToPlaylist: "Add to playlist",
   addedTo: (title: string) => `Added to “${title}”`,
   addFailed: "Couldn't add the track",

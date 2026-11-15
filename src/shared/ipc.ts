@@ -99,6 +99,8 @@ export interface AppInfo {
    * memory saver setting alone does not cover a driver that fell back to software.
    */
   graphics: { gpuCompositing: string; webgl: string };
+  /** true with SKY_DEMO=1 (fake data, no account): follows go straight through instead of through the SoundCloud window */
+  demo: boolean;
 }
 export type StreamQuality = "high" | "low";
 /** studio — the 2.0 look (dark glass over a living background); og — the hand-drawn night sky of 1.x */
@@ -354,8 +356,8 @@ export interface InvokeMap {
   "data:userTracks": (userId: number, cursor: string | null) => Page<Track>;
   "data:userPlaylists": (userId: number, cursor: string | null) => Page<Playlist>;
   "data:followings": (userId: number | "me", cursor: string | null) => Page<User>;
-  /** ids of every account the signed-in user follows (for the follow buttons) */
-  "data:followedIds": () => number[];
+  /** ids of every account the signed-in user follows (for the follow buttons); `true` re-reads the site instead of the session's cache */
+  "data:followedIds": (refresh?: boolean) => number[];
   /** follow / unfollow an account on SoundCloud */
   "data:setFollowed": (userId: number, followed: boolean) => void;
   "data:resolve": (url: string) => Resolved;
