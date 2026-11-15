@@ -109,6 +109,8 @@ function tone(seconds: number) {
 
 export class DemoProvider implements MusicProvider {
   private wav = tone(30);
+  /** demo follows live in the process only, seeded with everyone the demo account "follows" (followingsCount says the same) */
+  private followedIds = new Set(artists.map((_, i) => 10 + i));
   getMe = () => delay(me);
   getLikes = (cursor?: string | null) => delay(page(LIKES, cursor));
   getPlaylists = (cursor?: string | null) => delay(page(PLAYLISTS, cursor));
@@ -160,4 +162,7 @@ export class DemoProvider implements MusicProvider {
   getLikedIds = async () => LIKES.map((t) => t.id);
   like = async () => undefined;
   unlike = async () => undefined;
+  getFollowedIds = async () => [...this.followedIds];
+  follow = async (userId: number) => void this.followedIds.add(userId);
+  unfollow = async (userId: number) => void this.followedIds.delete(userId);
 }

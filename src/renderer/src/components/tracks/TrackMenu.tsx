@@ -7,6 +7,7 @@ import { call } from "@/lib/sky";
 import { useNav } from "@/state/nav";
 import { isLocalTrack, type Playlist, type Track } from "@shared/types";
 import { useAuth } from "@/state/auth";
+import { toggleFollow, useFollowed } from "@/state/follows";
 import { toggleLike, useLikes } from "@/state/likes";
 import { player, substituteFor, useSubs } from "@/state/player";
 import { useRoom } from "@/state/room";
@@ -60,6 +61,7 @@ export default function TrackMenu() {
   const shown = route.name === "playlist" ? queryClient.getQueryData<Playlist>(["playlist", route.id]) : undefined;
   const ownList = shown && canEdit(shown) ? shown : null;
   const likes = useLikes((s) => s.ids);
+  const followed = useFollowed(track?.user.id);
   const openPicker = useUi((s) => s.openPicker);
   const canSend = useSocial((s) => !!s.status?.profile);
   const openSend = useSocial((s) => s.openSend);
@@ -133,6 +135,8 @@ export default function TrackMenu() {
       : [
         ...queueItems,
         ...(signedIn || localLikes ? [{ icon: "heart" as IconName, label: likes.has(track.id) ? t.unlike : t.like, run: () => void toggleLike(track) }] : []),
+        // following goes to SoundCloud: only with a session, and never for local files (they have no artist page)
+        ...(signedIn ? [{ icon: (followed ? "check" : "plus") as IconName, label: followed ? t.unfollow : t.follow, run: () => void toggleFollow(track.user) }] : []),
         // playlists of your own: on SoundCloud signed in, on this computer otherwise
         { icon: "plus" as IconName, label: t.addToPlaylist, run: () => openPicker(track) },
         ...fromOwnList,

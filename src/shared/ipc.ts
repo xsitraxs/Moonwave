@@ -354,6 +354,10 @@ export interface InvokeMap {
   "data:userTracks": (userId: number, cursor: string | null) => Page<Track>;
   "data:userPlaylists": (userId: number, cursor: string | null) => Page<Playlist>;
   "data:followings": (userId: number | "me", cursor: string | null) => Page<User>;
+  /** ids of every account the signed-in user follows (for the follow buttons) */
+  "data:followedIds": () => number[];
+  /** follow / unfollow an account on SoundCloud */
+  "data:setFollowed": (userId: number, followed: boolean) => void;
   "data:resolve": (url: string) => Resolved;
   "data:tracks": (ids: number[]) => Track[];
   "data:sourceIds": (source: QueueSource) => number[];
@@ -439,8 +443,8 @@ export interface InvokeMap {
   "bg:steamFind": (link: string) => SteamWallpaper;
   /** the wallpaper's page in Steam (to subscribe, so Steam downloads it) */
   "bg:steamOpen": (id: string) => void;
-  /** the imported video as it is (no 2K copy) */
-  "bg:keepImport": (url: string) => { file: string; type: "video" };
+  /** the imported wallpaper as it is (a video; the preview picture of a scene / web wallpaper) */
+  "bg:keepImport": (url: string) => { file: string; type: "image" | "video" };
   /** a video made here (the 2K copy) as the background */
   "bg:saveVideo": (data: Uint8Array) => { file: string; type: "video" };
   /** the current own background's size in bytes */
@@ -651,6 +655,8 @@ export const INVOKE_CHANNELS = [
   "data:userTracks",
   "data:userPlaylists",
   "data:followings",
+  "data:followedIds",
+  "data:setFollowed",
   "data:resolve",
   "data:tracks",
   "data:sourceIds",

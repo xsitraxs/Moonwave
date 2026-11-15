@@ -418,6 +418,8 @@ function registerIpc() {
   handle("data:userTracks", (_e, u, c) => data.getUserTracks(id(u), cursor(c)));
   handle("data:userPlaylists", (_e, u, c) => data.getUserPlaylists(id(u), cursor(c)));
   handle("data:followings", (_e, u, c) => data.getFollowings(u === "me" ? "me" : id(u), cursor(c)));
+  handle("data:followedIds", () => data.getFollowedIds());
+  handle("data:setFollowed", (_e, u, on) => (on === true ? data.follow(id(u)) : data.unfollow(id(u))));
   handle("data:tracks", (_e, ids) => data.getTracks(Array.isArray(ids) ? ids.map(id) : bad("ids")));
   handle("data:sourceIds", (_e, source) => {
     const s = queueSource(source);

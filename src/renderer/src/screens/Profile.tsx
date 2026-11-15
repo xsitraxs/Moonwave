@@ -13,6 +13,8 @@ import { useT } from "@/i18n";
 import { compactNumber } from "@/lib/format";
 import { saveProfile, unsaveProfile } from "@/lib/links";
 import { call } from "@/lib/sky";
+import { toggleFollow, useFollowed } from "@/state/follows";
+import { useAuth } from "@/state/auth";
 import { useSettings } from "@/state/settings";
 import { useViewState } from "@/state/viewState";
 import { LikesList } from "./Likes";
@@ -48,6 +50,8 @@ function UserTracks({ userId, label }: { userId: number; label: string }) {
 export default function Profile({ userId }: { userId: number }) {
   const t = useT();
   const saved = useSettings((s) => s.savedProfiles.some((p) => p.id === userId));
+  const signedIn = useAuth((s) => s.status?.mode === "session");
+  const followed = useFollowed(userId);
   const user = useUser(userId);
   const u = user.data;
   // artists open on their own tracks; listeners (no uploads) on their likes
@@ -72,6 +76,11 @@ export default function Profile({ userId }: { userId: number }) {
             )}
           </div>
           <div className="ml-auto flex shrink-0 gap-2">
+            {u && signedIn && (
+              <PaperButton onClick={() => void toggleFollow(u)} aria-pressed={followed}>
+                <Icon name={followed ? "check" : "plus"} size={16} /> {followed ? t.unfollow : t.follow}
+              </PaperButton>
+            )}
             {u && (
               <PaperButton onClick={() => (saved ? unsaveProfile(userId) : saveProfile(u))} aria-pressed={saved}>
                 <Icon name={saved ? "close" : "plus"} size={16} /> {saved ? t.removeProfile : t.addProfile}

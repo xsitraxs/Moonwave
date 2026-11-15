@@ -25,6 +25,7 @@ import { initCoverTint } from "@/lib/cover-tint";
 import { initLook } from "@/lib/look";
 import { initSocial } from "@/state/social";
 import { initLikes } from "@/state/likes";
+import { initFollows } from "@/state/follows";
 import { initVolume, player, roomPlayer, usePlayer } from "@/state/player";
 import { useNav } from "@/state/nav";
 import { useUi } from "@/state/ui";
@@ -56,6 +57,7 @@ async function boot() {
   initSocial();
   void useAuth.getState().init();
   initLikes();
+  initFollows();
 
   // development (or a profiling run from the sources): the stores, for driving the page from DevTools (window.__sc)
   if (import.meta.env.DEV || location.search === "?sc-debug") Object.assign(window, { __sc: { player, usePlayer, useNav, useUi, useSettings, useSocial, queryClient, call, useRoom, roomPlayer } });
