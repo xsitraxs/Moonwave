@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { app, shell } from "electron";
 import { lang } from "../i18n";
 import { log } from "../system/log";
-import { parseFriendFromArgs, parseSignInLinkFromArgs, PROTOCOL, TOKEN } from "./browser-signin-url";
+import { parseFriendFromArgs, parseSignInLinkFromArgs, PROTOCOL, protocolHandlerArgs, TOKEN } from "./browser-signin-url";
 import { acceptsQuietly, beginWait, idleWait, isWaiting, type SignInWait } from "./browser-signin-state";
 
 export { PROTOCOL, TOKEN };
@@ -31,14 +31,18 @@ export { PROTOCOL, TOKEN };
 let wait: SignInWait = idleWait;
 /** the helper page's own folder (created by mkdtempSync and removed after the sign-in, or on cancel) */
 let helperDir: string | null = null;
+/** set when startBrowserSignIn pointed moonwave:// at the running unpacked exe on a portable build, so finish restores the outer .exe */
+let preferredRunningHandler = false;
 
-const handlerArgs = (): [string, string[]] =>
-  // in development the app runs as "electron <project folder>" (a test profile goes along: Windows starts the link
-  // without SKY_PROFILE); a portable build is the outer .exe, not the unpacked copy in the temp folder that is gone
-  // after it quits
-  process.defaultApp
-    ? [process.execPath, [app.getAppPath(), ...(process.env.SKY_PROFILE ? [`--sky-profile=${process.env.SKY_PROFILE.replace(/[^\w-]/g, "")}`] : [])]]
-    : [process.env.PORTABLE_EXECUTABLE_FILE ?? process.execPath, []];
+const handlerArgs = (preferRunning = false): [string, string[]] =>
+  protocolHandlerArgs({
+    defaultApp: !!process.defaultApp,
+    execPath: process.execPath,
+    appPath: app.getAppPath(),
+    skyProfile: process.env.SKY_PROFILE,
+    portableExecutableFile: process.env.PORTABLE_EXECUTABLE_FILE,
+    preferRunning,
+  });
 
 export function waitingForBrowser() {
   return isWaiting(wait, Date.now());
@@ -64,7 +68,7 @@ function dropHelperDir() {
 }
 
 /** moonwave:// links open this app: a sign-in from the browser, a friend's link. Set at every start (installed). */
-export function registerLinks() {
+export function registerLinks(opts?: { preferRunning?: boolean }) {
   if (process.platform === "darwin") {
     if (process.defaultApp) {
       app.setAsDefaultProtocolClient(PROTOCOL, process.execPath, [app.getAppPath()]);
@@ -72,7 +76,7 @@ export function registerLinks() {
       app.setAsDefaultProtocolClient(PROTOCOL);
     }
   } else {
-    const [exe, args] = handlerArgs();
+    const [exe, args] = handlerArgs(opts?.preferRunning === true);
     app.setAsDefaultProtocolClient(PROTOCOL, exe, args);
   }
 }
@@ -81,7 +85,10 @@ export function registerLinks() {
 export const friendFromArgs = parseFriendFromArgs;
 
 export function startBrowserSignIn() {
-  registerLinks();
+  // while this process is open and waiting for the bookmark click, point moonwave:// directly at the running exe so a
+  // portable build hands the token straight to Moonwave.exe instead of unpacking the outer NSIS wrapper a second time
+  registerLinks({ preferRunning: true });
+  preferredRunningHandler = !!process.env.PORTABLE_EXECUTABLE_FILE && !process.defaultApp && process.platform !== "darwin";
   // a fresh state for this attempt: the previous page's state stops being enough the moment a new one is made
   wait = beginWait(Date.now());
   dropHelperDir();
@@ -98,6 +105,10 @@ export function startBrowserSignIn() {
 export function finishBrowserSignIn() {
   wait = idleWait;
   dropHelperDir();
+  if (preferredRunningHandler) {
+    preferredRunningHandler = false;
+    registerLinks();
+  }
 }
 
 export function stopBrowserSignIn() {

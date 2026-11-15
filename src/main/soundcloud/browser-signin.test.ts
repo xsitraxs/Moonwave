@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { parseTokenFromArgs, parseFriendFromArgs, parseSignInLinkFromArgs } from "./browser-signin-url.ts";
+import { parseTokenFromArgs, parseFriendFromArgs, parseSignInLinkFromArgs, protocolHandlerArgs, relaunchOptions } from "./browser-signin-url.ts";
 
 test("parseTokenFromArgs extracts clean token from moonwave://signin URL", () => {
   const url = "moonwave://signin?token=2-123456-7890abcdef";
@@ -93,3 +93,69 @@ test("the helper page is written into a folder of its own, readable by its owner
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+// ---- portable protocol links and relaunch --------------------------------------------------------------------------
+
+test("portable builds use the running unpacked exe during browser sign-in, and the outer portable exe otherwise", () => {
+  const unpackedExe = "C:\\Users\\me\\AppData\\Local\\Temp\\nsA1B2.tmp\\app\\Moonwave.exe";
+  const outerPortable = "D:\\Apps\\moonwave-portable-v2.5.2.exe";
+
+  // idle / after sign-in: moonwave:// points at the outer portable .exe so links work after the app closes
+  assert.deepEqual(
+    protocolHandlerArgs({
+      defaultApp: false,
+      execPath: unpackedExe,
+      appPath: "C:\\app.asar",
+      portableExecutableFile: outerPortable,
+    }),
+    [outerPortable, []],
+  );
+
+  // while waiting for browser sign-in: moonwave:// points at the already-running unpacked Moonwave.exe
+  assert.deepEqual(
+    protocolHandlerArgs({
+      defaultApp: false,
+      execPath: unpackedExe,
+      appPath: "C:\\app.asar",
+      portableExecutableFile: outerPortable,
+      preferRunning: true,
+    }),
+    [unpackedExe, []],
+  );
+
+  // development mode always passes the project path (and profile flag) regardless of preferRunning
+  assert.deepEqual(
+    protocolHandlerArgs({
+      defaultApp: true,
+      execPath: "/usr/bin/electron",
+      appPath: "/workspace/Moonwave",
+      skyProfile: "test-1",
+      preferRunning: true,
+    }),
+    ["/usr/bin/electron", ["/workspace/Moonwave", "--sky-profile=test-1"]],
+  );
+});
+
+test("relaunchOptions targets the outer portable .exe or AppImage instead of a temporary unpacked binary", () => {
+  assert.deepEqual(
+    relaunchOptions({
+      argv: ["C:\\Temp\\ns1.tmp\\app\\Moonwave.exe", "--updated", "--foo"],
+      portableExecutableFile: "D:\\moonwave-portable.exe",
+    }),
+    { execPath: "D:\\moonwave-portable.exe", args: ["--foo"] },
+  );
+  assert.deepEqual(
+    relaunchOptions({
+      argv: ["/tmp/.mount_moonwaXYZ/moonwave", "--updated"],
+      appImage: "/home/me/Applications/moonwave.AppImage",
+    }),
+    { execPath: "/home/me/Applications/moonwave.AppImage", args: [] },
+  );
+  assert.deepEqual(
+    relaunchOptions({
+      argv: ["C:\\Program Files\\Moonwave\\Moonwave.exe", "--updated"],
+    }),
+    { args: [] },
+  );
+});
+

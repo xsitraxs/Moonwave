@@ -260,3 +260,19 @@ test("fuses + ASAR integrity (Windows): checks the INTEGRITY/ELECTRONASAR PE res
   assert.equal(bad.length, 1);
   assert.match(bad[0], /INTEGRITY hash/);
 });
+
+test("windows portable: unpackDirName gives each launch its own $PLUGINSDIR temp folder so a second launch cannot wipe icudtl.dat", () => {
+  const pkg = JSON.parse(readFileSync("package.json", "utf8"));
+  const unpackDirName = pkg.build?.portable?.unpackDirName;
+  assert.equal(unpackDirName, true, "build.portable.unpackDirName must be true so electron-builder omits UNPACK_DIR_NAME");
+
+  // Guard against electron-builder changing its NsisTarget condition (`if (typeof unpackDirName === "string" || !unpackDirName)`):
+  // verify both portable.nsi's $PLUGINSDIR fallback and NsisTarget.js's exact branch in the installed app-builder-lib.
+  const nsisTargetJs = readFileSync("node_modules/app-builder-lib/out/targets/nsis/NsisTarget.js", "utf8");
+  const portableNsi = readFileSync("node_modules/app-builder-lib/templates/nsis/portable.nsi", "utf8");
+  assert.match(portableNsi, /StrCpy \$INSTDIR "\$PLUGINSDIR\\app"[\s\S]*!ifdef UNPACK_DIR_NAME/);
+  assert.match(nsisTargetJs, /typeof unpackDirName === "string" \|\| !unpackDirName/);
+  const definesUnpackDir = typeof unpackDirName === "string" || !unpackDirName;
+  assert.equal(definesUnpackDir, false, "UNPACK_DIR_NAME must remain undefined so portable.nsi uses per-launch $PLUGINSDIR\\app");
+});
+

@@ -11,6 +11,8 @@ export interface MainState {
   proxyRoute?: "own" | "ours";
   /** Windows: set once AudioService crashed with STATUS_BREAKPOINT so subsequent starts disable AudioServiceSandbox */
   winAudioSandboxOff?: boolean;
+  /** Windows: set once AudioService still crashed with STATUS_BREAKPOINT while AudioServiceSandbox was already off (and runtime files were intact), so subsequent starts disable AudioServiceOutOfProcess */
+  winAudioInProcess?: boolean;
   /** Windows: set once the sandboxed GPU process crashed with STATUS_BREAKPOINT so subsequent starts pass --disable-gpu-sandbox */
   winGpuSandboxOff?: boolean;
 }

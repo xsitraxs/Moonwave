@@ -733,7 +733,7 @@ export const en = {
   checkDone: "Done",
   errVerify: "SoundCloud wants to check it's you before this action.",
   errUnknown: "Something went wrong.",
-  errAudio: "The sound stopped: the app's audio output failed. Press Retry to bring it back.",
+  errAudio: "The sound stopped: the app's audio output failed. Press Retry — if it stays silent, restart Moonwave.",
   retry: "Retry",
   // login / empty
   loginTitle: "sign in",

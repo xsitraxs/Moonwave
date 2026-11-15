@@ -170,3 +170,43 @@ test("at a list's end the next track waits for the autopilot's tracks on their w
   const s = usePlayer.getState();
   assert.equal(s.queue[s.index]?.id, 21, `the queue ended on ${s.queue[s.index]?.id} (${s.status})`);
 });
+
+test("giving up after repeated audio-service crashes pauses the element (no infinite respawn loop), and Retry resumes", async () => {
+  const realNow = performance.now.bind(performance);
+  let shift = 0;
+  performance.now = () => realNow() + shift;
+  try {
+    player.playFrom([T(50)], 0, { kind: "static" });
+    await flush();
+    playing().meta(200);
+    playing().tick(42);
+    assert.equal(playing().paused, false);
+
+    // two automatic rebuilds within the 60 s budget reload the stream; the third crash gives up and pauses the deck
+    await engine.recoverSound("the audio service died, 1×");
+    await flush();
+    playing().meta(200);
+    await engine.recoverSound("the audio service died, 2×");
+    await flush();
+    playing().meta(200);
+    await engine.recoverSound("the audio service died, 3×");
+    await flush();
+
+    assert.equal(usePlayer.getState().status, "error");
+    assert.equal(usePlayer.getState().error, "audio");
+    assert.equal(playing().paused, true, "unpaused <audio> keeps respawning a crashing AudioService 4×/sec");
+
+    // pressing Retry resets the budget and resumes playback from where the track stopped
+    player.retry();
+    await flush(5);
+    playing().meta(200);
+    assert.equal(playing().paused, false, "Retry must resume playback after give-up paused the deck");
+    assert.equal(playing().currentTime, 42, "Retry must keep the playback position");
+    assert.notEqual(usePlayer.getState().status, "error");
+  } finally {
+    shift += 120_000;
+    engine.recoveryBudget();
+    performance.now = realNow;
+  }
+});
+

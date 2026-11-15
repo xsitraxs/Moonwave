@@ -985,6 +985,19 @@ export function recoverSound(why: string): Promise<void> {
     if (step === "give-up") {
       fault(`${why}; recovery gave up after ${spent.length} rebuilds — the player is told the sound is broken`);
       events?.error("audio");
+      // stop the decks from asking Chromium for an audio sink in the background: otherwise a broken AudioService
+      // keeps respawning and crashing several times a second even after recovery gave up
+      endFade();
+      preparing = false;
+      for (const d of decks) {
+        d.starting = false;
+        d.audio.pause();
+      }
+      if (ctx && stateOf(ctx) === "running") {
+        setChainCarries(false);
+        void ctx.suspend();
+      }
+      reportHealth();
       return;
     }
     if (step === "resume") {
@@ -996,7 +1009,7 @@ export function recoverSound(why: string): Promise<void> {
     fault(`${why}; rebuilding the output (${spent.length}/${MAX_REBUILDS})`);
     inRebuild = true;
     try {
-      await restartDecks();
+      await restartDecks(true);
     } finally {
       inRebuild = false;
     }

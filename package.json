@@ -159,6 +159,9 @@
       "createDesktopShortcut": true,
       "shortcutName": "Moonwave"
     },
+    "portable": {
+      "unpackDirName": true
+    },
     "linux": {
       "icon": "build/icon.png",
       "target": [
