@@ -56,6 +56,9 @@
 **Музыка**
 - Лайки, плейлисты, альбомы, станции, история, лента подписок, любой открытый профиль. Плейлисты и профили можно
   закрепить в боковой панели.
+- **Подписки на артистов прямо из приложения** — кнопка на профиле, странице трека и в меню трека. Отписаться можно в
+  один клик; подписка оформляется на SoundCloud в окне приложения, после чего Moonwave сам обновит кнопку, счётчик и
+  список «Подписки».
 - **Свои плейлисты** — создавайте, переставляйте, переименовывайте. Хранятся на компьютере и работают даже без входа.
   Любой плейлист SoundCloud можно скопировать к себе, очередь — сохранить, всё — выгрузить в файл и загрузить обратно.
 - **Перенос плейлистов** из Spotify, Яндекс Музыки, YouTube Music и VK Музыки (или просто списка строк): вставьте
@@ -74,6 +77,7 @@
 - **Полноэкранный плеер:** большая обложка, спектр вокруг неё или внизу и слова, которые загораются по мере пения.
 
 **Оформление**
+- **Обои из Steam Workshop** — вставьте ссылку на обои [Wallpaper Engine](https://store.steampowered.com/app/431960/Wallpaper_Engine/) в Настройки → Внешний вид → «Обои из Steam Workshop», и они станут вашим фоном: видео — сделанной копией в 2K, сцены и веб-обои — по своему превью (GIF-превью анимируется). Нужны Steam и установленный Wallpaper Engine; обои скачиваются через Steam с подписки на них.
 - Тёмное стекло поверх живого фона в цветах обложки — или сама обложка, ваша картинка, GIF или видео.
 - Свой цвет интерфейса и акцент, размытие, затемнение, плотность панелей; облегчённые эффекты для слабых ПК.
 
@@ -157,6 +161,7 @@ Moonwave ставится **отдельным приложением**, ряд�
   (от kkkwkswd).
 - Некоторые треки SoundCloud отдаёт только в зашифрованном виде (DRM). Если другой загрузки той же записи нет, у трека
   будет пометка `SoundCloud only`, и он откроется на soundcloud.com.
+- SoundCloud не пропускает запросы приложений на изменение подписок (у неё защита от ботов), поэтому «Подписаться» открывает страницу артиста в окне Moonwave: нажмите там Follow — и приложение само обновит кнопку, счётчик и список. Отписка из приложения проходит сразу. Это не баг и не обход защиты.
 - Защита SoundCloud от ботов не даёт приложениям менять плейлисты на самом SoundCloud, поэтому свои плейлисты хранятся
   на компьютере. Время от времени выгружайте их в файл (Плейлисты → Экспорт): они не переезжают вместе с аккаунтом.
 - Если SoundCloud что-то поменял у себя, приложение покажет ошибку с кнопкой **Повторить**; если не помогло — проверьте
@@ -217,9 +222,15 @@ or with SoundCloud.
 
 - **Music:** likes, playlists, albums, stations, history, your feed; local playlists kept on your computer; import from
   Spotify, Yandex Music, YouTube Music and VK; honest shuffle and autopilot; DRM-only tracks replaced by another upload
-  of the same recording; crossfade, 10-band EQ, output device, sleep timer; your own audio files.
+  of the same recording; crossfade, 10-band EQ, output device, sleep timer; your own audio files; **follow the artists
+  you like** from the profile, the track page and the track menu — unfollowing is one click, following happens on
+  soundcloud.com in the app's own window and the app then updates the button, the counter and the followings list by
+  itself.
+- **Look:** dark glass over a living background, your own colour and accent; a full screen player with a spectrum;
+  **Wallpaper Engine wallpapers from the Steam Workshop** as your background — video wallpapers come in a 2K copy,
+  scenes and web wallpapers are set as their preview picture (an animated GIF preview plays), right from Settings →
+  Appearance → "Wallpaper from Steam Workshop".
 - **Lyrics** from Better Lyrics, Unison and LRCLIB, often word by word; plain lyrics can be synced on your computer.
-- **Look:** dark glass over a living background, your own colour and accent; a full screen player with a spectrum.
 - **Desktop:** media keys, tray, global hotkeys, notifications, "Listening to Moonwave" on your Discord profile,
   self-updating installer and AppImage.
 
@@ -227,6 +238,8 @@ or with SoundCloud.
 (Windows), `moonwave-v…-arm64.dmg` / `-x64.dmg` (macOS 13+; run `xattr -cr "/Applications/Moonwave.app"` once, the
 app isn't notarized), `moonwave-v…-x86_64.AppImage` or `-amd64.deb` (Linux). On Windows, click **More info → Run
 anyway** if SmartScreen warns.
+
+**Good to know:** SoundCloud blocks the app's own follow requests (bot protection), so «Follow» takes you to the artist's page inside the app — press Follow there and Moonwave notices and updates itself; unfollowing from the app works directly. Not a bug, not a bypass.
 
 **Coming from sc player:** Moonwave installs next to it and copies its settings, likes and playlists on the first
 start (on macOS and Linux you sign in to SoundCloud again). Remove sc player once everything is there.
