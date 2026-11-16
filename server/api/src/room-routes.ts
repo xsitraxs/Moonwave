@@ -200,7 +200,10 @@ export function roomRoutes(h: Helpers): [string, RegExp, (c: Ctx) => unknown][] 
       rooms.disconnected(id, me);
       c.res.end();
     };
-    c.req.on("close", end);
+    // the request stream ends as soon as its headers are read — a GET carries no body — so "the request closed" is
+    // not "the person went away"; the connection this answer lives on is the response stream, and that is whose
+    // close ends the subscription (its "error" already did, below)
+    c.res.on("close", end);
     c.res.on("error", end);
     const mineOpen = [...(openStreams.get(key) ?? []), end];
     openStreams.set(key, mineOpen);
