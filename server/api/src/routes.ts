@@ -446,7 +446,7 @@ function getBackup(c: Ctx) {
   limit(`backup-get:${c.ip}`, 30, HOUR);
   const r = one("SELECT data FROM backups WHERE id = ?", c.params[0]!);
   if (!r) return fail(404, "no backup");
-  const data = Buffer.from(r.data as unknown as Uint8Array);
+  const data = Buffer.from(r.data as Uint8Array);
   c.res.writeHead(200, { "content-type": "application/octet-stream", "content-length": data.length, "cache-control": "no-store" });
   c.res.end(data);
 }
@@ -625,7 +625,7 @@ async function putPreview(c: Ctx) {
 
 function themeFile(c: Ctx, which: "bg" | "preview") {
   const t = themeRow(c.params[0]!);
-  if (t.hidden && !isAdmin(c)) fail(404, "no such theme");
+  if ((!t.published || t.hidden) && !isAdmin(c)) fail(404, "no such theme");
   const name = String(t[which] ?? "");
   if (!name) fail(404, "none");
   const path = join(DATA, "themes", name);
@@ -653,7 +653,9 @@ async function vote(c: Ctx, kind: "like" | "install" | "report") {
   const t = themeRow(c.params[0]!);
   if (!t.published || t.hidden) fail(404, "no such theme");
   const had = !!one("SELECT 1 FROM theme_votes WHERE theme = ? AND device = ? AND kind = ?", t.id, d.id, kind);
-  const reason = kind === "report" ? text((await readJson(c.req)).reason, 300, "reason", false) : "";
+  // the body is always read: like/install send nothing useful, but an unread body tears the keep-alive connection
+  const body = await readJson(c.req);
+  const reason = kind === "report" ? text(body.reason, 300, "reason", false) : "";
   tx(() => {
     if (kind === "like" && had) {
       run("DELETE FROM theme_votes WHERE theme = ? AND device = ? AND kind = 'like'", t.id, d.id);

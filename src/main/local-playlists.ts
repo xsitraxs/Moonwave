@@ -46,6 +46,9 @@ function find(id: string): LocalList {
 const item = (t: Track): Item => ({ id: t.id, durationMs: t.durationMs, artworkUrl: t.artworkUrl });
 
 function toPlaylist(l: LocalList): Playlist {
+  // a corrupt import can leave `created` non-finite (Infinity from `1e999`, negative, …);
+  // new Date(Infinity).toISOString() throws RangeError and would take the whole screen down with it
+  const created = Number.isFinite(l.created) && l.created > 0 ? l.created : 0;
   return {
     id: l.id,
     title: l.title,
@@ -57,7 +60,7 @@ function toPlaylist(l: LocalList): Playlist {
     permalinkUrl: "",
     isAlbum: false,
     relation: "own",
-    releaseDate: new Date(l.created).toISOString(),
+    releaseDate: new Date(created).toISOString(),
     genre: null,
   };
 }
@@ -164,7 +167,13 @@ export function importLocal(text: string): number {
     if (!title || have.has(key(title, items))) continue;
     have.add(key(title, items));
     const from = typeof raw.from === "string" && /^[\w:-]{1,80}$/.test(raw.from) ? raw.from : undefined;
-    added.push({ id: LOCAL_PREFIX + randomBytes(8).toString("hex"), title, items, created: typeof raw.created === "number" ? raw.created : Date.now(), from });
+    // JSON.parse("1e999") === Infinity and typeof Infinity === "number" — a non-finite created would later
+    // throw RangeError in toPlaylist on every read and kill the screen forever
+    const created =
+      typeof raw.created === "number" && Number.isFinite(raw.created) && raw.created > 0
+        ? Math.min(raw.created, Date.now() + 1e12)
+        : Date.now();
+    added.push({ id: LOCAL_PREFIX + randomBytes(8).toString("hex"), title, items, created, from });
   }
   if (added.length) save([...lists(), ...added]);
   return added.length;

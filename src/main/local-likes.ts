@@ -32,10 +32,14 @@ export const likesData = (): LikesData => store().get();
 export function mergeLikes(from: LikesData): number {
   const have = store().get();
   const ids = new Set(have.liked.map((l) => l.id));
-  const added = (Array.isArray(from.liked) ? from.liked : []).filter((l) => Number.isSafeInteger(l?.id) && l.id > 0 && !ids.has(l.id)).map((l) => ({ id: l.id, at: Number(l.at) || Date.now() }));
+  const added = (Array.isArray(from.liked) ? from.liked : [])
+    .filter((l) => Number.isSafeInteger(l?.id) && l.id > 0 && !ids.has(l.id))
+    .map((l) => ({ id: l.id, at: Number.isFinite(l.at) && l.at > 0 ? Math.min(l.at, Date.now() + 1e12) : Date.now() }));
   const hidden = [...new Set([...have.hidden, ...(Array.isArray(from.hidden) ? from.hidden.filter((x) => Number.isSafeInteger(x) && x > 0) : [])])];
   const lists = new Set((have.playlists ?? []).map((l) => l.playlist.id));
-  const addedLists = (Array.isArray(from.playlists) ? from.playlists : []).filter((l) => typeof l?.playlist?.id === "string" && !lists.has(l.playlist.id)).map((l) => ({ playlist: { ...l.playlist, relation: "liked" as const }, at: Number(l.at) || Date.now() }));
+  const addedLists = (Array.isArray(from.playlists) ? from.playlists : [])
+    .filter((l) => typeof l?.playlist?.id === "string" && !lists.has(l.playlist.id))
+    .map((l) => ({ playlist: { ...l.playlist, relation: "liked" as const }, at: Number.isFinite(l.at) && l.at > 0 ? Math.min(l.at, Date.now() + 1e12) : Date.now() }));
   const hiddenPlaylists = [...new Set([...(have.hiddenPlaylists ?? []), ...(Array.isArray(from.hiddenPlaylists) ? from.hiddenPlaylists.filter((x) => typeof x === "string") : [])])];
   store().patch({ liked: [...added, ...have.liked].sort((a, b) => a.at - b.at), hidden, playlists: [...addedLists, ...(have.playlists ?? [])].sort((a, b) => a.at - b.at), hiddenPlaylists });
   if (added.length || addedLists.length) changed();

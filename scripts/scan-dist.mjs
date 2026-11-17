@@ -6,15 +6,23 @@
 // Note: the built-in proxy's credentials ARE embedded in the main bundle when the build has proxy.local.json — that is
 // this project's deliberate design (a shared proxy account for installed copies, see server/README.md), so they are
 // not flagged. Everything else must be clean. Run after `electron-vite build`, and again on dist/ in CI.
+//
+// app.asar is unpacked and scanned too: the release build's app.asar is what ships to users, and skipping it by
+// extension made the scanner a silent no-op on exactly what matters (see P2-9).
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
-import { join, relative, extname } from "node:path";
+import { join, relative, extname, basename as pathBasename } from "node:path";
 import { execFileSync } from "node:child_process";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { extractAll } from "@electron/asar";
 
 const roots = process.argv.slice(2);
 const targets = roots.length > 0 ? roots : ["out", "dist"];
 
 const TEXT_EXT = new Set([".js", ".mjs", ".cjs", ".ts", ".tsx", ".json", ".html", ".css", ".map", ".yml", ".yaml", ".txt", ".md", ".svg"]);
+// files inside app.asar can be big bundles — don't skip them, just cap each at 100 MB
 const MAX_TEXT_BYTES = 8 * 1024 * 1024;
+const MAX_TEXT_BYTES_INSIDE_ASAR = 100 * 1024 * 1024;
 /** basenames that must never appear in a build (they are local inputs or user data, not package contents).
  *  server/.env.example is explicitly committed as a template, so it is the one allowed dot-env file. */
 const ALLOWED_BASENAMES = new Set([".env.example"]);
@@ -45,47 +53,61 @@ function* walk(dir) {
   }
 }
 
+const cwd = process.cwd();
+
+/** One text file: forbidden-name check, then pattern scan. `rel` is the path shown in findings (e.g. `app.asar!/leak.js`). */
+function scanFile(file, rel, maxBytes) {
+  const base = pathBasename(file);
+  // 1. files that should never be part of a build
+  if (forbidden(base)) {
+    findings.push(`${rel}: forbidden file in the build (${base})`);
+    return;
+  }
+  // 2. secret-shaped strings in text files
+  const ext = extname(file);
+  if (!TEXT_EXT.has(ext)) return;
+  const size = statSync(file).size;
+  if (size > maxBytes) return;
+  const text = readFileSync(file, "utf8");
+  scanned.files++;
+  scanned.bytes += size;
+  for (const [re, name] of PATTERNS) {
+    if (re.test(text)) findings.push(`${rel}: ${name}`);
+  }
+}
+
+/** app.asar is a zip-like archive: unpack it and scan the files inside as if they were at `label` paths. */
+async function scanAsar(asarFile) {
+  const tmp = mkdtempSync(join(tmpdir(), "scan-asar-"));
+  try {
+    await extractAll(asarFile, tmp);
+    for (const file of walk(tmp)) scanFile(file, `${relative(cwd, asarFile)}!/${relative(tmp, file)}`, MAX_TEXT_BYTES_INSIDE_ASAR);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+}
+
 for (const root of targets) {
   if (!existsSync(root)) {
     console.log(`scan: ${root} not present — skipped`);
     continue;
   }
   for (const file of walk(root)) {
-    const rel = relative(".", file);
-    const base = entryBase(file);
-    // 1. files that should never be part of a build
-    if (forbidden(base)) {
-      findings.push(`${rel}: forbidden file in the build (${base})`);
-      continue;
-    }
-    // 2. secret-shaped strings in text files
-    const ext = extname(file);
-    if (!TEXT_EXT.has(ext)) continue;
-    const size = statSync(file).size;
-    if (size > MAX_TEXT_BYTES) continue;
-    const text = readFileSync(file, "utf8");
-    scanned.files++;
-    scanned.bytes += size;
-    for (const [re, name] of PATTERNS) {
-      if (re.test(text)) findings.push(`${rel}: ${name}`);
-    }
+    scanFile(file, relative(cwd, file), MAX_TEXT_BYTES);
+    // 3. the archive itself: unpack and scan what ships inside it
+    if (extname(file) === ".asar") await scanAsar(file);
   }
 }
 
-// 3. nothing local or secret is tracked in git either (fast, cheap, always on)
+// 4. nothing local or secret is tracked in git either (fast, cheap, always on)
 try {
   const tracked = execFileSync("git", ["ls-files"], { encoding: "utf8" }).split("\n").filter(Boolean);
   for (const f of tracked) {
-    const base = entryBase(f);
+    const base = pathBasename(f);
     if (forbidden(base)) findings.push(`${f}: forbidden file tracked in git`);
   }
 } catch {
   console.log("scan: git not available — tracked-files check skipped");
-}
-
-function entryBase(file) {
-  const i = Math.max(file.lastIndexOf("/"), file.lastIndexOf("\\"));
-  return file.slice(i + 1);
 }
 
 if (findings.length) {

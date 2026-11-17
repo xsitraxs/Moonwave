@@ -30,6 +30,29 @@ export default function TrackList({ tracks: all, source, hasMore = false, loadin
   const [margin, setMargin] = useState(0);
   const currentId = usePlayer((s) => s.queue[s.index]?.id ?? null);
   const playing = usePlayer((s) => s.status === "playing" || s.status === "loading");
+  const [focusedIndex, setFocusedIndex] = useState(() => tracks.findIndex((t) => t.id === currentId));
+
+  /** Move focus between rows with the arrows; the focused row is the only tabbable one (roving tabindex). */
+  const onMove = useCallback(
+    (from: number, delta: number) => {
+      const next = from + delta;
+      if (next < 0 || next >= tracks.length) return;
+      setFocusedIndex(next);
+      const row = listRef.current?.querySelector<HTMLElement>(`[role="row"][data-index="${next}"]`);
+      row?.focus({ preventScroll: true });
+    },
+    [tracks.length, listRef],
+  );
+
+  const onGridKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+    const row = (e.target as HTMLElement | null)?.closest<HTMLElement>('[role="row"]');
+    if (!row || !listRef.current?.contains(row)) return;
+    e.preventDefault();
+    const from = Number(row.dataset.index ?? "-1");
+    if (!Number.isInteger(from)) return;
+    onMove(from, e.key === "ArrowDown" ? 1 : -1);
+  };
 
   useLayoutEffect(() => {
     const list = listRef.current;
@@ -71,13 +94,13 @@ export default function TrackList({ tracks: all, source, hasMore = false, loadin
   );
 
   return (
-    <div ref={listRef} role="grid" aria-label={label} aria-rowcount={tracks.length}>
+    <div ref={listRef} role="grid" aria-label={label} aria-rowcount={tracks.length} onKeyDown={onGridKeyDown}>
       <div className="relative w-full" style={{ height: virtualizer.getTotalSize() }}>
         {items.map((item) => {
           const track = tracks[item.index]!;
           return (
             <div key={`${track.id}-${item.index}`} className="absolute left-0 top-0 w-full" style={{ height: ROW_HEIGHT, transform: `translateY(${item.start - margin}px)` }}>
-              <TrackRow track={track} index={item.index} current={track.id === currentId} playing={track.id === currentId && playing} onPlay={onPlay} />
+              <TrackRow track={track} index={item.index} current={track.id === currentId} playing={track.id === currentId && playing} focused={item.index === focusedIndex} onPlay={onPlay} />
             </div>
           );
         })}

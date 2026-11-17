@@ -15,8 +15,8 @@ export const roomPosition = (r: RoomClock, serverNow: number) => (r.playing ? r.
 
 /** within this the room is together: nothing to do */
 const NEAR = 0.08;
-/** beyond this a seek, nearer a change of speed */
-const FAR = 1.5;
+/** beyond this a seek: at ±5% a 0.7 s gap takes fifteen seconds, which is heard as a tempo change */
+const FAR = 0.8;
 /** speed changes stay within ±5%: not heard as a different song */
 const MAX_RATE = 0.05;
 /** a seek lands a little late (the decoder starts again): aim that much ahead */
@@ -40,6 +40,6 @@ export function correction(local: number, target: number, far = FAR): Correction
   const behind = target - local;
   if (Math.abs(behind) > far) return { seek: target + SEEK_LEAD, rate: 1 };
   if (Math.abs(behind) <= NEAR) return { rate: 1 };
-  // make up the difference over about three seconds, within the limits
+  // make up the difference at at most ±5% — about three seconds per 0.15 s of drift, then a seek
   return { rate: 1 + Math.max(-MAX_RATE, Math.min(MAX_RATE, behind / 3)) };
 }

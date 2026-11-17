@@ -98,22 +98,36 @@ function connect(id: string) {
         const reader = res.body.getReader();
         const dec = new TextDecoder();
         let buf = "";
-        for (;;) {
-          const { done, value } = await reader.read();
-          if (done || mine !== gen) break;
-          buf += dec.decode(value, { stream: true });
-          let cut: number;
-          while ((cut = buf.indexOf("\n\n")) >= 0) {
-            const block = buf.slice(0, cut);
-            buf = buf.slice(cut + 2);
-            const event = /^event: (.+)$/m.exec(block)?.[1];
-            const data = /^data: (.+)$/m.exec(block)?.[1];
-            if (event === "closed") {
-              if (mine === gen) ended(true);
-              return;
-            }
-            if (event === "room" && data) take(JSON.parse(data) as Room);
+        // the server writes a heartbeat comment every 15 s; three missing heartbeats mean the stream is dead —
+        // abort it ourselves instead of waiting for TCP to give up (minutes, and silently)
+        let last = Date.now();
+        const watchdog = setInterval(() => {
+          if (Date.now() - last > 45_000) {
+            log("main", "room stream: no bytes for 45 s, aborting");
+            ctl.abort();
           }
+        }, 5_000);
+        try {
+          for (;;) {
+            const { done, value } = await reader.read();
+            last = Date.now();
+            if (done || mine !== gen) break;
+            buf += dec.decode(value, { stream: true });
+            let cut: number;
+            while ((cut = buf.indexOf("\n\n")) >= 0) {
+              const block = buf.slice(0, cut);
+              buf = buf.slice(cut + 2);
+              const event = /^event: (.+)$/m.exec(block)?.[1];
+              const data = /^data: (.+)$/m.exec(block)?.[1];
+              if (event === "closed") {
+                if (mine === gen) ended(true);
+                return;
+              }
+              if (event === "room" && data) take(JSON.parse(data) as Room);
+            }
+          }
+        } finally {
+          clearInterval(watchdog);
         }
       } catch (e) {
         if (mine !== gen) return;

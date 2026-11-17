@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, unlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, unlinkSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -52,9 +52,11 @@ function fakeDist({ version = "2.3.2" } = {}) {
     [
       `version: ${versionOverride ?? version}`,
       "files:",
-      ...entries.map(([url, size]) => [`  - url: ${url}`, `    sha512: abc`, `    size: ${size}`].join("\n")),
+      ...entries.map(([url, size]) => {
+        const sha512 = existsSync(join(dir, url)) ? createHash("sha512").update(readFileSync(join(dir, url))).digest("base64") : null;
+        return [`  - url: ${url}`, `    sha512: ${sha512}`, `    size: ${size}`].join("\n");
+      }),
       `path: ${entries[0][0]}`,
-      "sha512: abc",
       "",
     ].join("\n");
   return { dir, version, writeYml, yml };
@@ -95,8 +97,8 @@ test("latest.yml parses: version, the files list, sizes and optional blockMapSiz
   assert.equal(yml.version, "2.3.2");
   assert.equal(yml.path, "moonwave-setup-v2.3.2.exe");
   assert.deepEqual(yml.files, [
-    { url: "moonwave-setup-v2.3.2.exe", size: 12345, blockMapSize: 321 },
-    { url: "other.exe", size: 67, blockMapSize: null },
+    { url: "moonwave-setup-v2.3.2.exe", size: 12345, blockMapSize: 321, sha512: "AAA" },
+    { url: "other.exe", size: 67, blockMapSize: null, sha512: null },
   ]);
 });
 
@@ -146,7 +148,7 @@ test("windows: a listed file that does not exist fails; a wrong size fails", () 
 
 test("macOS: a complete build passes; zip or zip.blockmap missing fails", () => {
   const { dir, writeYml, yml } = fakeDist();
-  writeYml("latest-mac.yml", yml(undefined, [["moonwave-2.3.2-arm64.zip", 4096]]));
+  writeYml("latest-mac.yml", yml(undefined, [["moonwave-2.3.2-arm64.zip", 4096], ["moonwave-2.3.2-x64.zip", 4096]]));
   assert.deepEqual(verifyDist({ dir, platform: "darwin", expectVersion: "2.3.2" }), []);
 
   unlinkSync(join(dir, "moonwave-2.3.2-arm64.zip.blockmap"));
@@ -155,7 +157,8 @@ test("macOS: a complete build passes; zip or zip.blockmap missing fails", () => 
 
   writeYml("latest-mac.yml", yml(undefined, [["moonwave-2.3.2-arm64.dmg", 4096]]));
   const problems = verifyDist({ dir, platform: "darwin", expectVersion: "2.3.2" });
-  assert.ok(problems.some((p) => /does not list a .zip/.test(p)));
+  assert.ok(problems.some((p) => /does not list an arm64 .zip/.test(p)));
+  assert.ok(problems.some((p) => /does not list an x64 .zip/.test(p)));
 });
 
 test("linux: a complete build passes; AppImage not listed fails", () => {

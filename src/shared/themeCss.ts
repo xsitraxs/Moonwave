@@ -287,8 +287,35 @@ function timeInMs(word: string): number | null {
 /** The words of an `animation` value that are not times, keywords or numbers: the names it refers to. */
 const ANIMATION_KEYWORDS = /^(infinite|normal|reverse|alternate|alternate-reverse|forwards|backwards|both|running|paused|ease|ease-in|ease-out|ease-in-out|linear|step-start|step-end|initial|inherit|none)$/i;
 
+/** FNV-1a over the theme's sheet: stable per theme, different between themes — the keyframe scope prefix. */
+function themeHash(input: string): string {
+  let h = 2166136261 >>> 0;
+  for (let i = 0; i < input.length; i++) {
+    h ^= input.codePointAt(i)!;
+    h = (h * 16777619) >>> 0;
+  }
+  return h.toString(36);
+}
+
+/** `animation: pulse 2s` → `animation: tw-<hash>-pulse 2s` — only whole names this theme defined, words stay words:
+ * `cubic-bezier(.1, .7)` is torn at commas but none of its pieces is a keyframe name, so nothing changes by mistake. */
+function scopeAnimationNames(value: string, names: Map<string, string>): string {
+  const out: string[] = [];
+  let word = "";
+  const flush = (w: string) => out.push(names.has(w.toLowerCase()) ? names.get(w.toLowerCase())! : w);
+  for (const ch of value) {
+    if (/\s/.test(ch) || ch === ",") {
+      if (word) flush(word);
+      word = "";
+      out.push(ch);
+    } else word += ch;
+  }
+  if (word) flush(word);
+  return out.join("");
+}
+
 /** `animation`: only the theme's own @keyframes, by name, at a speed a person can live with. */
-function animationOk(value: string, keyframes: Set<string>): boolean {
+function animationOk(value: string, scoped: Set<string>): boolean {
   const words = value.split(/\s+/).filter(Boolean);
   if (!words.length) return false;
   for (const w of words) {
@@ -298,13 +325,14 @@ function animationOk(value: string, keyframes: Set<string>): boolean {
       continue;
     }
     if (ANIMATION_KEYWORDS.test(w) || /^\d+$/.test(w) || /^(steps|cubic-bezier)\s*\(/i.test(w)) continue;
-    if (!keyframes.has(w.toLowerCase())) return false;
+    if (!scoped.has(w.toLowerCase())) return false;
   }
   return true;
 }
 
 /** A declaration's value for its property, or the reason it may not be used. */
-function checkValue(property: string, rawValue: string, keyframes: Set<string>): string | null {
+function checkValue(property: string, rawValue: string, keyframes: Map<string, string>): string | null {
+  const scoped = new Set(keyframes.values());
   const { value } = withoutImportant(rawValue);
   const v = value.trim();
   if (!v) return "empty value";
@@ -354,7 +382,7 @@ function checkValue(property: string, rawValue: string, keyframes: Set<string>):
     return null;
   }
   if (property.startsWith("transition")) return transitionOk(v, (p) => isAllowedProperty(p)) ? null : "transition of something unexpected, or too slow";
-  if (property.startsWith("animation")) return animationOk(v, keyframes) ? null : "animation that is not the theme's own @keyframes";
+  if (property.startsWith("animation")) return animationOk(v, scoped) ? null : "animation that is not the theme's own @keyframes";
   if (property === "cursor") return /^(default|pointer|text|move|grab|grabbing|help|wait|progress|not-allowed|auto)$/i.test(v) ? null : "not a cursor";
   // the remaining whitelisted properties: lengths, percentages, keywords and the colour functions
   return /^[#a-z0-9\s,.%()/-]+$/i.test(v) ? null : `unexpected value for ${property}`;
@@ -393,7 +421,7 @@ function scopeSelectors(selectorText: string): { selectors: string[]; reason: st
 // ---- the parser -----------------------------------------------------------------------------------------------------
 
 /** Reads one declaration (`property: value`) in a rule's body. */
-function readDeclaration(raw: string, keyframes: Set<string>): { text: string; reason: null } | { text: null; reason: string } {
+function readDeclaration(raw: string, keyframes: Map<string, string>): { text: string; reason: null } | { text: null; reason: string } {
   const colon = raw.indexOf(":");
   if (colon === -1) return { text: null, reason: "declaration without a value" };
   const nameRaw = raw.slice(0, colon).trim();
@@ -404,7 +432,8 @@ function readDeclaration(raw: string, keyframes: Set<string>): { text: string; r
   if (!/^(--[-\w]+|-?[a-z][-a-z0-9]*)$/.test(name)) return { text: null, reason: `malformed property name ${name.slice(0, 40)}` };
   if (name === "content" || name === "pointer-events") return { text: null, reason: `${name} is not allowed` };
   if (!isAllowedProperty(name)) return { text: null, reason: `property ${name} is not allowed` };
-  const value = decodeCssEscapes(valueRaw).trim();
+  let value = decodeCssEscapes(valueRaw).trim();
+  if (name.startsWith("animation")) value = scopeAnimationNames(value, keyframes);
   const problem = checkValue(name, value, keyframes);
   if (problem) return { text: null, reason: `${name}: ${problem}` };
   return { text: `${name}: ${value}`, reason: null };
@@ -422,8 +451,14 @@ export function sanitizeThemeCss(input: unknown): ThemeCssResult {
   }
   const text = stripCssComments(input);
   // the sheet is read twice: once to know which @keyframes exist (an animation may only name those), then for real
-  const keyframes = new Set<string>();
-  for (const m of text.matchAll(/@(?:-\w+-)?keyframes\s+([-\w]+)/gi)) keyframes.add(m[1]!.toLowerCase());
+  // @keyframes live in the whole page, so a theme's `grain` is emitted as `tw-<hash>-grain` and every
+  // `animation: … grain` in the theme is rewritten to it — a theme can never rename the app's own animations
+  const scope = `tw-${themeHash(text)}`;
+  const keyframes = new Map<string, string>(); // original name → scoped name
+  for (const m of text.matchAll(/@(?:-\w+-)?keyframes\s+([-\w]+)/gi)) {
+    const name = m[1]!.toLowerCase();
+    if (!keyframes.has(name)) keyframes.set(name, `${scope}-${name}`);
+  }
 
   const out: string[] = [];
 
@@ -506,7 +541,7 @@ export function sanitizeThemeCss(input: unknown): ThemeCssResult {
           if (decls.length) frames.push(`  ${stops} { ${decls.join("; ")} }`);
         }
         // a theme's keyframes are named inside the scope so they cannot collide with the app's own
-        if (frames.length) out.push(`@keyframes ${keyframeName} {\n${frames.join("\n")}\n}`);
+        if (frames.length) out.push(`@keyframes ${keyframes.get(keyframeName)} {\n${frames.join("\n")}\n}`);
         return;
       }
       // @import, @font-face, @supports, @charset, @namespace, @layer … — none of them belong in a theme

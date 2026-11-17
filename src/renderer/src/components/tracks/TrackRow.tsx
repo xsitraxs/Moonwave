@@ -26,13 +26,15 @@ interface Props {
   current: boolean;
   playing: boolean;
   onPlay: (index: number) => void;
+  /** roving tabindex: only the row the arrows move between may be tabbed into */
+  focused: boolean;
 }
 
 /**
  * One track. Plain and readable — no filters here, there are thousands of these. The playing one gets the marker
  * stroke, a scratched ✦ and its title in --glow. Double-click or Enter plays; ↑/↓ move between rows.
  */
-function TrackRow({ track, index, current, playing, onPlay }: Props) {
+function TrackRow({ track, index, current, playing, onPlay, focused }: Props) {
   const t = useT();
   const go = useNav((s) => s.go);
   const openMenu = useUi((s) => s.openMenu);
@@ -63,17 +65,14 @@ function TrackRow({ track, index, current, playing, onPlay }: Props) {
       const r = e.currentTarget.getBoundingClientRect();
       openMenu(r.left + 48, r.top + r.height / 2, track);
     }
-    else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
-      e.preventDefault();
-      const row = e.currentTarget.parentElement?.[e.key === "ArrowDown" ? "nextElementSibling" : "previousElementSibling"];
-      (row?.firstElementChild as HTMLElement | null)?.focus();
-    }
   };
 
   return (
     <div
       role="row"
-      tabIndex={0}
+      tabIndex={focused ? 0 : -1}
+      data-index={String(index)}
+      aria-rowindex={index + 1}
       aria-current={current || undefined}
       aria-disabled={unplayable || undefined}
       title={hint}
@@ -104,14 +103,14 @@ function TrackRow({ track, index, current, playing, onPlay }: Props) {
           </>
         )}
       </button>
-      <div className="h-10 w-10 overflow-hidden rounded-sm bg-[var(--paper)]">
+      <div className="h-10 w-10 overflow-hidden rounded-sm bg-[var(--paper)]" role="gridcell">
         {track.artworkUrl && <img src={artwork(track.artworkUrl, "large") ?? undefined} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover" draggable={false} />}
       </div>
-      <div className="min-w-0">
+      <div className="min-w-0" role="gridcell">
         <button type="button" tabIndex={-1} onClick={() => go({ name: "track", id: track.id })} className={`block max-w-full truncate text-left text-[0.95rem] font-medium hover:underline ${current ? "text-glow" : "text-text"}`}>
           {track.title}
         </button>
-        <div className="flex min-w-0 items-center gap-2 text-sm text-muted">
+        <div className="flex min-w-0 items-center gap-2 text-sm text-muted" role="gridcell">
           <button type="button" tabIndex={-1} className="truncate hover:text-text hover:underline" onClick={() => go({ name: "profile", userId: track.user.id })}>
             {track.artist}
           </button>
@@ -131,7 +130,7 @@ function TrackRow({ track, index, current, playing, onPlay }: Props) {
           <Icon name="queue" size={18} />
         </button>
       </div>
-      <div className="text-right font-type text-xs text-muted tabular-nums">{duration(track.durationMs)}</div>
+      <div className="text-right font-type text-xs text-muted tabular-nums" role="gridcell">{duration(track.durationMs)}</div>
     </div>
   );
 }

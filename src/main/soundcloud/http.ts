@@ -110,22 +110,39 @@ export class ScHttp {
       let res: Response;
       try {
         // actions carry the session's cookies, so a check passed on soundcloud.com in the app counts (DataDome)
-        res = await scSession().fetch(url.href, { method, headers, body: body === undefined ? undefined : JSON.stringify(body), ...(method === "GET" ? {} : { credentials: "include" as const }) });
+        // 15 s ceiling so a dead socket/proxy can't hold one of the 4 slots for ever
+        res = await scSession().fetch(url.href, {
+          method,
+          headers,
+          body: body === undefined ? undefined : JSON.stringify(body),
+          signal: AbortSignal.timeout(15_000),
+          ...(method === "GET" ? {} : { credentials: "include" as const }),
+        });
       } catch (err) {
+        // writes are never repeated: the request may have reached SoundCloud and a retry would do it twice
+        if (method !== "GET") {
+          log("main", `http: ${method} ${url.pathname} → network error: ${redactSecrets((err as Error).message)}`);
+          throw new ScError("offline", redactSecrets((err as Error).message));
+        }
         if (!networkRetried) {
           networkRetried = true;
           // the proxy's "auto" mode may switch to Moonwave's proxy meanwhile: the retry then goes that way
           if (!(await reportNetTrouble())) await sleep(1000);
           continue;
         }
-        // the query never reaches the log (it carries the client_id); the message may, redacted
         log("main", `http: ${method} ${url.pathname} → network error: ${redactSecrets((err as Error).message)}`);
         throw new ScError("offline", redactSecrets((err as Error).message));
       }
 
       if (res.status === 429) {
         const header = Number(res.headers.get("retry-after"));
-        const wait = Number.isFinite(header) && header > 0 ? header * 1000 : Math.min(30_000, 2000 * 2 ** attempt);
+        const asked = Number.isFinite(header) && header > 0 ? header * 1000 : 0;
+        // the backoff branch is capped at 30 s; a server-imposed pause is capped at 60 s and never sat out in a slot
+        const wait = asked ? Math.min(60_000, asked) : Math.min(30_000, 2000 * 2 ** attempt);
+        if (asked && asked > 15_000) {
+          log("main", `http: ${method} ${url.pathname} → 429 (Retry-After ${header} s: failing fast instead of sleeping a slot)`);
+          throw new ScError("rate_limited", `SoundCloud asks to slow down (retry in ${Math.round(wait / 1000)} s)`);
+        }
         this.pausedUntil = Math.max(this.pausedUntil, Date.now() + wait);
         if (attempt < MAX_TRIES - 1) continue;
         log("main", `http: ${method} ${url.pathname} → ${res.status} (retry budget spent, asked for ${res.headers.get("retry-after") ?? "?"} s)`);
@@ -160,6 +177,12 @@ export class ScHttp {
         throw new ScError("not_found", `not found: ${url.pathname}`);
       }
       if (res.status >= 500) {
+        // writes are never repeated: 5xx may have arrived after the write already happened
+        if (method !== "GET") {
+          const text = redactSecrets(await res.text().catch(() => ""));
+          log("main", `http: ${method} ${url.pathname} → ${res.status} ${text}`);
+          throw new ScError("unknown", `SoundCloud server error ${res.status}`);
+        }
         if (!serverRetried) {
           serverRetried = true;
           await sleep(1500);

@@ -43,7 +43,7 @@ export class ClientId {
   private async text(url: string) {
     let res: Response;
     try {
-      res = await scSession().fetch(url, { headers: { "User-Agent": chromeUserAgent() } });
+      res = await scSession().fetch(url, { headers: { "User-Agent": chromeUserAgent() }, signal: AbortSignal.timeout(15_000) });
     } catch (err) {
       void reportNetTrouble();
       throw new ScError("offline", `soundcloud.com unreachable: ${(err as Error).message}`);

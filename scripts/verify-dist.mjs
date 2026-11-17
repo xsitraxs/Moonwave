@@ -37,7 +37,7 @@ export function parseLatestYml(text) {
     const line = rawLine.replace(/\r$/, "");
     const item = /^\s*-\s*url:\s*(\S+)\s*$/.exec(line);
     if (item) {
-      cur = { url: unquote(item[1]), size: null, blockMapSize: null };
+      cur = { url: unquote(item[1]), size: null, blockMapSize: null, sha512: null };
       files.push(cur);
       continue;
     }
@@ -45,6 +45,8 @@ export function parseLatestYml(text) {
     if (size && cur) cur.size = Number(size[1]);
     const bmSize = /^\s+blockMapSize:\s*([0-9]+)\s*$/.exec(line);
     if (bmSize && cur) cur.blockMapSize = Number(bmSize[1]);
+    const sha = /^\s+sha512:\s*(\S+)\s*$/.exec(line);
+    if (sha && cur) cur.sha512 = sha[1];
   }
   return { version, path, files };
 }
@@ -201,8 +203,8 @@ function verifyAsarAndSignature({ unpacked, platform, productFilename, checkCode
 }
 
 /** The fuses a release must carry, in @electron/fuses' wire numbering; 48 = off, 49 = on, as the wire reports them. */
-const REQUIRED_FUSES = { 0: false, 2: false, 3: false, 4: true, 5: true };
-const FUSE_NAMES = { 0: "RunAsNode", 2: "EnableNodeOptionsEnvironmentVariable", 3: "EnableNodeCliInspectArguments", 4: "EnableEmbeddedAsarIntegrityValidation", 5: "OnlyLoadAppFromAsar" };
+const REQUIRED_FUSES = { 0: false, 1: true, 2: false, 3: false, 4: true, 5: true };
+const FUSE_NAMES = { 0: "RunAsNode", 1: "EnableCookieEncryption", 2: "EnableNodeOptionsEnvironmentVariable", 3: "EnableNodeCliInspectArguments", 4: "EnableEmbeddedAsarIntegrityValidation", 5: "OnlyLoadAppFromAsar" };
 
 /**
  * Checks every packed app's fuse wire, ASAR integrity metadata, and (when running on macOS) ad-hoc signature.
@@ -257,17 +259,29 @@ export function verifyDist({ dir, platform, expectVersion }) {
         say(`${ymlName} does not list the NSIS installer — the app would "update" to nothing`);
       if (listed.some((u) => /portable/i.test(u))) say(`${ymlName} lists the portable .exe — a portable build cannot replace itself and must never be offered as an update`);
     }
-    if (platform === "darwin" && !yml.files.some((f) => /\.zip$/i.test(f.url)) && !(yml.path && /\.zip$/i.test(yml.path)))
-      say(`${ymlName} does not list a .zip — that is what Squirrel.Mac downloads`);
+    if (platform === "darwin") {
+      const zips = yml.files.filter((f) => /\.zip$/i.test(f.url));
+      if (!zips.some((f) => /arm64/i.test(f.url)))
+        say(`${ymlName} does not list an arm64 .zip — Apple Silicon Macs would not get updates`);
+      if (!zips.some((f) => /x64|amd64/i.test(f.url)))
+        say(`${ymlName} does not list an x64 .zip — Intel Macs would not get updates`);
+    }
     if (platform === "linux" && !yml.files.some((f) => /\.AppImage$/i.test(f.url)) && !(yml.path && /\.AppImage$/i.test(yml.path)))
       say(`${ymlName} does not list the AppImage — the update check would find nothing`);
     // every file the metadata points at must exist, with the size recorded, and with its differential blockmap
     for (const f of yml.files) {
       const file = join(dir, f.url);
       if (!existsSync(file)) say(`${ymlName} lists ${f.url} but it is not in ${dir}`);
-      else if (f.size !== null) {
-        const actual = statSync(file).size;
-        if (actual !== f.size) say(`${f.url} size ${actual} != ${ymlName} size ${f.size}`);
+      else {
+        if (f.size !== null) {
+          const actual = statSync(file).size;
+          if (actual !== f.size) say(`${f.url} size ${actual} != ${ymlName} size ${f.size}`);
+        }
+        // electron-updater checks sha512 before it installs anything: the metadata must match the file
+        if (f.sha512 !== null) {
+          const actual = createHash("sha512").update(readFileSync(file)).digest("base64");
+          if (actual !== f.sha512) say(`${f.url} sha512 in ${ymlName} does not match the file`);
+        }
       }
       if (platform === "darwin" && /\.zip$/i.test(f.url)) {
         const bm = join(dir, `${f.url}.blockmap`);
