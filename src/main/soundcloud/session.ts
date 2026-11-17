@@ -12,7 +12,7 @@ export const scSession = () => session.fromPartition(scPartition());
 
 /**
  * Exactly the user agent Chrome on Windows sends (Chrome reports only its major version). Electron's own one carries
- * "Electron/…" and the app's name ("scplayer/1.3.2"); with those SoundCloud's bot protection turned the sign-in down
+ * "Electron/…" and an app identifier; with that combination SoundCloud's bot protection turned the sign-in down
  * ("Something unexpected happened", no e-mail code), and filtering tokens out missed the app's name once already.
  */
 export function chromeUserAgent() {

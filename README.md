@@ -93,7 +93,9 @@
 
 ### Чем отличается от sc player
 - Своё имя, иконка и свои обновления из этого репозитория.
-- Исправлен вылет при запуске на свежих сборках Windows 11 (`0x80000003`, песочница аудио и GPU).
+- На Windows 11 версии 26200 и новее Chromium запускает аудио без `AudioServiceSandbox`; после сбоя `0x80000003`
+  приложение также отключает эту песочницу при следующем запуске, а при повторном сбое может отключить GPU-песочницу.
+  Renderer-песочница остаётся включена. Это компромисс ради запуска и звука; см. журнал приложения при диагностике.
 - Усиленная защита: разрешения страниц по белому списку, Electron fuses и проверка целостности ASAR, вход через
   браузер с проверкой состояния, `SHA256SUMS.txt` и подтверждение происхождения у каждого релиза.
 - Счётчики использования по умолчанию выключены.
@@ -114,12 +116,9 @@
 1. Скачайте `moonwave-v…-arm64.dmg` (Apple Silicon: M1 и новее) или `moonwave-v…-x64.dmg` (Intel) из
    [последнего релиза](../../releases/latest).
 2. Откройте `.dmg` и перетащите **Moonwave** в **Программы**.
-3. Приложение не подписано платным сертификатом Apple, поэтому первый запуск macOS заблокирует («не удаётся открыть»
-   или «повреждено»). Откройте **Терминал**, выполните один раз и запускайте как обычно:
-   ```bash
-   xattr -cr "/Applications/Moonwave.app"
-   ```
-   (Или **Системные настройки → Конфиденциальность и безопасность → Всё равно открыть**.)
+3. Приложение не подписано и не нотариализовано Apple. Если macOS заблокирует запуск, используйте **Системные
+   настройки → Конфиденциальность и безопасность → Всё равно открыть**. Не запускайте `xattr -cr`: эта команда
+   удаляет все расширенные атрибуты приложения, включая карантинную метку Gatekeeper.
 4. Подгонка текстов под песню работает только на Apple Silicon; всё остальное — и на Intel.
 
 ### Linux
@@ -127,6 +126,11 @@
   (`chmod +x moonwave-*.AppImage`) и запустите. Он сам добавится в меню приложений и будет обновляться.
 - **Debian / Ubuntu:** скачайте `moonwave-v…-amd64.deb` и установите (`sudo apt install ./moonwave-*.deb`).
 - В GNOME для значка в трее нужно расширение AppIndicator.
+
+### Проверка релиза
+Скачайте все файлы из `SHA256SUMS.txt` и сам этот файл в одну папку, затем выполните `sha256sum -c SHA256SUMS.txt`
+(на macOS: `shasum -a 256 -c SHA256SUMS.txt`). Для проверки происхождения установщика установите GitHub CLI и
+выполните `gh attestation verify <имя-файла> -R xsitraxs/Moonwave`.
 
 ### Вход
 Нажмите **Войти**, чтобы видеть свои лайки и плейлисты. Если окно входа пишет «доступ временно
@@ -155,8 +159,10 @@ Moonwave ставится **отдельным приложением**, ряд�
 
 ## Полезно знать
 
-- **SoundCloud в России.** Moonwave ходит в SoundCloud через ваше подключение, своего обхода блокировки пока нет
-  (см. [Скоро](#скоро)). Работает с zapret или VPN; гайд сообщества:
+- **SoundCloud в России.** Официальные сборки Moonwave не содержат встроенный прокси или адрес сервера проекта. В
+  режиме «Авто» они используют системное подключение (например, ваш VPN или zapret); SoundCloud-трафик не идёт
+  через сервер Moonwave. Сборки, сделанные кем-то с собственной конфигурацией прокси, могут работать иначе: если
+  прямое подключение не удаётся, «Авто» направит SoundCloud-трафик через настроенный сервер. Работает с zapret или VPN; гайд сообщества:
   [«Как починить SoundCloud с помощью zapret»](https://github.com/Flowseal/zapret-discord-youtube/issues/7449)
   (от kkkwkswd).
 - Некоторые треки SoundCloud отдаёт только в зашифрованном виде (DRM). Если другой загрузки той же записи нет, у трека
@@ -173,14 +179,17 @@ Moonwave ставится **отдельным приложением**, ряд�
 
 ## Скоро
 
-Эти части уже есть в коде, но им нужен сервер Moonwave, а его пока нет. В текущих сборках они скрыты:
+Эти функции есть в исходном коде, но в официальных сборках скрыты: в них не задан сервер Moonwave. Можно собрать
+приложение со своим сервером — см. [server/README.md](server/README.md).
 
 - **Комнаты** — слушать с друзьями один трек в одну секунду.
 - **Входящие** — коды друзей, отправка треков, что друзья слушают сейчас, ссылки-приглашения.
 - **«Слушают в Moonwave»** на главной.
 - **Мастерская** — публиковать своё оформление и ставить чужое.
 - **Облачный бэкап** — лайки, плейлисты и тексты на новом компьютере по ключу переноса.
-- **Встроенный обход блокировки** SoundCloud — без zapret и VPN.
+- **Встроенный прокси SoundCloud** — доступен только в сборках, которые владелец сам собрал с конфигурацией
+  прокси; в официальных релизах его нет. В такой сборке режим «Встроенный» направляет трафик SoundCloud через
+  заданный сервер, а режим «Авто» делает это только если прямое подключение недоступно.
 - **Тексты от сообщества** — предлагать свои тексты для треков.
 
 Как поднять свой сервер — в [server/README.md](server/README.md).
@@ -234,18 +243,28 @@ or with SoundCloud.
 - **Desktop:** media keys, tray, global hotkeys, notifications, "Listening to Moonwave" on your Discord profile,
   self-updating installer and AppImage.
 
+**Verify a release:** download every file listed in `SHA256SUMS.txt` into one folder and run
+`sha256sum -c SHA256SUMS.txt` (macOS: `shasum -a 256 -c SHA256SUMS.txt`). Verify an installer’s provenance with
+`gh attestation verify <file> -R xsitraxs/Moonwave`.
+
 **Install:** grab the file for your system from the [latest release](../../releases/latest) — `moonwave-setup-v….exe`
-(Windows), `moonwave-v…-arm64.dmg` / `-x64.dmg` (macOS 13+; run `xattr -cr "/Applications/Moonwave.app"` once, the
-app isn't notarized), `moonwave-v…-x86_64.AppImage` or `-amd64.deb` (Linux). On Windows, click **More info → Run
+(Windows), `moonwave-v…-arm64.dmg` / `-x64.dmg` (macOS 13+; if blocked, use System Settings → Privacy & Security → Open Anyway;
+the app isn't signed or notarized), `moonwave-v…-x86_64.AppImage` or `-amd64.deb` (Linux). On Windows, click **More info → Run
 anyway** if SmartScreen warns.
 
-**Good to know:** SoundCloud blocks the app's own follow requests (bot protection), so «Follow» takes you to the artist's page inside the app — press Follow there and Moonwave notices and updates itself; unfollowing from the app works directly. Not a bug, not a bypass.
+**Good to know:** Official builds contain no project proxy/server configuration. "Auto" therefore uses your system
+connection and does not route SoundCloud traffic through a Moonwave server. A custom build that includes proxy settings
+may route SoundCloud requests through its configured server: "Built-in" uses it directly, and "Auto" uses it if the
+direct connection fails. SoundCloud blocks the app's own follow requests (bot protection), so «Follow» takes you to the artist's page inside the app — press Follow there and
+Moonwave notices and updates itself; unfollowing from the app works directly. Not a bug, not a bypass.
 
 **Coming from sc player:** Moonwave installs next to it and copies its settings, likes and playlists on the first
 start (on macOS and Linux you sign in to SoundCloud again). Remove sc player once everything is there.
 
-**Not yet:** listening rooms, the Inbox, the Workshop, cloud backup and the built-in route to SoundCloud need a
-Moonwave server, which doesn't exist yet — they are hidden in current builds.
+**Not yet in official builds:** listening rooms, the Inbox, the Workshop and cloud backup need a server, which is not
+configured in the public releases. The source also supports an optional SoundCloud proxy: official builds do not
+include its configuration; in a privately configured build, "Auto" may route SoundCloud traffic through that server
+when the direct connection fails.
 
 **License:** GPL-3.0 — Copyright © 2026 waterlil and the contributors. The name *sc player* and its logo belong to the
 original app (GPL-3.0 §7e) and are not used here.
