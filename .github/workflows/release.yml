@@ -129,15 +129,6 @@ jobs:
             echo "no complete mirror — electron-builder will use its seeded cache or the network"
           fi
 
-      - name: The built-in proxy and the server address
-        shell: bash
-        env:
-          PROXY_JSON: ${{ secrets.SC_PROXY_JSON }}
-          SERVER_JSON: ${{ secrets.SC_SERVER_JSON }}
-        run: |
-          if [ -n "$PROXY_JSON" ]; then printf '%s' "$PROXY_JSON" > proxy.local.json; echo "proxy: yes"; else echo "proxy: none"; fi
-          if [ -n "$SERVER_JSON" ]; then printf '%s' "$SERVER_JSON" > server.local.json; echo "server: yes"; else echo "server: none"; fi
-
       # lint + typecheck + electron-vite build + electron-builder + verify-dist (fails if the update metadata is missing).
       - name: Package and verify the update metadata
         shell: bash

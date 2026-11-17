@@ -138,8 +138,6 @@ jobs:
             exit "$ec"
           fi
 
-      # optional: the built-in proxy and the server address are not in git (see server/README.md); a build without
-      # them simply ships without those. Never present for forks, only for this repository's own runs.
       # the asset CDN behind github.com's release downloads returns 504s today — pre-fetch the big immutable files
       # with curl (resume + checksums) so the packaging step finds them already cached, then serve them on loopback
       - name: Pre-fetch the build tools
@@ -178,15 +176,6 @@ jobs:
           else
             echo "no complete mirror — electron-builder will use its seeded cache or the network"
           fi
-
-      - name: The built-in proxy and the server address
-        shell: bash
-        env:
-          PROXY_JSON: ${{ secrets.SC_PROXY_JSON }}
-          SERVER_JSON: ${{ secrets.SC_SERVER_JSON }}
-        run: |
-          if [ -n "$PROXY_JSON" ]; then printf '%s' "$PROXY_JSON" > proxy.local.json; echo "proxy: yes"; else echo "proxy: none"; fi
-          if [ -n "$SERVER_JSON" ]; then printf '%s' "$SERVER_JSON" > server.local.json; echo "server: yes"; else echo "server: none"; fi
 
       # lint + typecheck + electron-vite build + electron-builder + verify-dist (fails if the update metadata is missing).
       # GitHub's release downloads (the Electron dist, the NSIS toolchain, the AppImage tools) flap 504 today — every

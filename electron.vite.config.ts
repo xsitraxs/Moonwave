@@ -41,7 +41,7 @@ function csp(): Plugin {
     "form-action 'none'",
   ].join("; ");
   return {
-    name: "sky-csp",
+    name: "moonwave-csp",
     apply: "build",
     transformIndexHtml: (html: string) => html.replace("<head>", `<head>\n    <meta http-equiv="Content-Security-Policy" content="${policy}" />`),
   };

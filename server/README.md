@@ -54,6 +54,11 @@ curl https://<domain>/v1/health         # {"ok":true}
 
 ## Hooking up the app
 
+The official Moonwave CI, test and release builds are intentionally produced without `proxy.local.json` or
+`server.local.json`. Configure these ignored files only when building a custom app. Proxy credentials are compiled into
+that custom binary and must be considered public; the app's `auto` mode may send SoundCloud traffic through that proxy
+when a direct connection fails. The proxy server is restricted to SoundCloud traffic.
+
 At build time, next to `package.json` (both files are in `.gitignore`):
 
 - `server.local.json` — `{ "api": "https://<domain>" }`: turns on Inbox, Send to friends, the Workshop and the counter.
