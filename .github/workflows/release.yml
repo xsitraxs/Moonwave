@@ -129,6 +129,11 @@ jobs:
             echo "no complete mirror — electron-builder will use its seeded cache or the network"
           fi
 
+      # the release only goes out from a green state: unit tests (incl. the release-script tests) run here too,
+      # not only in CI — a change that breaks verify-dist must not reach packaging
+      - name: Tests
+        run: npm test
+
       # lint + typecheck + electron-vite build + electron-builder + verify-dist (fails if the update metadata is missing).
       - name: Package and verify the update metadata
         shell: bash

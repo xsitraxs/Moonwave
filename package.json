@@ -6,6 +6,7 @@
   "description": "Moonwave — a SoundCloud desktop client for Windows, macOS and Linux",
   "author": "xsitraxs",
   "license": "GPL-3.0-only",
+  "engines": { "node": ">=24" },
   "main": "out/main/index.js",
   "type": "module",
   "scripts": {
@@ -21,7 +22,9 @@
     "dist": "node scripts/dist.mjs",
     "scan": "node scripts/scan-dist.mjs",
     "verify-dist": "node scripts/verify-dist.mjs",
-    "test": "node --test \"src/**/*.test.ts\" \"scripts/**/*.test.mjs\""
+    "test": "node --test \"src/**/*.test.ts\" \"scripts/**/*.test.mjs\"",
+    "test:server": "node --test \"server/api/test/*.test.ts\"",
+    "typecheck:server": "tsc -p server/api/tsconfig.json --noEmit"
   },
   "devDependencies": {
     "@electron/asar": "3.4.1",

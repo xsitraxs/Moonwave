@@ -137,5 +137,17 @@ export function initBackup() {
   if (!serverBase()) return;
   setTimeout(() => void backupNow(), 60_000);
   setInterval(() => void backupNow(), CHECK_MS);
-  app.on("before-quit", () => void backupNow());
+  // will-quit is cancellable: the exit backup finishes (or gives up) before the process dies, only once
+  let quitPending = false;
+  app.on("will-quit", async (event) => {
+    if (quitPending) return;
+    quitPending = true;
+    event.preventDefault();
+    try {
+      await backupNow();
+    } catch {
+      /* the exit backup is best-effort: a dead network must not hang the quit */
+    }
+    app.quit();
+  });
 }

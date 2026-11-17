@@ -254,6 +254,16 @@ export default function Waveform({ track, height = 44, big = false, white = fals
     drag.current = null;
     kick.current();
   };
+  // the gesture was cancelled (window lost focus, a system gesture, the pointer left the window):
+  // the seek never happened — stop pretending it did
+  const onPointerCancel = () => {
+    drag.current = null;
+    setHover(null);
+  };
+  const onLostPointerCapture = () => {
+    drag.current = null;
+    setHover(null);
+  };
   const onKey = (e: KeyboardEvent) => {
     if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
       e.preventDefault();
@@ -271,7 +281,7 @@ export default function Waveform({ track, height = 44, big = false, white = fals
       tabIndex={0}
       aria-label={t.seek}
       aria-valuemin={0}
-      aria-valuemax={Math.round(durationS)}
+      aria-valuemax={Math.max(1, Math.round(durationS))}
       aria-valuenow={Math.round(position)}
       aria-valuetext={`${fmt(position * 1000)} / ${fmt(durationS * 1000)}`}
       className="group relative w-full cursor-pointer touch-none rounded-sm"
@@ -279,6 +289,8 @@ export default function Waveform({ track, height = 44, big = false, white = fals
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
+      onPointerCancel={onPointerCancel}
+      onLostPointerCapture={onLostPointerCapture}
       onPointerLeave={() => setHover(null)}
       onKeyDown={onKey}
     >

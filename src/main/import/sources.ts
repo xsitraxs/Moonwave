@@ -178,10 +178,11 @@ let ytmVersionChecked = false;
 
 async function ytmFreshVersion(): Promise<boolean> {
   if (ytmVersionChecked) return false;
-  ytmVersionChecked = true;
   try {
     const html = await (await net.fetch(YTM, { headers: { "User-Agent": chromeUserAgent(), "Accept-Language": "en" }, signal: AbortSignal.timeout(TIMEOUT) })).text();
     const v = html.match(/"INNERTUBE_CLIENT_VERSION":"([\d.]+)"/)?.[1];
+    // the flag is set only after a successful attempt: a network failure must not disable the fallback until restart
+    ytmVersionChecked = true;
     if (!v || v === ytmVersion) return false;
     log("main", `import: youtube music version ${ytmVersion} → ${v}`);
     ytmVersion = v;

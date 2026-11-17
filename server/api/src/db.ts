@@ -125,11 +125,12 @@ if (!columns("devices").includes("features")) db.exec("ALTER TABLE devices ADD C
 // a playlist from the sender's computer (JSON: title, ids); `track` is then its first track, which older apps show
 if (!columns("messages").includes("playlist")) db.exec("ALTER TABLE messages ADD COLUMN playlist TEXT");
 
-export type Row = Record<string, string | number | null>;
+export type Row = Record<string, string | number | bigint | Uint8Array | null>;
 
-export const one = (sql: string, ...args: (string | number | null)[]) => db.prepare(sql).get(...args) as Row | undefined;
-export const all = (sql: string, ...args: (string | number | null)[]) => db.prepare(sql).all(...args) as Row[];
-export const run = (sql: string, ...args: (string | number | null)[]) => db.prepare(sql).run(...args);
+/** node:sqlite accepts Uint8Array/Buffer for BLOB params — the types must not pretend otherwise. */
+export const one = (sql: string, ...args: (string | number | bigint | Uint8Array | null)[]) => db.prepare(sql).get(...args) as Row | undefined;
+export const all = (sql: string, ...args: (string | number | bigint | Uint8Array | null)[]) => db.prepare(sql).all(...args) as Row[];
+export const run = (sql: string, ...args: (string | number | bigint | Uint8Array | null)[]) => db.prepare(sql).run(...args);
 
 export function tx<T>(fn: () => T): T {
   db.exec("BEGIN");

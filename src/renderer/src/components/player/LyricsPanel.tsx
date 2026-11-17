@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "framer-motion";
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { largestMove } from "@shared/fitTiming";
 import type { Lyrics, LyricsHit, SyncRequest, Track } from "@shared/types";
 import { useT } from "@/i18n";
@@ -139,19 +139,33 @@ function useSyncNext(go: boolean, model: string | undefined) {
 
 /** Synced words: the line being sung is lit and kept in view; a click on a line jumps there. */
 function SyncedLines({ lines }: { lines: NonNullable<Lyrics["synced"]> }) {
-  const position = usePosition((s) => s.position);
   const box = useRef<HTMLOListElement>(null);
   const userScroll = useRef(0);
-  // the last line that has started (a small lead so the light comes with the voice, not after it)
-  let at = -1;
-  for (let i = 0; i < lines.length; i++) if (lines[i]!.t <= position + 0.25) at = i;
-  else break;
+  const [at, setAt] = useState(-1);
+  // lines coming quicker than every 1.5 s (fast rap): smooth scrolling would queue up behind the voice
+  const fast = useMemo(() => {
+    const gaps = lines.slice(1).map((l, i) => l.t - lines[i]!.t).filter((g) => g > 0).sort((a, b) => a - b);
+    return gaps.length > 4 && gaps[gaps.length >> 1]! < 1.5;
+  }, [lines]);
+
+  // the position ticks 4 times a second, but the panel only re-renders when the lit line actually changes
+  useEffect(() => {
+    const off = usePosition.subscribe((state) => {
+      let cur = -1;
+      for (let i = 0; i < lines.length; i++) {
+        if (lines[i]!.t <= state.position + 0.25) cur = i;
+        else break;
+      }
+      setAt(cur);
+    });
+    return () => off();
+  }, [lines]);
 
   useEffect(() => {
     if (at < 0 || Date.now() - userScroll.current < 4000) return;
     const row = box.current?.children[at] as HTMLElement | undefined;
-    row?.scrollIntoView({ block: "center", behavior: "smooth" });
-  }, [at]);
+    row?.scrollIntoView({ block: "center", behavior: fast ? "auto" : "smooth" });
+  }, [at, fast]);
 
   return (
     <ol ref={box} onWheel={() => (userScroll.current = Date.now())} className="space-y-1 px-4 pb-24 pt-2">

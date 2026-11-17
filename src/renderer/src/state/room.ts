@@ -303,11 +303,13 @@ export const room = {
   listClear: () => void act({ op: "listClear" }),
   /** the host role to another member */
   handOver: (code: string) => void act({ op: "handOver", to: code }),
-  /** everything that played, as full tracks (for saving as a playlist) */
+  /** everything that played, as full tracks (for saving as a playlist) — `data:tracks` takes 200 at a time, so a
+    longer history is fetched in chunks instead of being silently cut at 200 */
   async history(): Promise<Track[]> {
     const list = await call("room:history");
     const ids = [...new Set(list.map((x) => x.id))];
-    const tracks = await call("data:tracks", ids);
+    const tracks: Track[] = [];
+    for (let i = 0; i < ids.length; i += 200) tracks.push(...(await call("data:tracks", ids.slice(i, i + 200))));
     const byId = new Map(tracks.map((x) => [x.id, x]));
     return ids.map((id) => byId.get(id)).filter((x): x is Track => !!x);
   },

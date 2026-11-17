@@ -14,6 +14,8 @@ const TRACK_META_LIMIT = 4000;
 const LIST_TTL = 60_000;
 const ITEM_TTL = 5 * 60_000;
 const KNOWN_LIMIT = 20_000;
+/** a playlist's ids and its full tracks can be hundreds of kilobytes: forget the least recently used ones */
+const PLAYLIST_LIMIT = 20;
 /** importing: another service's length differs from SoundCloud's by up to this many seconds (another master, silence) */
 const IMPORT_TOLERANCE = 4;
 /** …and an upload this far off may still be the song, to choose by hand */
@@ -45,7 +47,7 @@ export class WebSessionProvider implements MusicProvider {
   /** what's needed to ask for a stream later, by track id (raw tracks are big; only this is kept) */
   private streamMeta = new Map<number, { transcodings: RawTranscoding[]; auth: string }>();
   /** a playlist's track ids, and the tracks api-v2 already sent in full */
-  private playlists = new Map<string, { at: number; ids: number[]; full: Map<number, Track> }>();
+  private playlists = new Map<string, { playlist: Playlist; at: number; ids: number[]; full: Map<number, Track> }>();
   private meId: number | null = null;
   /** every track seen recently, so a shuffled queue fills itself without asking SoundCloud again */
   private known = new Map<number, Track>();
@@ -335,9 +337,24 @@ export class WebSessionProvider implements MusicProvider {
     const rawTracks = raw.tracks ?? [];
     const ids = rawTracks.map((t) => t.id).filter((n): n is number => typeof n === "number");
     const full = new Map(this.tracks(rawTracks).map((t) => [t.id, t]));
-    const entry = { at: Date.now(), ids, full };
+    const entry = { playlist, at: Date.now(), ids, full };
+    this.putPlaylist(id, entry);
+    return entry;
+  }
+
+  /** `playlists` has no TTL of its own, so it is capped like `known`: insert at the end, evict the oldest. */
+  private putPlaylist(id: string, entry: { playlist: Playlist; at: number; ids: number[]; full: Map<number, Track> }) {
+    if (this.playlists.size >= PLAYLIST_LIMIT) this.playlists.delete(this.playlists.keys().next().value!);
     this.playlists.set(id, entry);
-    return { playlist, ...entry };
+  }
+
+  /** A cached playlist is used again: move it to the end of the LRU order. */
+  private touchPlaylist(id: string) {
+    const entry = this.playlists.get(id);
+    if (entry) {
+      this.playlists.delete(id);
+      this.playlists.set(id, entry);
+    }
   }
 
   async getPlaylist(id: string): Promise<Playlist> {
@@ -349,7 +366,12 @@ export class WebSessionProvider implements MusicProvider {
     const offset = cursor ? Number(cursor) : 0;
     if (!Number.isInteger(offset) || offset < 0) throw new ScError("unknown", "bad cursor");
     const cached = this.playlists.get(id);
-    const entry = cached && !(offset === 0 && Date.now() - cached.at > LIST_TTL) ? cached : await this.loadPlaylist(id);
+    let entry: { playlist: Playlist; at: number; ids: number[]; full: Map<number, Track> } | null = null;
+    if (cached && !(offset === 0 && Date.now() - cached.at > LIST_TTL)) {
+      entry = cached;
+      this.touchPlaylist(id);
+    }
+    if (!entry) entry = await this.loadPlaylist(id);
     const ids = entry.ids.slice(offset, offset + PAGE);
     const missing = ids.filter((t) => !entry.full.has(t));
     for (const t of await this.tracksById(missing)) entry.full.set(t.id, t);

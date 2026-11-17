@@ -73,9 +73,9 @@ test("@media is kept, nested @media is refused, and other at-rules are refused",
 
 test("@keyframes are kept and an animation may only name the theme's own", () => {
   const out = css("@keyframes pulse{from{color:#888}to{color:#fff}}.a{animation:pulse 2s ease-in-out infinite}");
-  assert.match(out, /@keyframes pulse/);
+  assert.match(out, /@keyframes tw-[0-9a-z]+-pulse \{/);
   assert.match(out, /color: #888/);
-  assert.match(out, /animation: pulse 2s ease-in-out infinite/);
+  assert.match(out, /animation: tw-[0-9a-z]+-pulse 2s ease-in-out infinite/);
   // an app animation is not the theme's to drive
   assert.doesNotMatch(css(".a{animation-name:sc-marker}"), /animation/);
   // and a keyframe that writes content is cut down to nothing
@@ -190,7 +190,7 @@ test("the golden themes: a workshop theme built from the app's own design surviv
   assert.deepEqual(dropped, [], "a theme in the app's own design language must not lose a line");
   assert.match(out, /backdrop-filter: blur\(30px\) saturate\(1.2\)/);
   assert.match(out, /box-shadow: 0 18px 50px rgba\(0, 0, 0, 0.5\)/);
-  assert.match(out, /animation: breathe 4s ease-in-out infinite alternate/);
+  assert.match(out, /animation: tw-[0-9a-z]+-breathe 4s ease-in-out infinite alternate/);
 });
 
 test("attacks that dress up the interface: overlays, disguised buttons, and hiding the app's own chrome", () => {
@@ -240,5 +240,16 @@ test("a theme cannot smuggle a rule or an @import through a quoted brace or a st
 test("an animation is bounded: the keyframes may stay, an attempted flash speed may not", () => {
   // a 200 s fade is outside what a theme may run: the declaration goes, the (harmless) keyframes may stay unused
   assert.doesNotMatch(css("@keyframes flash{to{color:#000}}.x{animation:flash 200s}"), /animation:/);
-  assert.match(css("@keyframes glow{to{color:#fff}}.x{animation:glow 2s linear infinite}"), /animation: glow 2s linear infinite/);
+  assert.match(css("@keyframes glow{to{color:#fff}}.x{animation:glow 2s linear infinite}"), /animation: tw-[0-9a-z]+-glow 2s linear infinite/);
+});
+
+test("a theme's @keyframes cannot collide with the app's own animations", () => {
+  // `@keyframes grain` from a theme must not become the page's `@keyframes grain` used by globals.css
+  const out = css("@keyframes grain{from{color:#888}to{color:#fff}}.a{animation:grain 2s infinite}");
+  assert.match(out, /@keyframes tw-[0-9a-z]+-grain \{/);
+  assert.doesNotMatch(out, /(^|\n)@keyframes grain\b/);
+  assert.match(out, /animation: tw-[0-9a-z]+-grain 2s infinite/);
+  // two different themes get different scopes, so a theme cannot hijack another theme's animation either
+  const other = css("@keyframes grain{to{color:#000}}.a{animation:grain 2s infinite}");
+  assert.notStrictEqual(out, other);
 });

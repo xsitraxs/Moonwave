@@ -77,8 +77,22 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+      - name: Typecheck (server)
+        run: npm run typecheck:server
+
+      - name: Tests (server)
+        run: npm run test:server
+
       - name: Lint
         run: npm run lint
+
+      # 17 high-severity advisories live only in the dev toolchain (vite, typescript-eslint, electron-builder…);
+      # production (--omit=dev) must stay at 0, and CI must see the full picture too
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: Full audit (information only)
+        run: npm audit || true
 
       - name: Production build
         run: npm run build

@@ -57,13 +57,17 @@ function toTrack(f: LocalFile): Track {
 export const localLibrary = (): Track[] => [...store().get().files].sort((a, b) => b.added - a.added).map(toTrack);
 
 /** The files' tags read and kept; ones added before are skipped. How many were added. */
+// Windows and macOS are case-insensitive; a case-sensitive file system treats /Music/A.mp3 and /music/a.mp3
+// as different files, so the dedup key is lower-case only where the file system is
+const pathKey = (path: string) => process.platform === "win32" ? path.toLowerCase() : path;
+
 async function addPaths(paths: string[]): Promise<number> {
   const s = store().get();
-  const have = new Set(s.files.map((f) => f.path.toLowerCase()));
+  const have = new Set(s.files.map((f) => pathKey(f.path)));
   const added: LocalFile[] = [];
   let next = s.next;
   for (const path of paths) {
-    if (!AUDIO[extname(path).toLowerCase()] || have.has(path.toLowerCase())) continue;
+    if (!AUDIO[extname(path).toLowerCase()] || have.has(pathKey(path))) continue;
     if (s.files.length + added.length >= MAX_FILES) break;
     const id = LOCAL_BASE + next++;
     const name = basename(path, extname(path));
@@ -88,7 +92,7 @@ async function addPaths(paths: string[]): Promise<number> {
     // "Artist - Title" file names, when the tags say nothing
     if (!artist && / - /.test(title)) [artist, title] = [title.slice(0, title.indexOf(" - ")).trim(), title.slice(title.indexOf(" - ") + 3).trim()];
     added.push({ id, path, title: title.slice(0, 300), artist: (artist || "Unknown artist").slice(0, 200), durationMs, cover, added: Date.now() });
-    have.add(path.toLowerCase());
+    have.add(pathKey(path));
   }
   if (added.length) store().patch({ next, files: [...s.files, ...added] });
   return added.length;

@@ -4,16 +4,17 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { electronBinaryIn, FUSES, fuseWireMatches } from "./fuses.mjs";
 
-test("the fuses match what the task asks for: no Node mode, no NODE_OPTIONS, no inspector, integrity on, asar only", () => {
-  // FuseV1Options: RunAsNode 0, EnableNodeOptionsEnvironmentVariable 2, EnableNodeCliInspectArguments 3,
-  // EnableEmbeddedAsarIntegrityValidation 4, OnlyLoadAppFromAsar 5
+test("the fuses match what the task asks for: no Node mode, no NODE_OPTIONS, no inspector, integrity on, asar only, encrypted cookies", () => {
+  // FuseV1Options: RunAsNode 0, EnableCookieEncryption 1, EnableNodeOptionsEnvironmentVariable 2,
+  // EnableNodeCliInspectArguments 3, EnableEmbeddedAsarIntegrityValidation 4, OnlyLoadAppFromAsar 5
   assert.equal(FUSES[0], false);
+  assert.equal(FUSES[1], true);
   assert.equal(FUSES[2], false);
   assert.equal(FUSES[3], false);
   assert.equal(FUSES[4], true);
   assert.equal(FUSES[5], true);
-  // the cookie-encryption fuse is a one-way door for existing installs: not touched here
-  assert.equal(1 in FUSES, false);
+  // turning cookie encryption on is a one-way door for existing installs: their old cookie database
+  // becomes unreadable and they sign in once more
 });
 
 test("the packed executable is found where each platform puts it", () => {
@@ -26,7 +27,7 @@ test("the packed executable is found where each platform puts it", () => {
 
 test("a wire is only accepted when every fuse has its expected state", () => {
   // 49 = on, 48 = off, as @electron/fuses reports them
-  const wire = { 0: 48, 2: 48, 3: 48, 4: 49, 5: 49 };
+  const wire = { 0: 48, 1: 49, 2: 48, 3: 48, 4: 49, 5: 49 };
   assert.equal(fuseWireMatches(wire, FUSES), true);
   assert.equal(fuseWireMatches({ ...wire, 0: 49 }, FUSES), false, "RunAsNode left on");
   assert.equal(fuseWireMatches({ ...wire, 4: 48 }, FUSES), false, "asar integrity left off");

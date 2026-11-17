@@ -1,4 +1,4 @@
-import { useCallback, useSyncExternalStore } from "react";
+import { useCallback, useRef, useSyncExternalStore } from "react";
 import { useNav } from "./nav";
 
 /**
@@ -15,12 +15,15 @@ export const routeKey = () => JSON.stringify(useNav.getState().route);
 export function useViewState<T>(name: string, initial: T): [T, (value: T) => void] {
   const route = useNav((s) => JSON.stringify(s.route));
   const key = `${route}|${name}`;
+  // `initial` is returned as-is: an object created inline (useViewState("x", [])) would be a new object on every
+  // getSnapshot call and React throws ("getSnapshot should be cached"). Keep one fallback per component instance.
+  const fallback = useRef<T>(initial);
   const value = useSyncExternalStore(
     (cb) => {
       listeners.add(cb);
       return () => listeners.delete(cb);
     },
-    () => (values.has(key) ? (values.get(key) as T) : initial),
+    () => (values.has(key) ? (values.get(key) as T) : fallback.current),
   );
   const set = useCallback(
     (next: T) => {
