@@ -388,7 +388,7 @@ export const ru: Dict = {
   sortArtist: "Исполнитель А–Я",
   sortLength: "Сначала короткие",
   loadingAll: "Загружаем весь список…",
-  found: (k: number) => `Найдено: ${k}`,
+  found: (k: number, total?: number) => total ? `Найдено: ${k} из ${total}` : `Найдено: ${k}`,
   nothingFound: "Ничего не подходит",
   noClipboardLink: "В буфере обмена нет ссылки на SoundCloud",
   linkDidntOpen: "Ссылка не открылась",

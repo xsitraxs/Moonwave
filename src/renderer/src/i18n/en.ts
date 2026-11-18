@@ -365,7 +365,7 @@ export const en = {
   sortArtist: "Artist A–Z",
   sortLength: "Shortest first",
   loadingAll: "Loading the whole list…",
-  found: (n: number) => `${n} found`,
+  found: (n: number, total?: number) => total ? `${n} of ${total} found` : `${n} found`,
   nothingFound: "Nothing matches",
   noClipboardLink: "No SoundCloud link on the clipboard",
   linkDidntOpen: "That link didn't open",

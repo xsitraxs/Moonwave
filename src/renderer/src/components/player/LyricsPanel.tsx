@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "framer-motion";
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { largestMove } from "@shared/fitTiming";
 import type { Lyrics, LyricsHit, SyncRequest, Track } from "@shared/types";
 import { useT } from "@/i18n";
@@ -84,7 +84,11 @@ function syncRequest(l: Lyrics | null | undefined, soundId: number): SyncRequest
   if (!words) return null;
   return { trackId: soundId, source: l.source ?? "lrclib", lyricsId: l.id, plain: words, ...(timed.length ? { times: timed.map((x) => x.t) } : {}) };
 }
-const syncKey = (q: SyncRequest | null, model: string | undefined) => ["lyricsSync", model, q?.trackId, q?.source, q?.lyricsId, q?.plain] as const;
+// key must change when the words change, but it must not carry the whole text (react-query JSON.stringifies it
+// on every useQuery call — tens of KB of wasted work in the hot path). lyricsId + length + head is enough to
+// distinguish a different upload's words.
+const syncKey = (q: SyncRequest | null, model: string | undefined) =>
+  ["lyricsSync", model, q?.trackId, q?.source, q?.lyricsId, q?.plain?.length, q?.plain?.slice(0, 16)] as const;
 
 /**
  * The words as shown, with Auto-sync on (Settings → Lyrics; lib/lyricsSync), matched against the track that is streamed
@@ -223,24 +227,24 @@ function TapSync({ trackId, lines, onCancel, onDone }: { trackId: number; lines:
   const box = useRef<HTMLOListElement>(null);
   const done = times.length >= lines.length;
 
-  const start = () => {
+  const start = useCallback(() => {
     setTimes([]);
     setStarted(true);
     player.seek(0);
     void player.play();
-  };
-  const tap = () => {
+  }, []);
+  const tap = useCallback(() => {
     if (!started) return start();
     // never before the line above: the lines keep their order
     setTimes((x) => (x.length >= lines.length ? x : [...x, Math.max(0, x[x.length - 1] ?? 0, currentTime() - TAP_LEAD)]));
-  };
-  const undo = () => {
+  }, [started, lines, start]);
+  const undo = useCallback(() => {
     setTimes((x) => {
       const last = x[x.length - 1];
       if (last !== undefined) player.seek(Math.max(0, x[x.length - 2] ?? 0, last - 3));
       return x.slice(0, -1);
     });
-  };
+  }, []);
 
   // the window's own keys (Space pauses) wait while tapping
   useEffect(() => {
@@ -256,7 +260,7 @@ function TapSync({ trackId, lines, onCancel, onDone }: { trackId: number; lines:
     };
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
-  });
+  }, [tap, undo, onCancel]);
 
   useEffect(() => {
     const row = box.current?.children[Math.min(times.length, lines.length - 1)] as HTMLElement | undefined;
