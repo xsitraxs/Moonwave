@@ -47,6 +47,8 @@ let loading = 0;
 let readyFor = 0;
 /** the room's playing state as last applied here (a change is applied once; a missed one by the next check) */
 let applied: { version: number; playing: boolean } | null = null;
+/** guest's optimistic pause: applied locally at once, confirmed by the server later; follow() won't override it */
+let guestPaused = false;
 /** just loaded or resumed: until then a gap is loading time and a seek closes it (SETTLING_FAR) */
 let settleUntil = 0;
 /** after a seek the decoder starts again: no new correction until then */
@@ -85,7 +87,8 @@ function follow() {
     void act({ op: "ready", trackId: room.track.id });
   }
   const target = roomPosition(room, serverNow());
-  if (!applied || applied.version !== room.version || applied.playing !== room.playing) {
+  // a guest's optimistic pause: the server hasn't confirmed it yet, so don't let follow() undo it
+  if (!guestPaused && (!applied || applied.version !== room.version || applied.playing !== room.playing)) {
     applied = { version: room.version, playing: room.playing };
     if (room.playing && status !== "playing" && status !== "loading") {
       roomPlayer.seek(target);
@@ -216,6 +219,9 @@ const setPlaying = (playing: boolean) => {
   // at once here; the room follows in a moment
   if (playing) roomPlayer.play();
   else roomPlayer.pause();
+  // a guest's pause is optimistic: applied locally at once, the server confirms (or not) later
+  if (!isHost() && !playing) guestPaused = true;
+  else if (playing) guestPaused = false;
   void act({ op: "playing", playing });
 };
 
@@ -252,12 +258,15 @@ const remote: Remote = {
 function take(s: RoomState) {
   const was = useRoom.getState().room;
   useRoom.setState(s);
+  // server confirmed (or changed) the playing state: the guest's optimistic override is no longer needed
+  if (s.room) guestPaused = false;
   if (s.room && !was) roomPlayer.enter(remote);
   if (!s.room && was) {
     roomPlayer.leave();
     loaded = 0;
     applied = null;
     readyFor = 0;
+    guestPaused = false;
     if (s.closed) toast(t.roomClosed);
     return;
   }
