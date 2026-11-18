@@ -10,6 +10,20 @@ services:
     volumes:
       - caddy-data:/data
       - caddy-config:/config
+    cap_drop:
+      - ALL
+    # bind privileged ports 80/443 inside the container as the unprivileged caddy user
+    cap_add:
+      - NET_BIND_SERVICE
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /run
+      - /var/run
+      - /tmp
+    mem_limit: 256m
+    pids_limit: 50
     depends_on:
       - api
 
@@ -27,6 +41,17 @@ services:
     # reachable only through Caddy
     expose:
       - "8080"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /run
+      - /var/run
+      - /tmp
+    mem_limit: 512m
+    pids_limit: 100
 
 volumes:
   caddy-data:
