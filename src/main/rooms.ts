@@ -39,16 +39,20 @@ const need = () => roomId() || (() => {
   throw new ScError("not_found", "not in a room");
 })();
 
-/** The server's time − ours, as the median of five round trips (the network delay split evenly). */
+/** The server's time − ours, from the round trip with the smallest RTT (least skewed by asymmetric delay).
+ *  The median of five assumes symmetric delay; on mobile uplinks asymmetry easily gives 100–200 ms error,
+ *  which correction() then fights with 5 % tempo and periodic seeks. Minimum RTT is the least noisy sample. */
 async function measureClock() {
-  const offs: number[] = [];
+  let best: { offset: number; rtt: number } | null = null;
   for (let i = 0; i < 5; i++) {
     const t0 = Date.now();
     const { now } = await api<{ now: number }>("GET", "/v1/rooms/time", { timeout: 5000 });
     const t1 = Date.now();
-    offs.push(now - (t0 + t1) / 2);
+    const rtt = t1 - t0;
+    const offset = now - (t0 + t1) / 2;
+    if (!best || rtt < best.rtt) best = { offset, rtt };
   }
-  state.offset = offs.sort((a, b) => a - b)[2]!;
+  state.offset = best!.offset;
 }
 
 /** Takes a newer room (never an older one: a reconnect can bring a snapshot that crossed a fresher one). */

@@ -29,13 +29,21 @@ const act = (op: RoomOp): Promise<{ result?: "suggested" | "already" }> => call(
 
 // ---- the room's tracks as the player's ------------------------------------------------------------------------------
 
-/** full tracks for the room's (which carry only the basics), fetched once */
+/** full tracks for the room's (which carry only the basics), fetched once. Capped like the playlist cache (P3-14):
+ *  a long session in a busy room would otherwise grow this Map without bound. */
+const FULL_MAX = 20;
 const full = new Map<number, Track>();
 async function trackOf(s: SocialTrack): Promise<Track | null> {
   const known = full.get(s.id);
   if (known) return known;
   const [tr] = await call("data:tracks", [s.id]).catch(() => [] as Track[]);
-  if (tr) full.set(s.id, tr);
+  if (tr) {
+    if (full.size >= FULL_MAX) {
+      const first = full.keys().next().value;
+      if (first !== undefined) full.delete(first);
+    }
+    full.set(s.id, tr);
+  }
   return tr ?? null;
 }
 
@@ -255,6 +263,8 @@ const remote: Remote = {
 
 // ---- in and out -----------------------------------------------------------------------------------------------------
 
+let timer = 0;
+
 function take(s: RoomState) {
   const was = useRoom.getState().room;
   useRoom.setState(s);
@@ -262,7 +272,12 @@ function take(s: RoomState) {
   if (s.room) guestPaused = false;
   if (s.room && !was) roomPlayer.enter(remote);
   if (!s.room && was) {
+    // stop polling: follow() just returns early on !room, but the timer keeps firing twice a second
+    window.clearInterval(timer);
+    timer = 0;
     roomPlayer.leave();
+    full.clear();
+    putting = 0;
     loaded = 0;
     applied = null;
     readyFor = 0;
@@ -272,8 +287,6 @@ function take(s: RoomState) {
   }
   follow();
 }
-
-let timer = 0;
 export function initRoom() {
   on("room:state", take);
   void call("room:state")
