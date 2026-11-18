@@ -29,13 +29,21 @@ const act = (op: RoomOp): Promise<{ result?: "suggested" | "already" }> => call(
 
 // ---- the room's tracks as the player's ------------------------------------------------------------------------------
 
-/** full tracks for the room's (which carry only the basics), fetched once */
+/** full tracks for the room's (which carry only the basics), fetched once. Capped like the playlist cache (P3-14):
+ *  a long session in a busy room would otherwise grow this Map without bound. */
+const FULL_MAX = 20;
 const full = new Map<number, Track>();
 async function trackOf(s: SocialTrack): Promise<Track | null> {
   const known = full.get(s.id);
   if (known) return known;
   const [tr] = await call("data:tracks", [s.id]).catch(() => [] as Track[]);
-  if (tr) full.set(s.id, tr);
+  if (tr) {
+    if (full.size >= FULL_MAX) {
+      const first = full.keys().next().value;
+      if (first !== undefined) full.delete(first);
+    }
+    full.set(s.id, tr);
+  }
   return tr ?? null;
 }
 
@@ -47,6 +55,8 @@ let loading = 0;
 let readyFor = 0;
 /** the room's playing state as last applied here (a change is applied once; a missed one by the next check) */
 let applied: { version: number; playing: boolean } | null = null;
+/** guest's optimistic pause: applied locally at once, confirmed by the server later; follow() won't override it */
+let guestPaused = false;
 /** just loaded or resumed: until then a gap is loading time and a seek closes it (SETTLING_FAR) */
 let settleUntil = 0;
 /** after a seek the decoder starts again: no new correction until then */
@@ -85,7 +95,8 @@ function follow() {
     void act({ op: "ready", trackId: room.track.id });
   }
   const target = roomPosition(room, serverNow());
-  if (!applied || applied.version !== room.version || applied.playing !== room.playing) {
+  // a guest's optimistic pause: the server hasn't confirmed it yet, so don't let follow() undo it
+  if (!guestPaused && (!applied || applied.version !== room.version || applied.playing !== room.playing)) {
     applied = { version: room.version, playing: room.playing };
     if (room.playing && status !== "playing" && status !== "loading") {
       roomPlayer.seek(target);
@@ -193,14 +204,14 @@ async function putOn(tracks: Track[], index: number, source: QueueSource, shuffl
   }
   const first = tracks[index];
   if (!first) return;
-  const loaded = tracks.slice(index + 1).filter(canPlay).slice(0, LIST_MAX);
-  await act({ op: "playList", tracks: [first, ...loaded].map(toSocial), title: await title });
+  const nextTracks = tracks.slice(index + 1).filter(canPlay).slice(0, LIST_MAX);
+  await act({ op: "playList", tracks: [first, ...nextTracks].map(toSocial), title: await title });
   // the part of the list the page hasn't loaded yet
-  if (source.kind === "static" || loaded.length >= LIST_MAX) return;
+  if (source.kind === "static" || nextTracks.length >= LIST_MAX) return;
   const ids = await allIds();
-  const at = ids.indexOf(loaded.at(-1)?.id ?? first.id);
+  const at = ids.indexOf(nextTracks.at(-1)?.id ?? first.id);
   if (at < 0) return;
-  const rest = await tracksOf(ids.slice(at + 1, at + 1 + LIST_MAX - loaded.length), known);
+  const rest = await tracksOf(ids.slice(at + 1, at + 1 + LIST_MAX - nextTracks.length), known);
   if (mine === putting && isHost() && rest.length) await act({ op: "listAppend", tracks: rest.map(toSocial) });
 }
 
@@ -216,6 +227,9 @@ const setPlaying = (playing: boolean) => {
   // at once here; the room follows in a moment
   if (playing) roomPlayer.play();
   else roomPlayer.pause();
+  // a guest's pause is optimistic: applied locally at once, the server confirms (or not) later
+  if (!isHost() && !playing) guestPaused = true;
+  else if (playing) guestPaused = false;
   void act({ op: "playing", playing });
 };
 
@@ -249,22 +263,30 @@ const remote: Remote = {
 
 // ---- in and out -----------------------------------------------------------------------------------------------------
 
+let timer = 0;
+
 function take(s: RoomState) {
   const was = useRoom.getState().room;
   useRoom.setState(s);
+  // server confirmed (or changed) the playing state: the guest's optimistic override is no longer needed
+  if (s.room) guestPaused = false;
   if (s.room && !was) roomPlayer.enter(remote);
   if (!s.room && was) {
+    // stop polling: follow() just returns early on !room, but the timer keeps firing twice a second
+    window.clearInterval(timer);
+    timer = 0;
     roomPlayer.leave();
+    full.clear();
+    putting = 0;
     loaded = 0;
     applied = null;
     readyFor = 0;
+    guestPaused = false;
     if (s.closed) toast(t.roomClosed);
     return;
   }
   follow();
 }
-
-let timer = 0;
 export function initRoom() {
   on("room:state", take);
   void call("room:state")

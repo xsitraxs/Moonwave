@@ -179,7 +179,7 @@ export default function Playlist({ id }: { id: string }) {
         <EmptyState caption={own ? t.playlistEmpty : t.emptyPlaylists} />
       ) : (
         <>
-      <ListFilter f={f} count={f.tracks.length} playlist />
+      <ListFilter f={f} playlist />
       {f.tracks.length ? (
         <TrackList tracks={f.tracks} source={f.source} hasMore={!f.active && q.hasNextPage} loadingMore={q.isFetchingNextPage} onLoadMore={() => void q.fetchNextPage()} label={p?.title ?? t.playlist} />
       ) : (

@@ -84,7 +84,7 @@ export default function Local() {
           <EmptyState caption={t.localEmpty} />
         ) : (
           <>
-            <ListFilter f={f} count={f.tracks.length} />
+            <ListFilter f={f} />
             {f.tracks.length ? <TrackList tracks={f.tracks} source={f.source} label={t.localMusic} /> : <EmptyState caption={t.nothingFound} />}
           </>
         )}

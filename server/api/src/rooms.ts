@@ -74,8 +74,9 @@ export interface Room {
 export const LIMITS = {
   members: 10,
   queue: 100,
-  /** tracks of a list put on */
-  list: 500,
+  /** tracks of a list put on — 500 × 30 suggestions = 15 000 RoomTrack objects in one room's memory;
+   *  100 keeps a playlist-sized suggestion while bounding memory */
+  list: 100,
   suggestions: 30,
   /** waiting suggestions per member */
   suggestionsEach: 5,

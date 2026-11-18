@@ -12,3 +12,6 @@ RUN xcaddy build --with github.com/caddyserver/forwardproxy@0aab84dad4fc2830789f
 FROM caddy:2.11.9@sha256:0c2243efcf437ab7f7a978f1027fcf0d4f9be8a75df27b1b3fbc5dbe0ffa8cf0
 COPY --from=builder /usr/bin/caddy /usr/bin/caddy
 COPY Caddyfile /etc/caddy/Caddyfile
+# Caddy defaults to root; run as the unprivileged caddy user (uid 101) instead.
+# NET_BIND_SERVICE (added in docker-compose) lets it bind ports 80/443.
+USER caddy

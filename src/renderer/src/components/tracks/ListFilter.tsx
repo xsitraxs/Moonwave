@@ -53,11 +53,13 @@ export function useListFilter(
     /** a filtered list plays as it is shown, not as the whole list it came from */
     source: active ? ({ kind: "static" } as QueueSource) : source,
     loadingAll: active && more.hasMore,
+    /** total tracks in the list (not just the loaded page), shown when filtering is done */
+    total: tracks.length,
   };
 }
 
 /** `playlist`: the list's own order is the playlist's, not newest first */
-export default function ListFilter({ f, count, playlist = false }: { f: ReturnType<typeof useListFilter>; count: number; playlist?: boolean }) {
+export default function ListFilter({ f, playlist = false }: { f: ReturnType<typeof useListFilter>; playlist?: boolean }) {
   const t = useT();
   const sorts: [ListSort, string][] = [
     ["default", playlist ? t.sortPlaylist : t.sortDefault],
@@ -97,7 +99,11 @@ export default function ListFilter({ f, count, playlist = false }: { f: ReturnTy
           </option>
         ))}
       </select>
-      {f.active && <span className="font-type text-xs text-muted">{f.loadingAll ? t.loadingAll : t.found(count)}</span>}
+      {f.active && (
+        <span className="font-type text-xs text-muted">
+          {f.loadingAll ? t.loadingAll : t.found(f.tracks.length, f.total)}
+        </span>
+      )}
     </div>
   );
 }
