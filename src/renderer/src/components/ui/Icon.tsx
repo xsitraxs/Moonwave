@@ -46,7 +46,7 @@ const ICONS = {
   grip: { fill: "M8.5 6 a 1.4 1.4 0 1 0 0.01 0 Z M15.5 6 a 1.4 1.4 0 1 0 0.01 0 Z M8.5 11 a 1.4 1.4 0 1 0 0.01 0 Z M15.5 11 a 1.4 1.4 0 1 0 0.01 0 Z M8.5 16 a 1.4 1.4 0 1 0 0.01 0 Z M15.5 16 a 1.4 1.4 0 1 0 0.01 0 Z" },
 } satisfies Record<string, { fill?: string; stroke?: string }>;
 
-/** icons only the studio screens use; the og design draws them with its thicker line */
+/** icons only the studio screens use */
 type StudioOnly = "forward" | "list" | "users" | "bell" | "disc" | "radio" | "device" | "wave" | "image" | "sparkle" | "more" | "crown" | "playlistAdd";
 export type IconName = keyof typeof ICONS | StudioOnly;
 

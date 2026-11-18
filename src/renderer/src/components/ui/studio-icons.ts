@@ -1,6 +1,6 @@
 /**
  * The studio design's icons: thin geometric lines (1.6 on a 24 grid), round ends, a few solid shapes (play, pause,
- * the skip triangles). Same names as the marker icons of the og design, plus a few only studio screens use.
+ * the skip triangles). Same names as the marker icons, plus a few only studio screens use.
  */
 const circle = (cx: number, cy: number, r: number) => `M${cx - r} ${cy}a${r} ${r} 0 1 0 ${2 * r} 0a${r} ${r} 0 1 0 ${-2 * r} 0Z`;
 const rect = (x: number, y: number, w: number, h: number, r: number) =>
