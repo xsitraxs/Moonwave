@@ -59,7 +59,7 @@ export function useListFilter(
 }
 
 /** `playlist`: the list's own order is the playlist's, not newest first */
-export default function ListFilter({ f, count, playlist = false }: { f: ReturnType<typeof useListFilter>; count: number; playlist?: boolean }) {
+export default function ListFilter({ f, playlist = false }: { f: ReturnType<typeof useListFilter>; playlist?: boolean }) {
   const t = useT();
   const sorts: [ListSort, string][] = [
     ["default", playlist ? t.sortPlaylist : t.sortDefault],

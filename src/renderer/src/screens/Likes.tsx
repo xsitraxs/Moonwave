@@ -27,7 +27,7 @@ export function LikesList({ userId, label }: { userId: number | "me"; label: str
   if (!tracks.length) return <EmptyState caption={t.emptyLikes} />;
   return (
     <>
-      <ListFilter f={f} count={f.tracks.length} />
+      <ListFilter f={f} />
       {f.tracks.length ? (
         <TrackList tracks={f.tracks} source={f.source} hasMore={!f.active && q.hasNextPage} loadingMore={q.isFetchingNextPage} onLoadMore={() => void q.fetchNextPage()} label={label} />
       ) : (

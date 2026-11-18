@@ -211,7 +211,7 @@ async function putOn(tracks: Track[], index: number, source: QueueSource, shuffl
   const ids = await allIds();
   const at = ids.indexOf(nextTracks.at(-1)?.id ?? first.id);
   if (at < 0) return;
-  const rest = await tracksOf(ids.slice(at + 1, at + 1 + LIST_MAX - loaded.length), known);
+  const rest = await tracksOf(ids.slice(at + 1, at + 1 + LIST_MAX - nextTracks.length), known);
   if (mine === putting && isHost() && rest.length) await act({ op: "listAppend", tracks: rest.map(toSocial) });
 }
 
