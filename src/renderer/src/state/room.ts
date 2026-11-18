@@ -193,12 +193,12 @@ async function putOn(tracks: Track[], index: number, source: QueueSource, shuffl
   }
   const first = tracks[index];
   if (!first) return;
-  const loaded = tracks.slice(index + 1).filter(canPlay).slice(0, LIST_MAX);
-  await act({ op: "playList", tracks: [first, ...loaded].map(toSocial), title: await title });
+  const nextTracks = tracks.slice(index + 1).filter(canPlay).slice(0, LIST_MAX);
+  await act({ op: "playList", tracks: [first, ...nextTracks].map(toSocial), title: await title });
   // the part of the list the page hasn't loaded yet
-  if (source.kind === "static" || loaded.length >= LIST_MAX) return;
+  if (source.kind === "static" || nextTracks.length >= LIST_MAX) return;
   const ids = await allIds();
-  const at = ids.indexOf(loaded.at(-1)?.id ?? first.id);
+  const at = ids.indexOf(nextTracks.at(-1)?.id ?? first.id);
   if (at < 0) return;
   const rest = await tracksOf(ids.slice(at + 1, at + 1 + LIST_MAX - loaded.length), known);
   if (mine === putting && isHost() && rest.length) await act({ op: "listAppend", tracks: rest.map(toSocial) });
