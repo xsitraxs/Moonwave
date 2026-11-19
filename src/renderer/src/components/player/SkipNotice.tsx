@@ -1,6 +1,7 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { artwork } from "@shared/types";
 import { useT } from "@/i18n";
+import { enter, exit } from "@/lib/motion";
 import { call } from "@/lib/sky";
 import { useUi } from "@/state/ui";
 import Icon from "../ui/Icon";
@@ -19,10 +20,9 @@ export default function SkipNotice() {
         {track && (
           <motion.div
             key={track.id}
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 6 }}
-            transition={{ duration: 0.18 }}
+            initial={{ opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0, transition: enter() }}
+            exit={{ opacity: 0, y: 4, transition: exit() }}
             className="skip-notice pointer-events-auto flex w-[340px] items-center gap-3 rounded-[var(--r,10px)] p-2.5 pr-2 shadow-[0_18px_40px_rgba(0,0,0,0.45)]"
           >
             <span className="h-10 w-10 shrink-0 overflow-hidden rounded-[5px] bg-white/[0.06]">

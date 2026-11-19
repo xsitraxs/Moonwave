@@ -1,5 +1,6 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { useT } from "@/i18n";
+import { enter, exit } from "@/lib/motion";
 import { useSettings } from "@/state/settings";
 
 /**
@@ -27,15 +28,15 @@ export default function SharingPrompt() {
         <motion.div
           className="fixed inset-0 z-[85] grid place-items-center bg-black/60 p-6"
           initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0, transition: { duration: 0.12 } }}
+          animate={{ opacity: 1, transition: enter() }}
+          exit={{ opacity: 0, transition: exit() }}
           role="dialog"
           aria-modal="true"
           aria-label={t.sharingAskTitle}
         >
           <motion.div
-            initial={{ y: 8, scale: 0.98 }}
-            animate={{ y: 0, scale: 1 }}
+            initial={{ y: 4, scale: 0.985 }}
+            animate={{ y: 0, scale: 1, transition: enter() }}
             className="s-pop w-[30rem] max-w-[92vw] rounded-[var(--r,10px)] p-6 shadow-[0_18px_50px_rgba(0,0,0,0.55)]"
           >
             <h2 className="text-lg font-semibold text-text">{t.sharingAskTitle}</h2>

@@ -1,4 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { AnimatePresence } from "framer-motion";
 import { useState, type FormEvent } from "react";
 import { useT } from "@/i18n";
 import { ask } from "@/state/dialog";
@@ -108,7 +109,7 @@ function LyricsQueueRow() {
   return (
     <Row label={t.lyricsReview} hint={q.data ? t.lyricsWaiting(q.data.length) : undefined}>
       <PaperButton onClick={() => setOpen(true)}>{t.lyricsReviewOpen}</PaperButton>
-      {open && <LyricsReview onClose={() => setOpen(false)} />}
+      <AnimatePresence>{open && <LyricsReview onClose={() => setOpen(false)} />}</AnimatePresence>
     </Row>
   );
 }

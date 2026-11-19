@@ -198,6 +198,16 @@ export default function StudioQueue() {
   const hasUpcoming = usePlayer((s) => s.queue.length > s.index + 1);
   const inRoom = useRoom((s) => !!s.room);
   const toast = useUi((s) => s.showToast);
+  const sideQueue = useUi((s) => s.sideQueue);
+  const fullOpen = useUi((s) => s.fullOpen);
+  const closeSideQueue = useUi((s) => s.closeSideQueue);
+  const inert = !sideQueue || fullOpen;
+  const onAsideKey = (e: KeyboardEvent) => {
+    if (e.key === "Escape") {
+      e.stopPropagation();
+      closeSideQueue();
+    }
+  };
   // what plays now and what comes after it, as a playlist of your own
   const saveQueue = async () => {
     const { queue, index } = usePlayer.getState();
@@ -213,13 +223,13 @@ export default function StudioQueue() {
   // in a listening room its panel takes the queue's place (the room's queue is in it)
   if (inRoom)
     return (
-      <aside aria-label={t.listenTogether} className="s-queue s-glass">
+      <aside id="studio-queue" aria-label={t.listenTogether} inert={inert} onKeyDown={onAsideKey} className="s-queue s-glass">
         <RoomPanel />
       </aside>
     );
 
   return (
-    <aside aria-label={t.queue} className="s-queue s-glass">
+    <aside id="studio-queue" aria-label={t.queue} inert={inert} onKeyDown={onAsideKey} className="s-queue s-glass">
       <div className="mx-1 mb-2.5 flex items-center">
         <b className="text-[13px] font-semibold text-text">{t.queue}</b>
         {tab === "next" && hasUpcoming && (

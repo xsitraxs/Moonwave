@@ -156,7 +156,7 @@ export function ColorPicker({
                 aria-label={p}
                 title={p}
                 onClick={() => set(toHsl(p))}
-                className={`h-6 w-6 rounded-full border transition-transform hover:scale-110 ${toHex(hsl) === p.toLowerCase() ? "border-white" : "border-white/15"}`}
+                className={`h-6 w-6 rounded-full border ${toHex(hsl) === p.toLowerCase() ? "border-white" : "border-white/15"}`}
                 style={{ background: p }}
               />
             ))}
@@ -198,7 +198,7 @@ export function ColorPicker({
 export function Unfold({ open, children }: { open: boolean; children: ReactNode }) {
   return (
     <div
-      className={`grid transition-[grid-template-rows,opacity] duration-300 ease-out ${open ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}
+      className={`grid transition-[grid-template-rows,opacity] motion-enter ${open ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}
       inert={!open}
     >
       <div className="min-h-0 overflow-hidden">{children}</div>

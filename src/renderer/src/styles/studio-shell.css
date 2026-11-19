@@ -14,7 +14,8 @@
   font-weight: 500;
   letter-spacing: -0.003em;
 }
-.s-shell.with-queue {
+.s-shell[data-queue="open"],
+.s-shell[data-queue="closing"] {
   grid-template-columns: 236px minmax(0, 1fr) 288px;
 }
 .s-glass {
@@ -95,7 +96,9 @@ html.thin-glass .s-glass {
   height: 28px;
   border-radius: var(--r2);
   color: var(--muted);
-  transition: color 0.12s, background-color 0.12s;
+  transition:
+    color var(--motion-color),
+    background-color var(--motion-color);
 }
 .s-ib:hover:not(:disabled) {
   color: var(--text);
@@ -192,7 +195,9 @@ html.thin-glass .s-glass {
   color: var(--muted);
   font-size: 13px;
   text-align: left;
-  transition: color 0.12s, background-color 0.12s;
+  transition:
+    color var(--motion-color),
+    background-color var(--motion-color);
 }
 .s-nav:hover {
   color: var(--text);
@@ -344,6 +349,9 @@ html[data-activity="blurred"] .s-eq i {
   border-radius: 5px;
   font-size: 11.5px;
   color: var(--muted);
+  transition:
+    color var(--motion-color),
+    background-color var(--motion-color);
 }
 .s-seg button:hover {
   color: var(--text);
@@ -361,6 +369,30 @@ html[data-activity="blurred"] .s-eq i {
   overflow: hidden;
   border-radius: var(--r);
   padding: 12px 10px;
+}
+[data-theme-scope].s-shell .s-queue {
+  opacity: 1;
+  transform: none;
+  transition:
+    opacity var(--motion-enter),
+    transform var(--motion-enter);
+}
+[data-theme-scope].s-shell[data-queue="closing"] .s-queue {
+  opacity: 0;
+  transform: translateX(var(--motion-shift));
+  pointer-events: none;
+  transition:
+    opacity var(--motion-exit),
+    transform var(--motion-exit);
+}
+[data-theme-scope].s-shell[data-queue="closed"] .s-queue {
+  display: none;
+}
+@starting-style {
+  [data-theme-scope].s-shell[data-queue="open"] .s-queue {
+    opacity: 0;
+    transform: translateX(var(--motion-shift));
+  }
 }
 .s-np {
   display: flex;
@@ -442,7 +474,7 @@ html[data-activity="blurred"] .s-eq i {
   flex: none;
   border-radius: 8px;
   background: var(--s-faint);
-  transition: background-color 0.15s;
+  transition: background-color var(--motion-color);
 }
 .s-sw::after {
   content: "";
@@ -453,7 +485,9 @@ html[data-activity="blurred"] .s-eq i {
   height: 12px;
   border-radius: 50%;
   background: var(--muted);
-  transition: transform 0.15s, background-color 0.15s;
+  transition:
+    transform var(--motion-color),
+    background-color var(--motion-color);
 }
 .s-sw.on {
   background: var(--text);
@@ -479,10 +513,6 @@ html[data-activity="blurred"] .s-eq i {
   border-radius: 50%;
   background: var(--text);
   color: #0b0b0d;
-  transition: transform 0.12s;
-}
-.s-pp:hover:not(:disabled) {
-  transform: scale(1.05);
 }
 .s-pp:disabled {
   opacity: 0.5;
@@ -511,7 +541,7 @@ html[data-activity="blurred"] .s-eq i {
   border-radius: 50%;
   background: var(--text);
   opacity: 0;
-  transition: opacity 0.12s;
+  transition: opacity var(--motion-color);
 }
 .s-vol:hover::-webkit-slider-thumb,
 .s-vol:focus-visible::-webkit-slider-thumb {
@@ -596,7 +626,7 @@ html[data-activity="blurred"] .s-eq i {
   font-weight: 600;
   white-space: nowrap;
   color: var(--text);
-  transition: background-color 0.12s;
+  transition: background-color var(--motion-color);
 }
 .s-btn:hover:not(:disabled) {
   background: var(--s-hover);
@@ -636,7 +666,7 @@ html[data-activity="blurred"] .s-eq i {
 .now-playing .np-ui,
 .now-playing .s-ftb,
 .now-playing .s-dock {
-  transition: opacity 0.25s ease;
+  transition: opacity var(--motion-move);
 }
 .now-playing.resting .np-ui,
 .now-playing.resting .s-ftb,

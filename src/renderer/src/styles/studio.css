@@ -51,6 +51,11 @@ html[data-design="studio"] {
   --font-sans: "Onest", ui-sans-serif, system-ui, "Segoe UI", sans-serif;
   --font-type: "Onest", ui-sans-serif, system-ui, "Segoe UI", sans-serif;
 }
+@media (prefers-reduced-motion: reduce) {
+  html[data-design="studio"] {
+    transition: none;
+  }
+}
 html[data-design="studio"] body {
   font-weight: 500;
   letter-spacing: -0.003em;
@@ -90,11 +95,6 @@ html[data-design="studio"] :focus-visible {
 }
 
 /* ── layout: panels float with a gap, the title bar is part of the background ── */
-html[data-design="studio"] .app-grid {
-  padding: 0 8px 8px;
-  column-gap: 8px;
-  row-gap: 8px;
-}
 html[data-design="studio"] .marker-edge,
 html[data-design="studio"] .grain {
   display: none;

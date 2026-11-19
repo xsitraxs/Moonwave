@@ -1,6 +1,7 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useState, type FormEvent } from "react";
 import { useT } from "@/i18n";
+import { enter, exit } from "@/lib/motion";
 import { answer, useDialog } from "@/state/dialog";
 
 /** The app's own confirm / prompt (state/dialog): a small glass card over a dimmed window. Esc or a click outside cancels. */
@@ -34,16 +35,16 @@ export default function Dialog() {
         <motion.div
           className="fixed inset-0 z-[80] grid place-items-center bg-black/50"
           initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0, transition: { duration: 0.08 } }}
+          animate={{ opacity: 1, transition: enter() }}
+          exit={{ opacity: 0, transition: exit() }}
           onPointerDown={(e) => e.target === e.currentTarget && answer(null)}
         >
           <motion.form
             role="alertdialog"
             aria-label={pending.message}
             onSubmit={submit}
-            initial={{ y: 6, scale: 0.98 }}
-            animate={{ y: 0, scale: 1 }}
+            initial={{ y: 4, scale: 0.985 }}
+            animate={{ y: 0, scale: 1, transition: enter() }}
             className="s-pop w-[26rem] max-w-[92vw] rounded-[var(--r,10px)] p-5 shadow-[0_18px_50px_rgba(0,0,0,0.5)]"
           >
             <p className="text-[14px] leading-relaxed text-text">{pending.message}</p>

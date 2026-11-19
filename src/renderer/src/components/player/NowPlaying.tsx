@@ -1,8 +1,9 @@
-import { AnimatePresence, motion } from "framer-motion";
+import { animate, AnimatePresence, motion, useMotionValue, useReducedMotion } from "framer-motion";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { artwork, isLocalTrack, type Lyrics, type Track } from "@shared/types";
 import { analyser, currentTime } from "@/audio/engine";
 import { useT } from "@/i18n";
+import { enter, exit, slowMove } from "@/lib/motion";
 import { usePlayingLoop } from "@/lib/playingLoop";
 import { duration } from "@/lib/format";
 import { player, useCurrentTrack, usePlayer, usePosition, useStreamTrack } from "@/state/player";
@@ -253,6 +254,7 @@ function sweep(words: string[], start: number, next: number, now: number) {
 function SweepLines({ lines }: { lines: NonNullable<Lyrics["synced"]> }) {
   const t = useT();
   const studioWords = useSettings((s) => s.prefs.look.design === "studio");
+  const still = useReducedMotion() ?? false;
   const box = useRef<HTMLDivElement>(null);
   const userScroll = useRef(0);
   const [at, setAt] = useState(-1);
@@ -302,8 +304,8 @@ function SweepLines({ lines }: { lines: NonNullable<Lyrics["synced"]> }) {
     const el = box.current;
     if (!el || Date.now() - userScroll.current < 4000) return;
     const row = el.querySelector<HTMLElement>(`[data-line="${Math.max(0, at)}"]`);
-    if (row) el.scrollTo({ top: row.offsetTop - el.clientHeight * 0.4 + row.offsetHeight / 2, behavior: fast ? "instant" : "smooth" });
-  }, [at, fast]);
+    if (row) el.scrollTo({ top: row.offsetTop - el.clientHeight * 0.4 + row.offsetHeight / 2, behavior: fast || still ? "instant" : "smooth" });
+  }, [at, fast, still]);
 
   return (
     <div ref={box} onWheel={() => (userScroll.current = Date.now())} className={`np-lines relative h-full overflow-y-auto pr-10${fast ? " fast" : ""}`} data-keys-own>
@@ -394,10 +396,30 @@ function StudioBody({ track, sound, right, scale, bottom, children }: { track: T
     return () => ro.disconnect();
   }, []);
   const width = Math.round(Math.min(620, Math.max(360, inner * 0.45)));
-  const x = right ? 0 : Math.max(0, (inner - width) / 2);
+  const xMv = useMotionValue(0);
+  const prevRight = useRef<boolean | null>(null);
+  const xAnim = useRef<ReturnType<typeof animate> | null>(null);
+  useLayoutEffect(() => {
+    const targetX = right ? 0 : Math.max(0, (inner - width) / 2);
+    if (prevRight.current === null) {
+      prevRight.current = right;
+      xMv.set(targetX);
+      return;
+    }
+    if (prevRight.current !== right) {
+      prevRight.current = right;
+      xAnim.current?.stop();
+      xAnim.current = animate(xMv, targetX, slowMove());
+      return;
+    }
+    xAnim.current?.stop();
+    xAnim.current = null;
+    xMv.set(targetX);
+  }, [inner, width, right, xMv]);
+  useEffect(() => () => xAnim.current?.stop(), []);
   return (
     <div ref={box} className="absolute inset-x-0 bottom-0 top-12 flex min-h-0 gap-6 pl-6 pr-14" style={{ paddingBottom: bottom }}>
-      <motion.div className="flex min-h-0 shrink-0" style={{ width }} initial={false} animate={{ x, scale }} transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}>
+      <motion.div className="flex min-h-0 shrink-0" style={{ width, x: xMv }} initial={false} animate={{ scale }} transition={slowMove()}>
         <Stage track={track} sound={sound} studio />
       </motion.div>
       <AnimatePresence initial={false}>
@@ -406,8 +428,8 @@ function StudioBody({ track, sound, right, scale, bottom, children }: { track: T
             key="right"
             className="flex min-h-0 min-w-0 flex-1 justify-center pt-4"
             initial={{ opacity: 0 }}
-            animate={{ opacity: 1, transition: { delay: 0.15, duration: 0.4 } }}
-            exit={{ opacity: 0, transition: { duration: 0.2 } }}
+            animate={{ opacity: 1, transition: enter() }}
+            exit={{ opacity: 0, transition: exit() }}
           >
             {children}
           </motion.div>
@@ -501,9 +523,8 @@ function StudioFull() {
     <motion.section
       aria-label={t.nowPlaying}
       initial={{ opacity: 0, scale: 0.985 }}
-      animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.985 }}
-      transition={{ duration: 0.24, ease: "easeOut" }}
+      animate={{ opacity: 1, scale: 1, transition: slowMove() }}
+      exit={{ opacity: 0, scale: 0.985, transition: exit() }}
       className={`now-playing absolute inset-0 z-40 overflow-hidden${resting ? " resting" : ""}`}
     >
       <div className="absolute inset-0 bg-[rgba(4,4,7,0.22)]" />
@@ -654,9 +675,8 @@ function OgFull() {
     <motion.section
       aria-label={t.nowPlaying}
       initial={{ opacity: 0, scale: 0.985 }}
-      animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.985 }}
-      transition={{ duration: 0.24, ease: "easeOut" }}
+      animate={{ opacity: 1, scale: 1, transition: slowMove() }}
+      exit={{ opacity: 0, scale: 0.985, transition: exit() }}
       className="now-playing absolute inset-x-0 bottom-0 top-10 z-40 overflow-hidden"
     >
       {studio ? (

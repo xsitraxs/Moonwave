@@ -21,7 +21,7 @@ function PlaylistCard({ playlist, index }: { playlist: Playlist; index: number }
       type="button"
       onClick={() => go({ name: "playlist", id: playlist.id })}
       onMouseEnter={() => setGlitch((g) => g + 1)}
-      className={`paper-fill relative flex flex-col gap-2 rounded-md p-2.5 pb-3 text-left transition-transform duration-200 hover:-translate-y-0.5 hover:rotate-0 ${tape}`}
+      className={`paper-fill relative flex flex-col gap-2 rounded-md p-2.5 pb-3 text-left transition-transform motion-color hover:-translate-y-0.5 hover:rotate-0 motion-reduce:hover:translate-y-0 ${tape}`}
       style={{ rotate: `${TILTS[index % TILTS.length]}deg` }}
     >
       <div key={glitch} className={`card-frame ${glitch ? "rgb-glitch" : ""}`} aria-hidden="true" />

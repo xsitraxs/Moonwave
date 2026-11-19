@@ -232,7 +232,7 @@ function Results() {
       <div className="mb-3 flex flex-wrap items-center gap-3">
         <div className="min-w-48 flex-1">
           <div className="h-1.5 overflow-hidden rounded-full bg-white/[0.08]">
-            <div className="h-full rounded-full bg-[var(--accent)] transition-[width] duration-300" style={{ width: `${rows.length ? Math.round((done / rows.length) * 100) : 0}%` }} />
+            <div className="h-full rounded-full bg-[var(--accent)] transition-[width] motion-progress" style={{ width: `${rows.length ? Math.round((done / rows.length) * 100) : 0}%` }} />
           </div>
           <p className="mt-1.5 font-type text-xs text-muted" aria-live="polite">
             {phase === "done" ? t.importDone(counts.found, rows.length) : phase === "paused" ? t.importPaused(done, rows.length) : t.importSearching(done, rows.length)}

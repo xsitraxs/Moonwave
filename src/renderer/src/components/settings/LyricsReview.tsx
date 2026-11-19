@@ -1,9 +1,10 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { AnimatePresence, motion } from "framer-motion";
+import { motion } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
 import { create } from "zustand";
 import type { LyricsForReview, Track } from "@shared/types";
 import { useT } from "@/i18n";
+import { enter, exit } from "@/lib/motion";
 import { call } from "@/lib/sky";
 import { player } from "@/state/player";
 import { useUi } from "@/state/ui";
@@ -69,13 +70,13 @@ export default function LyricsReview({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <AnimatePresence>
-      <motion.div
-        className="fixed inset-0 z-[70] grid place-items-center bg-black/50 p-6"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        onPointerDown={(e) => !ref.current?.contains(e.target as Node) && onClose()}
-      >
+    <motion.div
+      className="fixed inset-0 z-[70] grid place-items-center bg-black/50 p-6"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1, transition: enter() }}
+      exit={{ opacity: 0, transition: exit() }}
+      onPointerDown={(e) => !ref.current?.contains(e.target as Node) && onClose()}
+    >
         <div ref={ref} role="dialog" aria-label={t.lyricsReview} className="s-pop flex max-h-full w-[40rem] max-w-full flex-col rounded-[var(--r,10px)] shadow-[0_30px_80px_rgba(0,0,0,0.55)]" data-keys-own>
           <h2 className="px-5 pb-2 pt-4 text-[15px] font-semibold text-text">{t.lyricsReview}</h2>
           <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-3">
@@ -109,8 +110,7 @@ export default function LyricsReview({ onClose }: { onClose: () => void }) {
             </button>
           </div>
         </div>
-      </motion.div>
-    </AnimatePresence>
+    </motion.div>
   );
 }
 

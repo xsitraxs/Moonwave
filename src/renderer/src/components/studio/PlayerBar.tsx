@@ -14,9 +14,42 @@ import SleepTimer from "../player/SleepTimer";
 import Waveform from "../player/Waveform";
 import Icon, { type IconName } from "../ui/Icon";
 
-function Btn({ icon, label, on = false, onClick, size = 17, disabled = false }: { icon: IconName; label: string; on?: boolean; onClick: () => void; size?: number; disabled?: boolean }) {
+function Btn({
+  icon,
+  label,
+  on = false,
+  onClick,
+  size = 17,
+  disabled = false,
+  alwaysPressed = false,
+  expanded,
+  controls,
+  queueToggle = false,
+}: {
+  icon: IconName;
+  label: string;
+  on?: boolean;
+  onClick: () => void;
+  size?: number;
+  disabled?: boolean;
+  alwaysPressed?: boolean;
+  expanded?: boolean;
+  controls?: string;
+  queueToggle?: boolean;
+}) {
   return (
-    <button type="button" className={`s-ib !h-8 !w-8 ${on ? "on" : ""}`} aria-label={label} title={label} aria-pressed={on || undefined} onClick={onClick} disabled={disabled}>
+    <button
+      type="button"
+      className={`s-ib !h-8 !w-8 ${on ? "on" : ""}`}
+      aria-label={label}
+      title={label}
+      aria-pressed={alwaysPressed ? on : on || undefined}
+      aria-expanded={expanded}
+      aria-controls={controls}
+      data-queue-toggle={queueToggle ? "" : undefined}
+      onClick={onClick}
+      disabled={disabled}
+    >
       <Icon name={icon} size={size} />
       {on && <span aria-hidden="true" className="absolute bottom-0.5 h-[3px] w-[3px] rounded-full bg-[var(--accent)]" />}
     </button>
@@ -136,6 +169,7 @@ export default function StudioPlayerBar() {
   const error = usePlayer((s) => (s.status === "error" ? s.error : null));
   const total = usePlayer((s) => s.duration);
   const sideQueue = useUi((s) => s.sideQueue);
+  const openSideQueue = useUi((s) => s.openSideQueue);
   const toggleSideQueue = useUi((s) => s.toggleSideQueue);
   const openFull = useUi((s) => s.openFull);
   const setFullTab = useUi((s) => s.setFullTab);
@@ -213,7 +247,7 @@ export default function StudioPlayerBar() {
           </button>
         )}
         {canSend && track && !isLocalTrack(track.id) && <Btn icon="send" label={t.sendToFriends} onClick={() => openSend(track)} />}
-        {rooms && <Btn icon="users" label={t.listenTogether} on={inRoom} onClick={() => (inRoom ? !sideQueue && toggleSideQueue() : useRoomSheet.setState({ open: true }))} />}
+        {rooms && <Btn icon="users" label={t.listenTogether} on={inRoom} onClick={() => (inRoom ? !sideQueue && openSideQueue() : useRoomSheet.setState({ open: true }))} />}
         <Btn
           icon="lyrics"
           label={t.lyrics}
@@ -223,7 +257,7 @@ export default function StudioPlayerBar() {
             openFull();
           }}
         />
-        <Btn icon="queue" label={t.queue} on={sideQueue} onClick={toggleSideQueue} />
+        <Btn icon="queue" label={t.queue} on={sideQueue} alwaysPressed expanded={sideQueue} controls="studio-queue" queueToggle onClick={toggleSideQueue} />
         <SleepTimer />
         <Device />
         <Volume />

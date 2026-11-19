@@ -39,11 +39,12 @@ export function Toggle({ on, onChange, label, disabled = false, id }: { on: bool
       aria-label={label}
       disabled={disabled}
       onClick={() => onChange(!on)}
-      className={`sketch sketch-thin relative h-7 w-13 shrink-0 rounded-full transition-colors disabled:opacity-40 ${on ? "marker-fill" : "paper-fill"}`}
+      className={`sketch sketch-thin relative h-7 w-13 shrink-0 rounded-full transition-colors motion-color disabled:opacity-40 ${on ? "marker-fill" : "paper-fill"}`}
     >
       <span
         aria-hidden="true"
-        className={`absolute top-1/2 h-5 w-5 -translate-y-1/2 rounded-full border-2 border-[var(--ink)] transition-[left] duration-150 ${on ? "left-[calc(100%-1.4rem)] bg-[var(--on-glow)]" : "left-1 bg-[var(--muted)]"}`}
+        className={`absolute left-1 top-1/2 h-5 w-5 rounded-full border-2 border-[var(--ink)] transition-transform motion-move ${on ? "bg-[var(--on-glow)]" : "bg-[var(--muted)]"}`}
+        style={{ transform: `translate3d(${on ? "1.6rem" : "0"}, -50%, 0)` }}
       />
     </button>
   );
@@ -60,7 +61,7 @@ export function Choice<T extends string>({ value, options, onChange, label }: { 
           role="radio"
           aria-checked={value === v}
           onClick={() => onChange(v)}
-          className={`torn px-3 py-1 text-sm transition-colors ${value === v ? "marker-fill font-semibold" : "paper-fill text-muted hover:text-text"}`}
+          className={`torn px-3 py-1 text-sm transition-colors motion-color ${value === v ? "marker-fill font-semibold" : "paper-fill text-muted hover:text-text"}`}
         >
           {text}
         </button>

@@ -1,7 +1,9 @@
 /* Home (both designs). */
 
 .home-tile {
-  transition: transform 0.18s ease-out, background-color 0.18s;
+  transition:
+    transform var(--motion-color),
+    background-color var(--motion-color);
 }
 .home-tile:hover {
   transform: translateY(-1px);
@@ -10,16 +12,19 @@
   background: var(--glow);
   color: var(--on-glow);
   box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
-  transition: transform 0.15s, opacity 0.15s;
-}
-.home-play:hover {
-  transform: scale(1.06);
+  transition: opacity var(--motion-color);
 }
 .home-card-cover {
-  transition: transform 0.2s ease-out;
+  transition: transform var(--motion-color);
 }
 .group:hover .home-card-cover {
   transform: translateY(-2px);
+}
+@media (prefers-reduced-motion: reduce) {
+  .home-tile:hover,
+  .group:hover .home-card-cover {
+    transform: none;
+  }
 }
 
 html[data-design="studio"] .home-play {
@@ -84,7 +89,9 @@ html[data-design="studio"] .home-greeting {
   background: var(--card);
   color: var(--text);
   text-align: left;
-  transition: background-color 0.15s, border-color 0.15s;
+  transition:
+    background-color var(--motion-color),
+    border-color var(--motion-color);
 }
 .home-start-main {
   display: flex;

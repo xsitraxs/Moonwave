@@ -2,6 +2,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useState } from "react";
 import type { RoomInvite } from "@shared/social";
 import { useT } from "@/i18n";
+import { enter, exit } from "@/lib/motion";
 import { room, useRoom } from "@/state/room";
 import { useSocial } from "@/state/social";
 import { useUi } from "@/state/ui";
@@ -17,7 +18,7 @@ export function useJoin() {
     setBusy(true);
     try {
       await room.join(inv.room);
-      useUi.setState({ sideQueue: true });
+      useUi.getState().openSideQueue();
       useSocial.setState((s) => ({ invites: s.invites.filter((x) => x.room !== inv.room) }));
     } catch (e) {
       toast(e instanceof Error && e.message ? e.message : t.roomFailed);
@@ -64,9 +65,9 @@ export default function InviteFloat() {
         <motion.div
           key={`${inv.room}:${inv.at}`}
           className="float-card paper-fill sketch sketch-thin fixed bottom-28 right-5 z-[60] w-[24rem] max-w-[90vw] rounded-md p-1.5 shadow-[0_18px_50px_rgba(0,0,0,0.5)]"
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: 8, transition: { duration: 0.12 } }}
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0, transition: enter() }}
+          exit={{ opacity: 0, y: 4, transition: exit() }}
         >
           <InviteCard inv={inv} onDismiss={() => setDismissed((d) => [...d, `${inv.room}:${inv.at}`])} />
         </motion.div>

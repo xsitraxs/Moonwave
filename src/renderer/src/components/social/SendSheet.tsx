@@ -2,6 +2,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
 import type { Friend } from "@shared/social";
 import { useT } from "@/i18n";
+import { enter, exit } from "@/lib/motion";
 import { call } from "@/lib/sky";
 import { useNav } from "@/state/nav";
 import { useSocial } from "@/state/social";
@@ -64,8 +65,8 @@ export default function SendSheet() {
         <motion.div
           className="fixed inset-0 z-[70] grid place-items-center bg-black/40"
           initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0, transition: { duration: 0.08 } }}
+          animate={{ opacity: 1, transition: enter() }}
+          exit={{ opacity: 0, transition: exit() }}
           onPointerDown={(e) => !ref.current?.contains(e.target as Node) && shut()}
         >
           <div ref={ref} role="dialog" aria-label={t.sendToFriends} className="float-card paper-fill sketch sketch-thin flex w-[23rem] max-w-[90vw] flex-col rounded-md py-2 shadow-[0_24px_60px_rgba(0,0,0,0.5)]">
