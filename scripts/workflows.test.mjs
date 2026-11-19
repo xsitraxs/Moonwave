@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 
 const WORKFLOWS = join(import.meta.dirname, "..", ".github", "workflows");
-const read = (name) => readFileSync(join(WORKFLOWS, name), "utf8");
+const read = (name) => readFileSync(join(WORKFLOWS, name), "utf8").replace(/\r\n/g, "\n");
 const workflowNames = readdirSync(WORKFLOWS).filter((n) => /\.ya?ml$/.test(n));
 
 /** every `uses:` line, with the step's own `name:` (or its action) for a readable failure */

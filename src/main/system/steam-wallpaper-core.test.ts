@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { findWallpaperIn, previewOf } from "./steam-wallpaper-core.ts";
 
 /** A workshop library folder is made by hand in a temp dir; nothing here touches Steam or Electron. */
@@ -11,7 +11,7 @@ function library(setup: (dir: string, root: string) => void) {
   const root = join(lib, "steamapps", "workshop", "content", "431960", "777000111");
   mkdirSync(root, { recursive: true });
   setup(root, lib);
-  const deps = { libraries: async () => [lib], allowImport: (p: string) => `scbg://import/test/${p.split("/").pop()}` };
+  const deps = { libraries: async () => [lib], allowImport: (p: string) => `scbg://import/test/${basename(p)}` };
   return { lib, deps, cleanup: () => rmSync(lib, { recursive: true, force: true }) };
 }
 
