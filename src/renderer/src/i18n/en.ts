@@ -715,6 +715,7 @@ export const en = {
   autopilotHeading: "Similar tracks · autopilot",
   moreInQueue: (n: number) => `+${n} more`,
   queueEmpty: "Nothing queued",
+  queueEmptyHint: "Right-click a track and choose Add to queue.",
   playNext: "Play next",
   addToQueue: "Add to queue",
   remove: "Remove",

@@ -738,6 +738,7 @@ export const ru: Dict = {
   autopilotHeading: "Похожие треки · автопилот",
   moreInQueue: (k: number) => `ещё +${k}`,
   queueEmpty: "Очередь пуста",
+  queueEmptyHint: "Нажмите на трек правой кнопкой и выберите «Добавить в очередь».",
   playNext: "Включить следующим",
   addToQueue: "Добавить в очередь",
   remove: "Убрать",

@@ -158,7 +158,10 @@ export function QueueList() {
           })}
         </ol>
       ) : (
-        <p className="px-1.5 py-2 text-[12px] text-[var(--s-dim)]">{t.queueEmpty}</p>
+        <div className="px-1.5 py-2 text-[12.5px] leading-relaxed text-[var(--s-dim)]">
+          <p>{t.queueEmpty}</p>
+          <p className="mt-1">{t.queueEmptyHint}</p>
+        </div>
       )}
     </>
   );

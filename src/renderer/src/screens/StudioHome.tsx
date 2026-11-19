@@ -56,13 +56,13 @@ function Pp({ playing, onClick, label, size = 28 }: { playing: boolean; onClick:
   );
 }
 
-function Tile({ cover, title, sub, onClick, children }: { cover: ReactNode; title: string; sub: string; onClick: () => void; children?: ReactNode }) {
+function Tile({ cover, title, sub, onClick, children, featured = false }: { cover: ReactNode; title: string; sub: string; onClick: () => void; children?: ReactNode; featured?: boolean }) {
   return (
-    <button type="button" onClick={onClick} className="relative flex h-[52px] min-w-0 items-center gap-3 overflow-hidden rounded-[var(--r2)] border border-[var(--s-line)] bg-white/[0.035] pr-3 text-left transition-colors hover:bg-white/[0.06]">
+    <button type="button" onClick={onClick} className={`relative flex h-[52px] min-w-0 items-center gap-3 overflow-hidden rounded-[var(--r2)] border pr-3 text-left transition-colors ${featured ? "border-[rgba(var(--accent-rgb),0.28)] bg-[rgba(var(--accent-rgb),0.08)] hover:bg-[rgba(var(--accent-rgb),0.13)]" : "border-[var(--s-line)] bg-white/[0.035] hover:bg-white/[0.06]"}`}>
       {cover}
       <span className="min-w-0 flex-1">
         <span className="block truncate text-[13px] font-semibold text-text">{title}</span>
-        <span className="mt-px block truncate text-[11.5px] text-[var(--s-dim)]">{sub}</span>
+        <span className="mt-px block truncate text-[12px] text-[var(--s-dim)]">{sub}</span>
       </span>
       {children}
     </button>
@@ -93,7 +93,7 @@ function NowTile() {
   const playing = !!current && (status === "playing" || status === "loading");
   const replay = () => player.playFrom(history, 0, STATIC);
   return (
-    <Tile cover={<Cover url={track.artworkUrl} size={52} />} title={current ? (from ?? track.title) : track.title} sub={current ? `${playing ? t.playingShort : t.paused} · ${t.ofCount(index + 1, total)}` : t.lastPlayed} onClick={() => (current ? openFull() : replay())}>
+    <Tile featured cover={<Cover url={track.artworkUrl} size={52} />} title={current ? (from ?? track.title) : track.title} sub={current ? `${playing ? t.playingShort : t.paused} · ${t.ofCount(index + 1, total)}` : t.lastPlayed} onClick={() => (current ? openFull() : replay())}>
       <Pp playing={playing} label={playing ? t.pause : t.play} onClick={() => (current ? player.toggle() : replay())} />
       {current && <Bar />}
     </Tile>
@@ -131,7 +131,7 @@ function Heading({ title, action, onAction }: { title: string; action?: string; 
     <div className="mb-2.5 flex items-baseline">
       <h2 className="text-[14px] font-semibold text-text">{title}</h2>
       {action && (
-        <button type="button" onClick={onAction} className="ml-auto text-[11.5px] text-[var(--s-dim)] hover:text-text">
+        <button type="button" onClick={onAction} className="ml-auto text-[12.5px] text-[var(--s-dim)] hover:text-text">
           {action}
         </button>
       )}
@@ -141,17 +141,20 @@ function Heading({ title, action, onAction }: { title: string; action?: string; 
 
 function Card({ cover, title, sub, on, playing, onClick, round = false }: { cover: string | null; title: string; sub: string; on?: boolean; playing?: boolean; onClick: () => void; round?: boolean }) {
   return (
-    <button type="button" onClick={onClick} className="group min-w-0 text-left">
+    <button type="button" onClick={onClick} title={`${title} — ${sub}`} className="group min-w-0 text-left">
       <span className={`relative block aspect-square overflow-hidden bg-white/[0.06] ${round ? "rounded-full" : "rounded-[var(--r2)]"}`}>
         {cover ? <img src={artwork(cover, "t300x300") ?? undefined} alt="" loading="lazy" decoding="async" draggable={false} className="h-full w-full object-cover" /> : <span className="stipple-night block h-full w-full" />}
         {!round && (
-          <span className={`s-pp absolute bottom-2 right-2 h-8 w-8 transition-opacity ${on ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}>
+          <span aria-hidden="true" className="absolute inset-0 bg-black/20 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100" />
+        )}
+        {!round && (
+          <span className={`s-pp absolute bottom-2 right-2 h-8 w-8 transition-opacity ${on ? "opacity-100" : "opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100"}`}>
             <Icon name={on && playing ? "pause" : "play"} size={14} />
           </span>
         )}
       </span>
       <span className={`mt-2 block truncate text-[12.5px] font-semibold ${on ? "text-[var(--accent)]" : "text-text"}`}>{title}</span>
-      <span className="mt-px block truncate text-[11.5px] text-[var(--s-dim)]">{sub}</span>
+      <span className="mt-px block truncate text-[12px] text-[var(--s-dim)]">{sub}</span>
     </button>
   );
 }
@@ -307,15 +310,15 @@ function FeedRows() {
             e.preventDefault();
             useUi.getState().openMenu(e.clientX, e.clientY, tr);
           }}
-          className="flex h-11 w-full items-center gap-3 border-b border-[var(--s-line)] text-left text-[12.5px] hover:bg-[var(--s-hover)]"
+          className="flex h-12 w-full items-center gap-3 rounded-[var(--r2)] border-b border-[var(--s-line)] px-1 text-left text-[12.5px] transition-colors hover:bg-white/[0.08] focus-visible:bg-white/[0.08]"
         >
-          <span className="w-6 text-[11.5px] tabular-nums text-[var(--s-dim)]">{i + 1}</span>
+          <span className="w-6 text-[12px] tabular-nums text-[var(--s-dim)]">{i + 1}</span>
           <Cover url={tr.artworkUrl} size={32} />
           <span className="min-w-0 flex-1">
             <span className={`block truncate font-semibold ${tr.id === currentId ? "text-[var(--accent)]" : "text-text"}`}>{tr.title}</span>
-            <span className="block truncate text-[11.5px] text-[var(--s-dim)]">{tr.artist}</span>
+            <span className="block truncate text-[12px] text-[var(--s-dim)]">{tr.artist}</span>
           </span>
-          <span className="w-12 pr-1 text-right text-[11.5px] tabular-nums text-[var(--s-dim)]">{duration(tr.durationMs)}</span>
+          <span className="w-12 pr-1 text-right text-[12px] tabular-nums text-[var(--s-dim)]">{duration(tr.durationMs)}</span>
         </button>
       ))}
       <p className="sr-only">{t.feed}</p>
