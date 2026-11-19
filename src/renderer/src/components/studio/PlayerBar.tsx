@@ -131,7 +131,6 @@ export default function StudioPlayerBar() {
   const sound = useStreamTrack(track);
   const go = useNav((s) => s.go);
   const status = usePlayer((s) => s.status);
-  const hasTrack = usePlayer((s) => s.index >= 0);
   const repeat = usePlayer((s) => s.repeat);
   const shuffle = usePlayer((s) => s.shuffle);
   const error = usePlayer((s) => (s.status === "error" ? s.error : null));
@@ -152,12 +151,14 @@ export default function StudioPlayerBar() {
   return (
     <footer className="s-player s-glass">
       <div className="flex min-w-0 items-center gap-[22px] pl-1.5">
-        <button type="button" onClick={openFull} disabled={!track} aria-label={t.fullPlayer} title={t.fullPlayer} className="relative h-[52px] w-[52px] shrink-0 enabled:cursor-zoom-in">
-          {track && <CoverRing size={52} />}
-          <span className="block h-full w-full overflow-hidden rounded-[5px] bg-white/[0.06]">
-            {track?.artworkUrl && <img src={artwork(track.artworkUrl, "t300x300") ?? undefined} alt="" className="h-full w-full object-cover" draggable={false} />}
-          </span>
-        </button>
+        {track && (
+          <button type="button" onClick={openFull} aria-label={t.fullPlayer} title={t.fullPlayer} className="relative h-[52px] w-[52px] shrink-0 cursor-zoom-in">
+            <CoverRing size={52} />
+            <span className="block h-full w-full overflow-hidden rounded-[5px] bg-white/[0.06]">
+              {track.artworkUrl && <img src={artwork(track.artworkUrl, "t300x300") ?? undefined} alt="" className="h-full w-full object-cover" draggable={false} />}
+            </span>
+          </button>
+        )}
         <div className="min-w-0">
           {track ? (
             <>
@@ -169,7 +170,10 @@ export default function StudioPlayerBar() {
               </button>
             </>
           ) : (
-            <span className="text-[12px] text-[var(--s-dim)]">{t.nothingPlaying}</span>
+            <span className="flex items-center gap-2 text-[13px] text-[var(--s-dim)]">
+              <Icon name="disc" size={17} />
+              {t.nothingPlaying}
+            </span>
           )}
         </div>
         {track && (
@@ -181,21 +185,25 @@ export default function StudioPlayerBar() {
       </div>
 
       <div className="flex min-w-0 flex-col items-center gap-1">
-        <div className="flex items-center gap-[18px]">
-          {/* in a listening room: no shuffle or repeat (the host's queue), tracks changed by the host only */}
-          <Btn icon="shuffle" label={t.shuffle} on={shuffle && !inRoom} onClick={player.toggleShuffle} size={15} disabled={inRoom} />
-          <Btn icon="prev" label={t.previous} onClick={player.prev} disabled={roomMember} />
-          <button type="button" onClick={player.toggle} disabled={!hasTrack} aria-label={active ? t.pause : t.play} title={active ? t.pause : t.play} className="s-pp h-[34px] w-[34px]">
-            <Icon name={active ? "pause" : "play"} size={15} />
-          </button>
-          <Btn icon="next" label={t.next} onClick={player.next} disabled={roomMember} />
-          <Btn icon={repeat === "one" ? "repeatOne" : "repeat"} label={repeatLabel} on={repeat !== "off" && !inRoom} onClick={player.cycleRepeat} size={15} disabled={inRoom} />
-        </div>
-        <div className="flex w-full max-w-[560px] items-center gap-2.5">
-          <Elapsed />
-          <div className="min-w-0 flex-1">{sound ? <Waveform key={sound.id} track={sound} height={24} /> : <div className="h-6" />}</div>
-          <span className="w-9 shrink-0 text-[10.5px] tabular-nums text-[var(--s-dim)]">{duration((total || 0) * 1000)}</span>
-        </div>
+        {track && (
+          <>
+            <div className="flex items-center gap-[18px]">
+              {/* in a listening room: no shuffle or repeat (the host's queue), tracks changed by the host only */}
+              <Btn icon="shuffle" label={t.shuffle} on={shuffle && !inRoom} onClick={player.toggleShuffle} size={15} disabled={inRoom} />
+              <Btn icon="prev" label={t.previous} onClick={player.prev} disabled={roomMember} />
+              <button type="button" onClick={player.toggle} aria-label={active ? t.pause : t.play} title={active ? t.pause : t.play} className="s-pp h-[34px] w-[34px]">
+                <Icon name={active ? "pause" : "play"} size={15} />
+              </button>
+              <Btn icon="next" label={t.next} onClick={player.next} disabled={roomMember} />
+              <Btn icon={repeat === "one" ? "repeatOne" : "repeat"} label={repeatLabel} on={repeat !== "off" && !inRoom} onClick={player.cycleRepeat} size={15} disabled={inRoom} />
+            </div>
+            <div className="flex w-full max-w-[560px] items-center gap-2.5">
+              <Elapsed />
+              <div className="min-w-0 flex-1">{sound ? <Waveform key={sound.id} track={sound} height={24} /> : <div className="h-6" />}</div>
+              <span className="w-9 shrink-0 text-[10.5px] tabular-nums text-[var(--s-dim)]">{duration((total || 0) * 1000)}</span>
+            </div>
+          </>
+        )}
       </div>
 
       <div className="flex items-center justify-end gap-1">

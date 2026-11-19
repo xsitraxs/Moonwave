@@ -1,12 +1,14 @@
 {
   "name": "moonwave",
   "productName": "Moonwave",
-  "version": "2.5.5",
+  "version": "2.5.6",
   "private": true,
   "description": "Moonwave — a SoundCloud desktop client for Windows, macOS and Linux",
   "author": "xsitraxs",
   "license": "GPL-3.0-only",
-  "engines": { "node": ">=24" },
+  "engines": {
+    "node": ">=24"
+  },
   "main": "out/main/index.js",
   "type": "module",
   "scripts": {
