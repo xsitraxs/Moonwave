@@ -733,6 +733,7 @@ export const en = {
   queueEmptyHint: "Right-click a track and choose Add to queue.",
   playNext: "Play next",
   addToQueue: "Add to queue",
+  moreActions: "More actions",
   remove: "Remove",
   clearQueue: "Clear",
   nowPlaying: "Now playing",
@@ -780,6 +781,13 @@ export const en = {
   emptySearch: "type to search tracks",
   noResults: "nothing found",
   searchPlaceholder: "Search tracks",
+  clearSearch: "Clear search",
+  searchLead: "Find tracks, playlists or artists — or paste a SoundCloud link",
+  searchQuickGenres: "Genres & moods",
+  searchSuggestions: "Suggestions",
+  artists: "Artists",
+  searchEmptyTip: "Type at least 2 characters or paste a SoundCloud link",
+  searchLinkReady: "Press Enter or click Open to open this SoundCloud link",
 
   // importing playlists from other services
   importTitle: "Import",

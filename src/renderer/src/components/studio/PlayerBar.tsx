@@ -83,7 +83,7 @@ function AddTo({ track }: { track: Track }) {
 
 function Elapsed() {
   const position = usePosition((s) => s.position);
-  return <span className="w-9 shrink-0 text-right text-[10.5px] tabular-nums text-[var(--s-dim)]">{duration(position * 1000)}</span>;
+  return <span className="min-w-9 shrink-0 text-right text-[10.5px] tabular-nums text-[var(--s-dim)]">{duration(position * 1000)}</span>;
 }
 
 /** Where the sound goes: the system default or one of the audio outputs. */
@@ -184,7 +184,7 @@ export default function StudioPlayerBar() {
 
   return (
     <footer className="s-player s-glass">
-      <div className="flex min-w-0 items-center gap-[22px] pl-1.5">
+      <div className="flex min-w-0 items-center gap-3.5 pl-1.5">
         {track && (
           <button type="button" onClick={openFull} aria-label={t.fullPlayer} title={t.fullPlayer} className="relative h-[52px] w-[52px] shrink-0 cursor-zoom-in">
             <CoverRing size={52} />
@@ -234,7 +234,7 @@ export default function StudioPlayerBar() {
             <div className="flex w-full max-w-[560px] items-center gap-2.5">
               <Elapsed />
               <div className="min-w-0 flex-1">{sound ? <Waveform key={sound.id} track={sound} height={24} /> : <div className="h-6" />}</div>
-              <span className="w-9 shrink-0 text-[10.5px] tabular-nums text-[var(--s-dim)]">{duration((total || 0) * 1000)}</span>
+              <span className="min-w-9 shrink-0 text-[10.5px] tabular-nums text-[var(--s-dim)]">{duration((total || 0) * 1000)}</span>
             </div>
           </>
         )}
@@ -242,7 +242,7 @@ export default function StudioPlayerBar() {
 
       <div className="flex items-center justify-end gap-1">
         {error && (
-          <button type="button" onClick={player.retry} title={errorText(t, error)} className="s-btn mr-1 !h-7 !px-2 text-[11px]">
+          <button type="button" onClick={player.retry} title={errorText(t, error)} className="s-btn mr-1 !h-7 shrink-0 !px-2 text-[11px]">
             {t.retry}
           </button>
         )}

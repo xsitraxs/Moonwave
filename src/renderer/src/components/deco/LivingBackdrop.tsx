@@ -5,6 +5,7 @@ import { bgUrl, onPalette, palette, shownLook, type RGB } from "@/lib/look";
 import { listen, onLevels, type Levels } from "@/lib/reactive";
 import { usePlayer, useCurrentTrack } from "@/state/player";
 import { useSettings } from "@/state/settings";
+import { useUi } from "@/state/ui";
 
 type Kind = "liquid" | "image" | "video" | "none";
 interface Want {
@@ -28,6 +29,7 @@ const FADE_MS = 1200;
 export default function LivingBackdrop() {
   const look = useSettings((s) => shownLook(s.prefs));
   const saver = useSettings((s) => s.prefs.memorySaver);
+  const viz = useUi((s) => s.fullOpen && s.fullTab === "visualizer");
   const track = useCurrentTrack();
   const cover = track?.artworkUrl ? artwork(track.artworkUrl, "t500x500") : null;
   const want: Want =
@@ -66,7 +68,7 @@ export default function LivingBackdrop() {
           {l.kind === "none" && <Ready onReady={() => ready(l.id)} />}
         </div>
       ))}
-      <div className="studio-veil" />
+      <div className="studio-veil" data-viz={viz ? (want.kind === "liquid" ? "liquid" : "media") : undefined} />
     </div>
   );
 }
@@ -176,21 +178,21 @@ float noise(vec2 p){ vec2 i = floor(p), f = fract(p); vec2 u = f * f * f * (f * 
 float fbm(vec2 p){ float a = .5, s = 0.; mat2 m = mat2(1.6, 1.2, -1.2, 1.6); for (int i = 0; i < 5; i++){ s += a * noise(p); p = m * p; a *= .5; } return s; }
 void main(){
   vec2 uv = (gl_FragCoord.xy - .5 * res) / res.y;
-  float slow = t * .05;
-  vec2 q = vec2(fbm(uv * 1.3 + vec2(0., slow)), fbm(uv * 1.3 + vec2(3.1, -slow * 1.3) + band.x * .2));
-  float k = 2.3 + band.y * .7;
-  vec2 r = vec2(fbm(uv * 1.1 + k * q + vec2(1.7, 9.2) + slow * .7 + band.z * .15),
-                fbm(uv * 1.1 + k * q + vec2(8.3, 2.8) - slow * .5 + band.w * .18));
-  float f = fbm(uv * 1.2 + (2.1 + band.y * .4) * r);
-  vec3 col = mix(c0, c1, smoothstep(.3, .68, f));
-  col = mix(col, c2, smoothstep(.48, .88, r.x));
-  col = mix(col, c3, smoothstep(.55, .92, q.y) * .8);
-  col = mix(col, c4, smoothstep(.62, .95, f * r.y * 1.7) * .6);
+  float slow = t * .065;
+  vec2 q = vec2(fbm(uv * 1.3 + vec2(0., slow)), fbm(uv * 1.3 + vec2(3.1, -slow * 1.3) + band.x * .24));
+  float k = 2.3 + band.y * .75;
+  vec2 r = vec2(fbm(uv * 1.1 + k * q + vec2(1.7, 9.2) + slow * .7 + band.z * .18),
+                fbm(uv * 1.1 + k * q + vec2(8.3, 2.8) - slow * .5 + band.w * .2));
+  float f = fbm(uv * 1.2 + (2.1 + band.y * .45) * r);
+  vec3 col = mix(c0, c1, smoothstep(.28, .68, f));
+  col = mix(col, c2, smoothstep(.46, .88, r.x));
+  col = mix(col, c3, smoothstep(.52, .92, q.y) * .85);
+  col = mix(col, c4, smoothstep(.58, .94, f * r.y * 1.7) * .68);
   float lum = dot(col, vec3(.3, .59, .11));
-  col = mix(vec3(lum), col, .58);
-  col *= .5 + .12 * band.y + .04 * high;
-  float v = smoothstep(1.3, .2, length(uv * vec2(.82, 1.)));
-  col = mix(vec3(.02, .02, .024), col, .2 + .5 * v);
+  col = mix(vec3(lum), col, .78);
+  col *= .78 + .26 * band.y + .08 * high;
+  float v = smoothstep(1.45, .15, length(uv * vec2(.78, 1.)));
+  col = mix(vec3(.025, .025, .032), col, .42 + .58 * v);
   gl_FragColor = vec4(col, 1.);
 }`;
 

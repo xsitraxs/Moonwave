@@ -1,11 +1,13 @@
 import { create } from "zustand";
 import { RENDERER_DEFAULTS, withPrefDefaults, type Prefs, type RendererState } from "@shared/ipc";
+import { mergeSearchHistory } from "@/lib/searchHistory";
 import { call } from "@/lib/sky";
 
 interface SettingsStore extends RendererState {
   hydrate(state: RendererState): void;
   save(patch: Partial<RendererState>): void;
   setPref<K extends keyof Prefs>(key: K, value: Prefs[K]): void;
+  recordSearch(query: string): void;
 }
 
 /** The renderer's persisted state (language, quality, saved profiles, history, player). main writes it to disk. */
@@ -20,5 +22,11 @@ export const useSettings = create<SettingsStore>((set, get) => ({
     const prefs = { ...get().prefs, [key]: value };
     set({ prefs });
     void call("store:set", { prefs });
+  },
+  recordSearch: (query) => {
+    const next = mergeSearchHistory(get().searchHistory, query);
+    if (!next) return;
+    set({ searchHistory: next });
+    void call("store:set", { searchHistory: next });
   },
 }));

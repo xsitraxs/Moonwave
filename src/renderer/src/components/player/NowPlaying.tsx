@@ -18,7 +18,7 @@ import { Avatar } from "../social/bits";
 import { IconButton } from "../ui/Buttons";
 import Icon from "../ui/Icon";
 import { WindowButtons } from "../chrome/TitleBar";
-import { QueueList, useSourceLabel } from "../studio/Queue";
+import { QueuePanel, useSourceLabel } from "../studio/Queue";
 import { outlinePoint, spectrum } from "./CoverRing";
 import { LyricsSource, ManualSearch, useShownLyrics } from "./LyricsPanel";
 import { BottomSpectrum, SpectrumPopover } from "./Spectrum";
@@ -60,8 +60,8 @@ function Halo({ track, size }: { track: Track; size: number }) {
       const accent = getComputedStyle(document.documentElement).getPropertyValue("--accent-rgb").trim() || "200, 180, 240";
       const bass = (lv[1]! + lv[2]! + lv[3]!) / 3;
       const c = (pad + size / 2) * s;
-      const bloom = g.createRadialGradient(c, c, size * 0.3 * s, c, c, size * 0.85 * s);
-      bloom.addColorStop(0, `rgba(${accent}, ${0.1 + bass * 0.08})`);
+      const bloom = g.createRadialGradient(c, c, size * 0.28 * s, c, c, size * 0.9 * s);
+      bloom.addColorStop(0, `rgba(${accent}, ${0.16 + bass * 0.14})`);
       bloom.addColorStop(1, "rgba(0,0,0,0)");
       g.fillStyle = bloom;
       g.fillRect(0, 0, cv.width, cv.height);
@@ -172,8 +172,8 @@ function Stage({ track, sound, studio = false }: { track: Track; sound: Track | 
     const el = box.current!;
     const fit = () => {
       const { width, height } = el.getBoundingClientRect();
-      // the halo needs ~0.24 of the cover on each side; title, waveform and buttons ~210 px under it
-      setSize(Math.round(Math.max(150, Math.min(340, (height - (studio ? 252 : 214)) / 1.5, width / 1.6))));
+      // the halo needs ~0.22 of the cover on each side; title, waveform and buttons ~252 px under it
+      setSize(Math.round(Math.max(150, Math.min(studio ? 390 : 340, (height - (studio ? 252 : 214)) / 1.48, width / 1.52))));
     };
     fit();
     const ro = new ResizeObserver(fit);
@@ -182,11 +182,18 @@ function Stage({ track, sound, studio = false }: { track: Track; sound: Track | 
   }, [studio]);
 
   const repeatLabel = repeat === "off" ? t.repeatOff : repeat === "all" ? t.repeatAll : t.repeatOne;
-  const width = Math.max(300, Math.min(440, size + 80));
+  const width = Math.max(300, Math.min(studio ? 480 : 440, size + 90));
 
   return (
     <div ref={box} className="flex h-full min-h-0 w-full min-w-0 flex-col items-center justify-center">
-      <div style={{ margin: `${Math.round(size * 0.24)}px 0` }}>
+      <div className="relative" style={{ margin: `${Math.round(size * 0.22)}px 0` }}>
+        {studio && (
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full"
+            style={{ width: size * 1.6, height: size * 1.6, background: "radial-gradient(circle, rgba(var(--accent-rgb), 0.16) 0%, transparent 68%)" }}
+          />
+        )}
         <Halo track={track} size={size} />
       </div>
       <div className="np-ui flex items-end gap-3" style={{ width }}>
@@ -395,7 +402,7 @@ function StudioBody({ track, sound, right, scale, bottom, children }: { track: T
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
-  const width = Math.round(Math.min(620, Math.max(360, inner * 0.45)));
+  const width = Math.round(Math.min(680, Math.max(360, inner * 0.46)));
   const xMv = useMotionValue(0);
   const prevRight = useRef<boolean | null>(null);
   const xAnim = useRef<ReturnType<typeof animate> | null>(null);
@@ -418,7 +425,7 @@ function StudioBody({ track, sound, right, scale, bottom, children }: { track: T
   }, [inner, width, right, xMv]);
   useEffect(() => () => xAnim.current?.stop(), []);
   return (
-    <div ref={box} className="absolute inset-x-0 bottom-0 top-12 flex min-h-0 gap-6 pl-6 pr-14" style={{ paddingBottom: bottom }}>
+    <div ref={box} className="absolute inset-x-0 bottom-0 top-12 mx-auto flex min-h-0 max-w-[1440px] gap-6 px-8" style={{ paddingBottom: bottom }}>
       <motion.div className="flex min-h-0 shrink-0" style={{ width, x: xMv }} initial={false} animate={{ scale }} transition={slowMove()}>
         <Stage track={track} sound={sound} studio />
       </motion.div>
@@ -426,7 +433,7 @@ function StudioBody({ track, sound, right, scale, bottom, children }: { track: T
         {right && (
           <motion.div
             key="right"
-            className="flex min-h-0 min-w-0 flex-1 justify-center pt-4"
+            className="flex min-h-0 min-w-0 flex-1 justify-center pt-2"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1, transition: enter() }}
             exit={{ opacity: 0, transition: exit() }}
@@ -527,7 +534,7 @@ function StudioFull() {
       exit={{ opacity: 0, scale: 0.985, transition: exit() }}
       className={`now-playing absolute inset-0 z-40 overflow-hidden${resting ? " resting" : ""}`}
     >
-      <div className="absolute inset-0 bg-[rgba(4,4,7,0.22)]" />
+      <div className={`absolute inset-0 transition-colors duration-500 ${tab === "visualizer" ? "bg-transparent" : "bg-[rgba(4,4,7,0.16)]"}`} />
       <header className="s-ftb">
         {track && from && (
           <div className="s-from s-glass">
@@ -563,7 +570,7 @@ function StudioFull() {
       {track ? (
         <StudioBody track={track} sound={sound} right={right} scale={tab === "visualizer" ? 1.08 : 1} bottom={bottomBand ? spec.height + 72 : 56}>
           {tab === "queue" ? (
-            <div className="s-fullq flex min-h-0 w-full max-w-[460px] flex-col overflow-y-auto">{listeners ? <RoomPanel /> : <QueueList />}</div>
+            <div className="s-fullq-panel s-glass w-full max-w-[540px]">{listeners ? <RoomPanel /> : <QueuePanel showCurrent={false} />}</div>
           ) : searching ? (
             <div className="w-full max-w-[560px] overflow-y-auto pt-[12vh]" data-keys-own>
               <ManualSearch track={track} onDone={() => setSearchFor(null)} />

@@ -92,6 +92,13 @@ html[data-design="studio"] :focus-visible {
   inset: 0;
   background: radial-gradient(120% 100% at 50% 35%, rgba(5, 5, 6, 0.35), rgb(5, 5, 6));
   opacity: var(--veil);
+  transition: opacity var(--motion-slow-move);
+}
+.studio-veil[data-viz="liquid"] {
+  opacity: calc(var(--veil) * 0.5);
+}
+.studio-veil[data-viz="media"] {
+  opacity: calc(var(--veil) * 0.72);
 }
 
 /* ── layout: panels float with a gap, the title bar is part of the background ── */

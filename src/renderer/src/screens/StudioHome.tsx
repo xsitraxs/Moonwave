@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { artwork, type Track } from "@shared/types";
+import { artwork, isLocalTrack, type Track } from "@shared/types";
 import { useFeed, usePlaylists } from "@/api/queries";
 import { useHomeActions, HomeStart } from "@/components/home/HomeStart";
 import { Avatar, when } from "@/components/social/bits";
@@ -11,6 +11,7 @@ import { duration } from "@/lib/format";
 import { useVisibleTracks } from "@/lib/hidden";
 import { call } from "@/lib/sky";
 import { useAuth } from "@/state/auth";
+import { toggleLike, useCanLike, useLiked } from "@/state/likes";
 import { useNav } from "@/state/nav";
 import { useCurrentTrack, player, usePlayer } from "@/state/player";
 import { useSettings } from "@/state/settings";
@@ -46,14 +47,14 @@ function Heading({ title, action, onAction }: { title: string; action?: string; 
 function Card({ cover, title, sub, on, playing, onClick }: { cover: string | null; title: string; sub: string; on?: boolean; playing?: boolean; onClick: () => void }) {
   return (
     <button type="button" onClick={onClick} title={`${title} — ${sub}`} className="group min-w-0 text-left">
-      <span className="relative block aspect-square overflow-hidden bg-white/[0.06] rounded-[var(--r2)]">
-        {cover ? <img src={artwork(cover, "t300x300") ?? undefined} alt="" loading="lazy" decoding="async" draggable={false} className="h-full w-full object-cover" /> : <span className="stipple-night block h-full w-full" />}
-        <span aria-hidden="true" className="absolute inset-0 bg-black/20 opacity-0 transition-opacity motion-color group-hover:opacity-100 group-focus-visible:opacity-100" />
-        <span className={`s-pp absolute bottom-2 right-2 h-8 w-8 transition-opacity motion-color ${on ? "opacity-100" : "opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100"}`}>
+      <span className="relative block aspect-square overflow-hidden rounded-[var(--r2)] bg-white/[0.06] ring-1 ring-inset ring-white/[0.06] transition-all duration-200 group-hover:ring-white/20">
+        {cover ? <img src={artwork(cover, "t300x300") ?? undefined} alt="" loading="lazy" decoding="async" draggable={false} className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]" /> : <span className="stipple-night block h-full w-full" />}
+        <span aria-hidden="true" className="absolute inset-0 bg-black/25 opacity-0 transition-opacity motion-color group-hover:opacity-100 group-focus-visible:opacity-100" />
+        <span className={`s-pp absolute bottom-2 right-2 h-8 w-8 shadow-md transition-all duration-200 ${on ? "opacity-100" : "translate-y-1 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 group-focus-visible:translate-y-0 group-focus-visible:opacity-100"}`}>
           <Icon name={on && playing ? "pause" : "play"} size={14} />
         </span>
       </span>
-      <span className={`mt-2 block truncate text-[12.5px] font-semibold ${on ? "text-[var(--accent)]" : "text-text"}`}>{title}</span>
+      <span className={`mt-2 block truncate text-[12.5px] font-semibold transition-colors motion-color ${on ? "text-[var(--accent)]" : "text-text group-hover:text-white"}`}>{title}</span>
       <span className="mt-px block truncate text-[12px] text-[var(--s-dim)]">{sub}</span>
     </button>
   );
@@ -191,35 +192,128 @@ function FromFriends() {
   );
 }
 
+function FeedRow({ track, index, tracks, current, playing }: { track: Track; index: number; tracks: Track[]; current: boolean; playing: boolean }) {
+  const t = useT();
+  const go = useNav((s) => s.go);
+  const openMenu = useUi((s) => s.openMenu);
+  const canLike = useCanLike();
+  const localLikes = useSettings((s) => s.prefs.localLikes);
+  const showLike = canLike && (!isLocalTrack(track.id) || localLikes);
+  const liked = useLiked(track.id);
+  const playOrToggle = () => (current ? player.toggle() : player.playFrom(tracks, index, STATIC));
+  const actionBtn = "grid h-7 w-7 place-items-center rounded-full text-muted transition-colors motion-color hover:bg-white/[0.08] hover:text-text";
+
+  return (
+    <div
+      tabIndex={0}
+      onDoubleClick={playOrToggle}
+      onKeyDown={(e) => {
+        if (e.target === e.currentTarget && e.key === "Enter") playOrToggle();
+      }}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        openMenu(e.clientX, e.clientY, track);
+      }}
+      className="group flex h-12 w-full items-center gap-3 rounded-[var(--r2)] border-b border-[var(--s-line)] px-2 text-left text-[12.5px] transition-colors motion-color hover:bg-white/[0.06] focus-within:bg-white/[0.05] focus-visible:bg-white/[0.06]"
+    >
+      <button
+        type="button"
+        tabIndex={-1}
+        aria-label={current && playing ? t.pause : `${t.play}: ${track.title}`}
+        onClick={playOrToggle}
+        className="grid h-7 w-6 shrink-0 place-items-center text-[12px] tabular-nums text-[var(--s-dim)]"
+      >
+        {current ? (
+          <>
+            <span className={`text-sm text-[var(--accent)] group-hover:hidden ${playing ? "" : "opacity-70"}`} aria-hidden="true">
+              ✦
+            </span>
+            <Icon name={playing ? "pause" : "play"} size={14} className="hidden text-[var(--accent)] group-hover:block" />
+          </>
+        ) : (
+          <>
+            <span className="group-hover:hidden">{index + 1}</span>
+            <Icon name="play" size={14} className="hidden text-text group-hover:block" />
+          </>
+        )}
+      </button>
+      <button
+        type="button"
+        tabIndex={-1}
+        aria-label={current && playing ? t.pause : `${t.play}: ${track.title}`}
+        onClick={playOrToggle}
+        className="relative shrink-0 overflow-hidden rounded-[4px] ring-1 ring-inset ring-white/[0.06] transition-all group-hover:ring-white/20"
+      >
+        <Cover url={track.artworkUrl} size={34} />
+        <span aria-hidden="true" className="absolute inset-0 grid place-items-center bg-black/45 text-white opacity-0 transition-opacity group-hover:opacity-100">
+          <Icon name={current && playing ? "pause" : "play"} size={13} />
+        </span>
+      </button>
+      <div className="min-w-0 flex-1">
+        <button
+          type="button"
+          onClick={() => go({ name: "track", id: track.id })}
+          className={`block max-w-full truncate text-left font-semibold hover:underline ${current ? "text-[var(--accent)]" : "text-text"}`}
+        >
+          {track.title}
+        </button>
+        <button
+          type="button"
+          onClick={() => go({ name: "profile", userId: track.user.id })}
+          className="block max-w-full truncate text-left text-[12px] text-[var(--s-dim)] hover:text-text hover:underline"
+        >
+          {track.artist}
+        </button>
+      </div>
+      <div className="flex items-center gap-0.5 opacity-0 transition-opacity motion-color group-focus-within:opacity-100 group-hover:opacity-100">
+        {showLike && (
+          <button
+            type="button"
+            aria-label={liked ? t.unlike : t.like}
+            title={liked ? t.unlike : t.like}
+            aria-pressed={liked}
+            onClick={() => void toggleLike(track)}
+            className={`${actionBtn} ${liked ? "!text-[var(--accent)]" : ""}`}
+          >
+            <Icon name="heart" size={15} filled={liked} />
+          </button>
+        )}
+        <button type="button" aria-label={t.playNext} title={t.playNext} onClick={() => player.playNext(track)} className={actionBtn}>
+          <Icon name="playNext" size={15} />
+        </button>
+        <button type="button" aria-label={t.addToQueue} title={t.addToQueue} onClick={() => player.addToQueue(track)} className={actionBtn}>
+          <Icon name="queue" size={15} />
+        </button>
+        <button
+          type="button"
+          aria-label={t.moreActions}
+          title={t.moreActions}
+          onClick={(e) => {
+            const r = e.currentTarget.getBoundingClientRect();
+            openMenu(r.right, r.bottom + 4, track);
+          }}
+          className={actionBtn}
+        >
+          <Icon name="more" size={15} />
+        </button>
+      </div>
+      <span className="w-12 pr-1 text-right text-[12px] tabular-nums text-[var(--s-dim)]">{duration(track.durationMs)}</span>
+    </div>
+  );
+}
+
 function FeedRows() {
   const t = useT();
   const q = useFeed(true);
   const all = useMemo(() => q.data?.pages.flatMap((p) => p.items) ?? [], [q.data]);
   const tracks = useVisibleTracks(all).slice(0, 8);
   const currentId = usePlayer((s) => s.queue[s.index]?.id ?? null);
+  const playing = usePlayer((s) => s.status === "playing" || s.status === "loading");
   if (!tracks.length) return null;
   return (
     <div>
       {tracks.map((tr, i) => (
-        <button
-          key={tr.id}
-          type="button"
-          onDoubleClick={() => player.playFrom(tracks, i, STATIC)}
-          onKeyDown={(e) => e.key === "Enter" && player.playFrom(tracks, i, STATIC)}
-          onContextMenu={(e) => {
-            e.preventDefault();
-            useUi.getState().openMenu(e.clientX, e.clientY, tr);
-          }}
-          className="flex h-12 w-full items-center gap-3 rounded-[var(--r2)] border-b border-[var(--s-line)] px-1 text-left text-[12.5px] transition-colors motion-color hover:bg-white/[0.08] focus-visible:bg-white/[0.08]"
-        >
-          <span className="w-6 text-[12px] tabular-nums text-[var(--s-dim)]">{i + 1}</span>
-          <Cover url={tr.artworkUrl} size={32} />
-          <span className="min-w-0 flex-1">
-            <span className={`block truncate font-semibold ${tr.id === currentId ? "text-[var(--accent)]" : "text-text"}`}>{tr.title}</span>
-            <span className="block truncate text-[12px] text-[var(--s-dim)]">{tr.artist}</span>
-          </span>
-          <span className="w-12 pr-1 text-right text-[12px] tabular-nums text-[var(--s-dim)]">{duration(tr.durationMs)}</span>
-        </button>
+        <FeedRow key={tr.id} track={tr} index={i} tracks={tracks} current={tr.id === currentId} playing={playing} />
       ))}
       <p className="sr-only">{t.feed}</p>
     </div>
