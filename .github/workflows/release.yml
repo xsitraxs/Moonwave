@@ -158,6 +158,18 @@ jobs:
             exit "$ec"
           fi
 
+      # A step timeout bypasses the shell's own error handler, so preserve its last output in a separate step.
+      - name: Report packaging failure details
+        if: failure()
+        shell: bash
+        run: |
+          if [ -f dist.log ]; then
+            tail -c 4000 dist.log \
+              | sed -E -e 's#(//)[^/@" '"'"']+:[^/@" '"'"']+@#\1***:***@#g' -e 's/[[:cntrl:]]/ /g' \
+              | base64 | tr -d '\n' > tail.b64
+            echo "::error title=packaging-failure-tail-b64::$(cat tail.b64)"
+          fi
+
       - name: No secrets in the built files
         run: node scripts/scan-dist.mjs dist
 
