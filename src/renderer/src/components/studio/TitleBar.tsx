@@ -4,7 +4,6 @@ import { errorText, useT } from "@/i18n";
 import { looksLikeLink, openLink } from "@/lib/links";
 import { errorCode } from "@/lib/sky";
 import { useUi } from "@/state/ui";
-import { useAuth } from "@/state/auth";
 import { useNav } from "@/state/nav";
 import { useSettings } from "@/state/settings";
 import { unreadTotal, useSocial } from "@/state/social";
@@ -113,8 +112,6 @@ function SearchBox() {
 
 function Status() {
   const t = useT();
-  const status = useAuth((s) => s.status);
-  const open = useNav((s) => s.open);
   const [online, setOnline] = useState(navigator.onLine);
   useEffect(() => {
     const up = () => setOnline(true);
@@ -126,13 +123,12 @@ function Status() {
       window.removeEventListener("offline", down);
     };
   }, []);
-  const signedIn = status?.mode === "session";
-  const kind = !online ? "bad" : signedIn ? "" : "off";
+  if (online) return null;
   return (
-    <button type="button" onClick={() => !signedIn && open("likes", { name: "likes" })} className={`s-stat s-glass ${kind}`} title={signedIn && status.user ? t.signedInAs(status.user.username) : undefined}>
+    <span className="s-stat s-glass bad" role="status">
       <i />
-      {!online ? t.offline : signedIn ? t.connected : t.notSignedIn}
-    </button>
+      {t.offline}
+    </span>
   );
 }
 

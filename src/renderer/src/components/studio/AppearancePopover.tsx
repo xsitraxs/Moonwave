@@ -97,7 +97,7 @@ export default function AppearancePopover() {
           animate={{ opacity: 1, y: 0, transition: enterFast() }}
           exit={{ opacity: 0, y: 4, transition: exit() }}
           className="s-pop s-glass w-[312px]"
-          style={where === "side" ? { left: 252, bottom: 100 } : { right: 14, bottom: 58 }}
+          style={where === "side" ? { left: 240, bottom: 100 } : { right: 14, bottom: 58 }}
           data-keys-own
         >
           <div className="mx-2 mb-2.5 mt-1 flex items-center">

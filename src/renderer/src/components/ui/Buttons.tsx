@@ -21,16 +21,15 @@ export function PaperButton({ className = "", children, ...rest }: Base) {
   );
 }
 
-/** Bare icon button; `label` is its accessible name and tooltip. `on` lights it in the glow colour. */
+/** Bare icon button; `label` is its accessible name and tooltip. `on` lights it via colour. */
 export function IconButton({ icon, label, on = false, filled = false, size = 20, className = "", ...rest }: Base & { icon: IconName; label: string; on?: boolean; filled?: boolean; size?: number }) {
   return (
     <button
       type="button"
       aria-label={label}
-      title={label}
+      data-tip={label}
       aria-pressed={rest["aria-pressed"]}
-      className={`grid h-9 w-9 shrink-0 place-items-center rounded-full transition-colors motion-color ${on ? "text-glow" : "text-muted hover:text-text"} ${className}`}
-      style={on ? { filter: "drop-shadow(0 0 4px color-mix(in srgb, var(--glow) 60%, transparent))" } : undefined}
+      className={`s-tip grid h-9 w-9 shrink-0 place-items-center rounded-full transition-colors motion-color ${on ? "text-text" : "text-muted hover:text-text"} ${className}`}
       {...rest}
     >
       <Icon name={icon} size={size} filled={filled} />

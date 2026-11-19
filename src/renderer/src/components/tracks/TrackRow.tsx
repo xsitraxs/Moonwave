@@ -126,14 +126,14 @@ function TrackRow({ track, index, current, playing, onPlay, focused }: Props) {
         </button>
       </div>
       <div className="min-w-0" role="gridcell">
-        <button type="button" tabIndex={-1} onClick={() => go({ name: "track", id: track.id })} className={`block max-w-full truncate text-left text-[0.95rem] font-medium hover:underline ${current ? "text-glow" : "text-text"}`}>
+        <button type="button" tabIndex={-1} onClick={() => go({ name: "track", id: track.id })} className="block max-w-full truncate text-left text-[15px] font-semibold text-text hover:underline">
           {track.title}
         </button>
-        <div className="flex min-w-0 items-center gap-2 text-sm text-muted" role="gridcell">
+        <div className="flex min-w-0 items-center gap-2 text-[13px] text-muted" role="gridcell">
           <button type="button" tabIndex={-1} className="truncate hover:text-text hover:underline" onClick={() => go({ name: "profile", userId: track.user.id })}>
             {track.artist}
           </button>
-          {badge && <span className={`shrink-0 rounded-sm border border-current px-1 font-type text-[0.65rem] uppercase leading-4 ${alt ? "text-glow" : ""}`}>{badge}</span>}
+          {badge && <span className={`shrink-0 rounded-sm border border-current px-1 font-type text-[0.65rem] uppercase leading-4 ${alt ? "text-text" : ""}`}>{badge}</span>}
         </div>
       </div>
       <div className="flex items-center gap-0.5 opacity-0 transition-opacity motion-color group-focus-within:opacity-100 group-hover:opacity-100">

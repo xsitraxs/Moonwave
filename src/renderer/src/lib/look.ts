@@ -110,16 +110,24 @@ export function paletteOf(source: CanvasImageSource): Palette {
   // grey or nearly black pictures keep the default violet accent
   const accent = sat < 0.12 ? DEFAULT.accent : rgb([hue, Math.min(0.62, Math.max(0.42, sat)), 0.66]);
   const baseHue = sat < 0.12 ? 0.72 : hue;
-  const baseSat = sat < 0.12 ? 0.34 : Math.min(0.65, Math.max(0.32, sat));
+  const baseSat = sat < 0.12 ? 0.34 : Math.min(0.55, Math.max(0.24, sat * 0.85));
   const field = groups.map(({ h: [hh, ss, ll] }, idx) => {
     const tinted = ss < 0.14;
     const fh = tinted ? (baseHue + idx * 0.04) % 1 : hh;
-    const fs = tinted ? baseSat * (0.65 + (idx % 3) * 0.12) : Math.min(0.88, ss * 1.15);
-    const fl = Math.min(0.56, Math.max(0.18, ll));
+    const fs = tinted ? baseSat * (0.55 + (idx % 3) * 0.1) : Math.min(0.62, ss * 0.9);
+    const fl = Math.min(0.38, Math.max(0.14, ll * 0.82));
     return rgb([fh, fs, fl]);
   });
-  while (field.length < 5) field.push(rgb([(baseHue + field.length * 0.06) % 1, baseSat * 0.7, 0.28]));
+  while (field.length < 5) field.push(rgb([(baseHue + field.length * 0.06) % 1, baseSat * 0.65, 0.22]));
   return { accent, field: field.slice(0, 5).map((c) => c.map((v) => v / 255) as RGB) };
+}
+
+function relLuminance([r, g, b]: RGB): number {
+  const f = (c: number) => {
+    const s = c / 255;
+    return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
+  };
+  return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
 }
 
 function apply(p: Palette) {
@@ -128,8 +136,10 @@ function apply(p: Palette) {
   const [r, g, b] = p.accent.map(Math.round) as RGB;
   root.setProperty("--accent", `rgb(${r} ${g} ${b})`);
   root.setProperty("--accent-rgb", `${r}, ${g}, ${b}`);
-  const dark = rgb([hsl(p.accent)[0], 0.5, 0.08]).map(Math.round);
-  root.setProperty("--on-accent", `rgb(${dark.join(" ")})`);
+  // ensure >= 4.5:1 contrast for icons/labels sitting directly on the accent Play button
+  const lum = relLuminance([r, g, b]);
+  const onAccent = lum > 0.28 ? "#0b0b0d" : "#f7f7fa";
+  root.setProperty("--on-accent", onAccent);
   listeners.forEach((fn) => fn(p));
 }
 

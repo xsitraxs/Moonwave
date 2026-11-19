@@ -679,12 +679,13 @@ export const player = {
     if (index < 0) return player.playFrom([track], 0, { kind: "static" });
     const item = { ...track };
     manual.add(item);
-    const q = [...queue];
     // after the current track and any tracks already added by hand
     let at = index + 1;
-    while (at < q.length && manual.has(q[at]!)) at++;
+    while (at < queue.length && manual.has(queue[at]!)) at++;
+    const q = [...queue];
     q.splice(at, 0, item);
     set({ queue: q, autoFrom: autoFrom >= at ? autoFrom + 1 : autoFrom });
+    if (q.length > index + 1) useUi.getState().openSideQueue();
   },
   addToQueue(track: Track) {
     if (remote) return remote.addToQueue(track);
@@ -697,6 +698,7 @@ export const player = {
     const at = autoFrom >= 0 ? autoFrom : q.length;
     q.splice(at, 0, item);
     set({ queue: q, autoFrom: autoFrom >= 0 ? autoFrom + 1 : -1 });
+    if (q.length > index + 1) useUi.getState().openSideQueue();
   },
   removeAt(i: number) {
     const { queue, index, autoFrom } = get();

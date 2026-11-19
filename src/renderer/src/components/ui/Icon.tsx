@@ -58,7 +58,7 @@ export default function Icon({ name, size = 20, filled = false, className = "" }
   return (
     <svg viewBox="0 0 24 24" width={size} height={size} aria-hidden="true" focusable="false" className={className} style={{ overflow: "visible" }}>
       {icon.fill && <path d={icon.fill} fill="currentColor" stroke={fine ? "none" : "currentColor"} strokeWidth={1.4} strokeLinejoin="round" />}
-      {icon.stroke && <path d={icon.stroke} fill={filled ? "currentColor" : "none"} stroke="currentColor" strokeWidth={studio ? 1.6 : 2.1} strokeLinecap="round" strokeLinejoin="round" />}
+      {icon.stroke && <path d={icon.stroke} fill={!studio && filled ? "currentColor" : "none"} stroke="currentColor" strokeWidth={studio ? 1.5 : 2.1} strokeLinecap="round" strokeLinejoin="round" />}
     </svg>
   );
 }

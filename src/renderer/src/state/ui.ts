@@ -62,7 +62,7 @@ const stored = (() => {
     return null;
   }
 })();
-const initialSideQueue = stored !== "0";
+const initialSideQueue = stored === "1";
 
 function persistSideQueue(open: boolean) {
   try {
