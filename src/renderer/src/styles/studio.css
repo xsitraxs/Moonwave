@@ -21,7 +21,7 @@ html[data-design="studio"] {
   --bg: #050506;
   --bg-2: rgb(var(--glass-rgb));
   --text: #ececef;
-  --muted: #9b9ba4;
+  --muted: #b0b0ba;
   --ink: rgba(255, 255, 255, 0.12);
   --paper: rgba(255, 255, 255, 0.06);
   --line: rgba(255, 255, 255, 0.12);
@@ -90,7 +90,7 @@ html[data-design="studio"] :focus-visible {
 .studio-veil {
   position: absolute;
   inset: 0;
-  background: radial-gradient(120% 100% at 50% 35%, rgba(5, 5, 6, 0.35), rgb(5, 5, 6));
+  background: radial-gradient(120% 100% at 50% 35%, rgba(5, 5, 6, 0.74), rgb(5, 5, 6));
   opacity: var(--veil);
   transition: opacity var(--motion-slow-move);
 }
@@ -136,8 +136,8 @@ html[data-design="studio"] main > aside.panel {
 /* ── type: no dripping display font, no tilt, no glow ── */
 html[data-design="studio"] .display-heading {
   font-family: var(--font-display);
-  font-weight: 600;
-  letter-spacing: -0.02em;
+  font-weight: 700;
+  letter-spacing: -0.025em;
   filter: none;
   text-shadow: none;
 }
@@ -145,11 +145,15 @@ html[data-design="studio"] [class*="rotate-"]:not(svg):not(svg *) {
   rotate: none !important;
 }
 html[data-design="studio"] h1.display-heading {
-  font-size: 1.75rem !important;
+  font-size: 32px !important;
+  font-weight: 700;
   line-height: 1.15;
 }
 html[data-design="studio"] h2.display-heading {
-  font-size: 1rem !important;
+  font-size: 20px !important;
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: -0.015em;
   text-transform: none;
 }
 html[data-design="studio"] .font-type {
@@ -274,10 +278,10 @@ html[data-design="studio"] .font-sans {
   font-family: "Onest", ui-sans-serif, system-ui, "Segoe UI", sans-serif;
 }
 html[data-design="studio"] .font-type.uppercase {
-  font-size: 0.68rem;
+  font-size: 0.72rem;
   font-weight: 600;
-  letter-spacing: 0.12em;
-  color: rgba(236, 236, 239, 0.45);
+  letter-spacing: 0.1em;
+  color: var(--s-dim);
 }
 /* the title bar's name: small and plain */
 html[data-design="studio"] header.panel .display-heading {
@@ -286,12 +290,13 @@ html[data-design="studio"] header.panel .display-heading {
   letter-spacing: 0;
   padding-left: 8px;
 }
-/* the current page in the sidebar: a quiet fill and a short accent mark instead of the scribbled ring */
+/* the current page in the sidebar: a quiet fill, accent text/icon, and a short accent mark */
 html[data-design="studio"] .scribble-ring {
   display: none;
 }
 html[data-design="studio"] nav button[aria-current="page"] {
   position: relative;
+  color: var(--accent);
   background: rgba(255, 255, 255, 0.07);
 }
 html[data-design="studio"] nav button[aria-current="page"]::before {

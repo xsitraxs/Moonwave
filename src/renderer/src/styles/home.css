@@ -28,8 +28,8 @@
 }
 
 html[data-design="studio"] .home-play {
-  background: var(--text);
-  color: #0b0b0d;
+  background: var(--accent);
+  color: var(--on-accent);
 }
 html[data-design="studio"] .home-tile:hover {
   background: rgba(255, 255, 255, 0.09);
@@ -38,198 +38,184 @@ html[data-design="studio"] .home-greeting {
   font-size: 2rem;
 }
 
-/* The first screenful of Home. One place, one dominant action, three labelled ways in; the content below is browse. */
+/* The first screenful of Home: H1 greeting + one prominent hero card; freed space goes to content below. */
 .home-start {
-  margin-bottom: 22px;
+  margin-bottom: 28px;
   container-type: inline-size;
 }
 .home-start-head {
-  margin-bottom: 14px;
-}
-.home-start-place {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--muted);
-  font-family: var(--font-type);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
+  margin-bottom: 16px;
 }
 .home-start-title {
-  margin-top: 7px;
   color: var(--text);
-  font-size: 28px;
-  font-weight: 600;
+  font-size: 32px;
+  font-weight: 700;
   letter-spacing: -0.025em;
-  line-height: 1.2;
+  line-height: 1.15;
 }
-.home-start-lead {
-  max-width: 68ch;
-  margin-top: 5px;
-  color: var(--muted);
-  font-size: 13px;
-  line-height: 1.45;
-}
-.home-start-grid {
-  display: grid;
-  grid-template-columns: minmax(260px, 1.15fr) minmax(380px, 1fr);
-  gap: 8px;
-}
-@media (max-width: 1000px) {
-  .home-start-grid {
-    grid-template-columns: 1fr;
-  }
-}
-@container (max-width: 840px) {
-  .home-start-grid {
-    grid-template-columns: 1fr;
-  }
-}
-.home-start-main,
-.home-start-mini {
-  min-height: 76px;
+.home-hero {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 18px;
   border: 1px solid var(--card-edge);
-  border-radius: 8px;
+  border-radius: var(--r, 10px);
   background: var(--card);
   color: var(--text);
-  text-align: left;
   transition:
     background-color var(--motion-color),
     border-color var(--motion-color);
 }
-.home-start-main {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  gap: 14px;
-  padding: 13px 15px;
-  border-color: rgba(var(--accent-rgb, 178, 160, 230), 0.38);
-  background: linear-gradient(100deg, rgba(var(--accent-rgb, 178, 160, 230), 0.15), rgba(var(--accent-rgb, 178, 160, 230), 0.04));
-}
-.home-start-main:hover {
-  border-color: rgba(var(--accent-rgb, 178, 160, 230), 0.7);
-  background: linear-gradient(100deg, rgba(var(--accent-rgb, 178, 160, 230), 0.22), rgba(var(--accent-rgb, 178, 160, 230), 0.07));
-}
-.home-start-visual {
+.home-hero-cover {
+  position: relative;
   display: grid;
-  width: 46px;
-  height: 46px;
+  width: 168px;
+  height: 168px;
   flex: none;
   place-items: center;
   overflow: hidden;
-  border-radius: 6px;
-  background: var(--glow);
-  color: var(--on-glow);
+  border-radius: var(--r2, 7px);
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
 }
-.home-start-copy {
-  min-width: 0;
-  flex: 1;
-}
-.home-start-main-title,
-.home-start-mini-title {
-  display: block;
-  overflow: hidden;
-  font-weight: 600;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.home-start-main-title {
-  font-size: 14px;
-}
-.home-start-main-note,
-.home-start-mini-note {
-  display: block;
-  overflow: hidden;
-  margin-top: 3px;
-  color: var(--muted);
-  font-size: 12px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.home-start-arrow {
-  flex: none;
-  color: var(--glow);
-  font-size: 18px;
-  line-height: 1;
-}
-.home-start-more {
-  display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: minmax(0, 1fr);
-  gap: 8px;
-}
-.home-start-mini {
+.home-hero-body {
   display: flex;
   min-width: 0;
+  flex: 1;
   flex-direction: column;
-  align-items: flex-start;
+  justify-content: center;
+  gap: 12px;
+}
+.home-hero-eyebrow {
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--muted);
+}
+.home-hero-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: -0.015em;
+  color: var(--text);
+}
+.home-hero-artist {
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--muted);
+}
+.home-hero-progress {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 420px;
+}
+.home-hero-track {
+  position: relative;
+  height: 4px;
+  flex: 1;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+}
+.home-hero-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent);
+  transition: width 150ms linear;
+}
+.home-hero-time {
+  font-size: 13px;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+.home-hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+.home-hero-play {
+  display: inline-flex;
+  height: 40px;
+  align-items: center;
   gap: 8px;
-  padding: 11px 12px;
+  padding: 0 18px 0 15px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 14px;
+  font-weight: 600;
+  transition:
+    filter var(--motion-color),
+    transform var(--motion-color);
 }
-.home-start-mini > svg {
-  color: var(--glow);
-  flex: none;
+.home-hero-play:hover {
+  filter: brightness(1.08);
 }
-.home-start-mini:hover {
-  border-color: rgba(var(--accent-rgb, 178, 160, 230), 0.5);
-  background: var(--row-hover);
+.home-hero-play:active {
+  transform: scale(0.98);
 }
-.home-start-mini-copy {
-  width: 100%;
-  min-width: 0;
+.home-hero-secondary {
+  display: inline-flex;
+  height: 40px;
+  align-items: center;
+  gap: 7px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid var(--s-line2, rgba(255, 255, 255, 0.12));
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 500;
+  transition: background-color var(--motion-color);
 }
-.home-start-mini-title {
-  font-size: 12px;
+.home-hero-secondary:hover {
+  background: rgba(255, 255, 255, 0.06);
 }
-.home-start-mini-note {
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  white-space: normal;
-  line-height: 1.35;
-  font-size: 11px;
-}
-@container (max-width: 480px) {
-  .home-start-more {
-    grid-auto-flow: row;
-    grid-template-columns: 1fr;
+@container (max-width: 600px) {
+  .home-hero {
+    flex-direction: column;
+    align-items: flex-start;
   }
-  .home-start-mini {
-    min-height: 0;
-    flex-direction: row;
-    align-items: center;
-    gap: 10px;
-    padding: 9px 12px;
-  }
-  .home-start-mini-note {
-    -webkit-line-clamp: 1;
+  .home-hero-cover {
+    width: 160px;
+    height: 160px;
   }
 }
 html:not([data-design="studio"]) .home-start-title {
   font-family: var(--font-display);
   font-size: 33px;
 }
-html[data-design="studio"] .home-start-visual,
-html[data-design="studio"] .home-start-arrow,
-html[data-design="studio"] .home-start-mini > svg {
-  background: var(--text);
-  color: #0b0b0d;
+html[data-design="studio"] .home-hero {
+  border-color: var(--s-line);
+  background: rgba(255, 255, 255, 0.035);
 }
-html[data-design="studio"] .home-start-arrow {
-  background: transparent;
-  color: var(--muted);
+html[data-design="studio"] .home-hero:hover {
+  border-color: var(--s-line2);
+  background: rgba(255, 255, 255, 0.045);
 }
-html[data-design="studio"] .home-start-main,
-html[data-design="studio"] .home-start-mini {
-  border-radius: var(--r2);
+
+/* horizontal cover carousel shared across Home sections */
+.home-carousel {
+  display: flex;
+  gap: 16px;
+  overflow-x: auto;
+  padding-bottom: 6px;
+  scroll-snap-type: x proximity;
+  scrollbar-width: thin;
 }
-html[data-design="studio"] .home-start-main {
-  background: rgba(var(--accent-rgb), 0.1);
-}
-html[data-design="studio"] .home-start-main:hover {
-  background: rgba(var(--accent-rgb), 0.17);
+.home-carousel > * {
+  width: clamp(146px, calc((100% - 80px) / 6), 176px);
+  min-width: 146px;
+  flex: none;
+  scroll-snap-align: start;
 }
 
 /* the messenger: a friend listening right now */

@@ -675,7 +675,7 @@ export const ru: Dict = {
   goodMorning: "Доброе утро",
   goodAfternoon: "Добрый день",
   goodEvening: "Добрый вечер",
-  lateNight: "Не спится?",
+  lateNight: "Не спится",
   paused: "На паузе",
   ofCount: (k: number, of: number) => `${k} из ${of}`,
   lastPlayed: "Недавно играло · включить снова",
@@ -683,7 +683,7 @@ export const ru: Dict = {
   searchHint: "Треки, люди, плейлисты",
   jumpBackIn: "Продолжить",
   showAll: "Показать все",
-  newInFeed: "Новое от тех, на кого вы подписаны",
+  newInFeed: "Новое от подписок",
   homeEmpty: "Ещё ничего не играло. Найдите трек или вставьте ссылку на SoundCloud (Ctrl+L), чтобы начать.",
   // первый экран главной: одно место, одно главное действие, три входа в музыку
   homeStartLabel: "Начать",

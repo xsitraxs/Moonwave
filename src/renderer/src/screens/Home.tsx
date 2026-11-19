@@ -1,15 +1,16 @@
 import { useMemo } from "react";
 import { artwork, type Track } from "@shared/types";
 import { useFeed } from "@/api/queries";
-import { HomeStart, useHomeActions } from "@/components/home/HomeStart";
+import { HomeStart } from "@/components/home/HomeStart";
 import TrackList from "@/components/tracks/TrackList";
 import Icon from "@/components/ui/Icon";
 import { Screen } from "@/components/ui/Screen";
 import { useT } from "@/i18n";
+import { dedupeRecentByAlbum } from "@/lib/homeHelpers";
 import { useVisibleTracks } from "@/lib/hidden";
 import { useAuth } from "@/state/auth";
 import { useNav } from "@/state/nav";
-import { player, usePlayer } from "@/state/player";
+import { player, useCurrentTrack, usePlayer } from "@/state/player";
 import { useSettings } from "@/state/settings";
 import StudioHome from "./StudioHome";
 
@@ -81,12 +82,13 @@ function OgHome() {
   const auth = useAuth((s) => s.status);
   const signedIn = auth?.mode === "session";
   const history = useSettings((s) => s.history);
-  const recent = useVisibleTracks(history).slice(0, 12);
-  const { primary, secondary, hasMusic } = useHomeActions();
+  const current = useCurrentTrack();
+  const heroTrack = current ?? history[0] ?? null;
+  const recent = dedupeRecentByAlbum(useVisibleTracks(history), heroTrack).slice(0, 12);
 
   return (
     <Screen label={t.home}>
-      <HomeStart name={auth?.mode === "session" ? auth.user?.username : undefined} signedIn={signedIn} hasMusic={hasMusic} primary={primary} secondary={secondary} />
+      <HomeStart name={auth?.mode === "session" ? auth.user?.username : undefined} signedIn={signedIn} />
 
       {recent.length > 0 && (
         <>

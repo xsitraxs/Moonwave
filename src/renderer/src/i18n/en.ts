@@ -660,7 +660,7 @@ export const en = {
   searchHint: "Tracks, people, playlists",
   jumpBackIn: "Jump back in",
   showAll: "Show all",
-  newInFeed: "New from people you follow",
+  newInFeed: "New from following",
   homeEmpty: "Nothing played yet. Search for a track or paste a SoundCloud link (Ctrl+L) to start.",
   // the first screenful of Home: one clear place, one main action, three ways in
   homeStartLabel: "Get started",

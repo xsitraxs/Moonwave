@@ -54,7 +54,7 @@ export default function SleepTimer() {
   return (
     <div ref={ref} className="relative flex items-center">
       <IconButton icon="moon" label={label} on={active} aria-expanded={open} onClick={() => setOpen((o) => !o)} />
-      {active && <span className="pointer-events-none -ml-1 mr-1 font-type text-[0.65rem] text-glow">{endOfTrack ? "♪" : `${left}m`}</span>}
+      {active && <span className="pointer-events-none -ml-1 mr-1 font-type text-[0.65rem] text-text">{endOfTrack ? "♪" : `${left}m`}</span>}
       <AnimatePresence>
         {open && (
           <motion.div

@@ -1,129 +1,148 @@
-import { artwork } from "@shared/types";
-import Icon, { type IconName } from "@/components/ui/Icon";
+import { artwork, type Track } from "@shared/types";
+import Icon from "@/components/ui/Icon";
 import { useT } from "@/i18n";
-import { useAuth } from "@/state/auth";
+import { formatGreeting, greetingKey } from "@/lib/homeHelpers";
+import { duration } from "@/lib/format";
 import { useNav } from "@/state/nav";
-import { player, useCurrentTrack, usePlayer } from "@/state/player";
+import { player, useCurrentTrack, usePlayer, usePosition } from "@/state/player";
 import { useSettings } from "@/state/settings";
 import { useUi } from "@/state/ui";
 
 const STATIC = { kind: "static" } as const;
 
-export interface HomeAction {
-  icon: IconName;
-  title: string;
-  note: string;
-  /** A cover makes "keep listening" unmistakable; an icon stands for the actions without one. */
-  coverUrl?: string | null;
-  onClick: () => void;
-}
+function HeroProgress({ active, durationMs }: { active: boolean; durationMs: number }) {
+  const position = usePosition((s) => s.position);
+  const playerDuration = usePlayer((s) => s.duration);
+  const totalS = active && playerDuration > 0 ? playerDuration : durationMs / 1000;
+  const elapsedS = active ? Math.min(position, totalS || position) : 0;
+  const pct = totalS > 0 ? Math.max(0, Math.min(100, (elapsedS / totalS) * 100)) : 0;
 
-function greeting(t: ReturnType<typeof useT>, name: string | undefined) {
-  const h = new Date().getHours();
-  const hello = h >= 5 && h < 12 ? t.goodMorning : h >= 12 && h < 17 ? t.goodAfternoon : h >= 17 && h < 23 ? t.goodEvening : t.lateNight;
-  return name ? `${hello}, ${name}` : hello;
-}
-
-/**
- * The first screenful of Home, in both designs. Reading order: where I am (the breadcrumb and greeting), what I can do
- * here (one dominant action plus three labelled ones), and only then the browseable content below it. No unlabelled
- * tiles and no filter tabs competing with the greeting for the first look.
- */
-export function HomeStart({ name, signedIn, hasMusic, primary, secondary }: { name?: string; signedIn: boolean; hasMusic: boolean; primary: HomeAction; secondary: HomeAction[] }) {
-  const t = useT();
-  const src = primary.coverUrl ? artwork(primary.coverUrl, "t300x300") : null;
-  const lead = !signedIn ? t.homeLeadOut : hasMusic ? t.homeLeadIn : t.homeLeadNew;
   return (
-    <section className="home-start" aria-label={t.homeStartLabel}>
-      <header className="home-start-head">
-        <p className="home-start-place">
-          <Icon name="home" size={12} />
-          <span>{t.appName} · {t.home}</span>
-        </p>
-        <h1 className="home-start-title">{greeting(t, name)}</h1>
-        <p className="home-start-lead">{lead}</p>
-      </header>
-
-      <div className="home-start-grid">
-        <button type="button" className="home-start-main" onClick={primary.onClick}>
-          <span className="home-start-visual">
-            {src ? (
-              <img src={src} alt="" draggable={false} className="h-full w-full object-cover" />
-            ) : (
-              <Icon name={primary.icon} size={22} filled={primary.icon === "heart"} />
-            )}
-          </span>
-          <span className="home-start-copy">
-            <span className="home-start-main-title">{primary.title}</span>
-            <span className="home-start-main-note">{primary.note}</span>
-          </span>
-          <span className="home-start-arrow" aria-hidden="true">→</span>
-        </button>
-
-        <div className="home-start-more">
-          {secondary.map((a) => (
-            <button key={a.title} type="button" className="home-start-mini" onClick={a.onClick}>
-              <Icon name={a.icon} size={17} filled={a.icon === "heart"} />
-              <span className="home-start-mini-copy">
-                <span className="home-start-mini-title">{a.title}</span>
-                <span className="home-start-mini-note">{a.note}</span>
-              </span>
-            </button>
-          ))}
-        </div>
+    <div className="home-hero-progress">
+      <span className="home-hero-time">{duration(elapsedS * 1000)}</span>
+      <div className="home-hero-track" aria-hidden="true">
+        <div className="home-hero-fill" style={{ width: `${pct}%` }} />
       </div>
-    </section>
+      <span className="home-hero-time">{duration(totalS * 1000)}</span>
+    </div>
   );
 }
 
 /**
- * The same actions on both Home designs: continue what is playing (or what was played last), otherwise find music;
- * then the two or three ways into the library. Kept in one place so the hierarchy can't drift between designs.
+ * The first screenful of Home: H1 time-of-day greeting and a single prominent hero card for continuing playback
+ * (or starting with search when history is empty). No duplicate sidebar quick-access tiles.
  */
-export function useHomeActions() {
+export function HomeStart({ name, signedIn }: { name?: string; signedIn: boolean }) {
   const t = useT();
   const goTo = useNav((s) => s.open);
+  const go = useNav((s) => s.go);
   const current = useCurrentTrack();
   const status = usePlayer((s) => s.status);
   const history = useSettings((s) => s.history);
-  const signedIn = useAuth((s) => s.status?.mode === "session");
   const openFull = useUi((s) => s.openFull);
 
-  const last = history[0];
-  const playing = !!current && (status === "playing" || status === "loading");
-  const primary: HomeAction = current
-    ? {
-        icon: "play",
-        title: playing ? t.homeBackToPlayer : t.homeContinueListening,
-        note: `${current.title} · ${current.artist}`,
-        coverUrl: current.artworkUrl,
-        onClick: () => (playing ? openFull() : player.toggle()),
-      }
-    : last
-      ? {
-          icon: "play",
-          title: t.homeContinueListening,
-          note: `${last.title} · ${last.artist}`,
-          coverUrl: last.artworkUrl,
-          onClick: () => player.playFrom(history, 0, STATIC),
-        }
-      : {
-          icon: "search",
-          title: t.homeFindMusic,
-          note: t.homeFindMusicNote,
-          onClick: () => goTo("search", { name: "search" }),
-        };
+  const heroTrack: Track | null = current ?? history[0] ?? null;
+  const isCurrent = !!current && heroTrack?.id === current.id;
+  const playing = isCurrent && (status === "playing" || status === "loading");
+  const coverSrc = heroTrack?.artworkUrl ? artwork(heroTrack.artworkUrl, "t300x300") : null;
+  const hello = formatGreeting(t[greetingKey(new Date().getHours())], name);
 
-  const more: HomeAction[] = [];
-  if (primary.icon !== "search") more.push({ icon: "search", title: t.search, note: t.searchHint, onClick: () => goTo("search", { name: "search" }) });
-  if (signedIn) {
-    more.push({ icon: "heart", title: t.likedTracks, note: t.homeLikesNote, onClick: () => goTo("likes", { name: "likes" }) });
-    more.push({ icon: "playlists", title: t.playlists, note: t.homePlaylistsNote, onClick: () => goTo("playlists", { name: "playlists" }) });
-  } else {
-    more.push({ icon: "user", title: t.signIn, note: t.homeSignInNote, onClick: () => goTo("signin", { name: "signin" }) });
-  }
-  if (history.length) more.push({ icon: "history", title: t.history, note: t.homeHistoryNote, onClick: () => goTo("history", { name: "history" }) });
-  more.push({ icon: "disc", title: t.localMusic, note: t.homeLocalNote, onClick: () => goTo("local", { name: "local" }) });
+  const onPlay = () => {
+    if (isCurrent) player.toggle();
+    else if (history.length) player.playFrom(history, 0, STATIC);
+    else goTo("search", { name: "search" });
+  };
 
-  return { primary, secondary: more.slice(0, 3), hasMusic: !!current || history.length > 0 };
+  const eyebrow = !heroTrack
+    ? t.homeStartLabel
+    : playing
+      ? t.nowPlaying
+      : isCurrent
+        ? t.paused
+        : t.homeContinueListening;
+
+  return (
+    <section className="home-start" aria-label={t.homeStartLabel}>
+      <header className="home-start-head">
+        <h1 className="home-start-title">{hello}</h1>
+      </header>
+
+      {heroTrack ? (
+        <div className="home-hero">
+          <button
+            type="button"
+            onClick={onPlay}
+            aria-label={`${playing ? t.pause : t.play}: ${heroTrack.title}`}
+            className="home-hero-cover group cursor-pointer"
+          >
+            {coverSrc ? (
+              <img
+                src={coverSrc}
+                alt=""
+                draggable={false}
+                className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+              />
+            ) : (
+              <Icon name="disc" size={40} className="text-muted" />
+            )}
+          </button>
+
+          <div className="home-hero-body">
+            <div>
+              <div className="home-hero-eyebrow">{eyebrow}</div>
+              <button
+                type="button"
+                onClick={() => go({ name: "track", id: heroTrack.id })}
+                className="home-hero-title block max-w-full text-left hover:underline"
+                title={heroTrack.title}
+              >
+                {heroTrack.title}
+              </button>
+              <button
+                type="button"
+                onClick={() => go({ name: "profile", userId: heroTrack.user.id })}
+                className="home-hero-artist block max-w-full text-left hover:text-text hover:underline"
+              >
+                {heroTrack.artist}
+              </button>
+            </div>
+
+            <HeroProgress active={isCurrent} durationMs={heroTrack.durationMs} />
+
+            <div className="home-hero-actions">
+              <button type="button" onClick={onPlay} className="home-hero-play">
+                <Icon name={playing ? "pause" : "play"} size={20} />
+                <span>{playing ? t.pause : isCurrent ? t.play : t.homeContinueListening}</span>
+              </button>
+              {isCurrent && (
+                <button type="button" onClick={openFull} className="home-hero-secondary">
+                  <Icon name="expand" size={18} />
+                  <span>{t.homeBackToPlayer}</span>
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="home-hero">
+          <div className="home-hero-cover">
+            <Icon name="search" size={36} className="text-muted" />
+          </div>
+          <div className="home-hero-body">
+            <div>
+              <div className="home-hero-eyebrow">{signedIn ? t.homeLeadNew : t.homeLeadOut}</div>
+              <div className="home-hero-title">{t.homeFindMusic}</div>
+              <div className="home-hero-artist">{t.homeFindMusicNote}</div>
+            </div>
+            <div className="home-hero-actions">
+              <button type="button" onClick={() => goTo("search", { name: "search" })} className="home-hero-play">
+                <Icon name="search" size={20} />
+                <span>{t.search}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </section>
+  );
 }

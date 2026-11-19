@@ -6,7 +6,7 @@
 .s-shell {
   display: grid;
   height: 100%;
-  grid-template-columns: 236px minmax(0, 1fr);
+  grid-template-columns: 224px minmax(0, 1fr);
   grid-template-rows: 44px minmax(0, 1fr) 84px;
   gap: 8px;
   padding: 0 8px 8px;
@@ -16,7 +16,7 @@
 }
 .s-shell[data-queue="open"],
 .s-shell[data-queue="closing"] {
-  grid-template-columns: 236px minmax(0, 1fr) 288px;
+  grid-template-columns: 224px minmax(0, 1fr) 288px;
 }
 .s-glass {
   background: var(--glass);
@@ -41,7 +41,7 @@ html.thin-glass .s-glass {
   --s-line2: rgba(255, 255, 255, 0.12);
   --s-hover: rgba(255, 255, 255, 0.045);
   --s-sel: rgba(255, 255, 255, 0.07);
-  --s-dim: #aaaab3;
+  --s-dim: #a6a6b0;
   --s-faint: #3a3a41;
 }
 .s-lbl {
@@ -73,7 +73,7 @@ html.thin-glass .s-glass {
   display: flex;
   align-items: center;
   gap: 9px;
-  width: 228px;
+  width: 216px;
   padding-left: 8px;
   font-weight: 600;
   font-size: 13px;
@@ -188,12 +188,13 @@ html.thin-glass .s-glass {
   display: flex;
   width: 100%;
   align-items: center;
-  gap: 11px;
-  height: 32px;
+  gap: 12px;
+  height: 36px;
   padding: 0 10px;
   border-radius: var(--r2);
   color: var(--muted);
-  font-size: 13px;
+  font-size: 14px;
+  font-weight: 500;
   text-align: left;
   transition:
     color var(--motion-color),
@@ -204,7 +205,7 @@ html.thin-glass .s-glass {
   background: var(--s-hover);
 }
 .s-nav.on {
-  color: var(--text);
+  color: var(--accent);
   background: var(--s-sel);
 }
 .s-nav.on::before {
@@ -217,24 +218,23 @@ html.thin-glass .s-glass {
   border-radius: 1px;
   background: var(--accent);
 }
-.s-nav .n {
+.s-nav .n,
+.s-nav .u {
   margin-left: auto;
-  font-size: 12px;
+  min-width: 28px;
+  text-align: right;
+  font-size: 13px;
+  font-weight: 400;
   color: var(--s-dim);
   font-variant-numeric: tabular-nums;
 }
 .s-nav .u {
-  margin-left: auto;
-  display: grid;
-  min-width: 18px;
-  height: 16px;
-  place-items: center;
-  padding: 0 5px;
-  border-radius: 4px;
-  background: var(--accent);
-  color: var(--on-accent);
-  font-size: 10.5px;
+  color: var(--text);
   font-weight: 600;
+}
+.s-sep {
+  margin: 10px 8px;
+  border-top: 1px solid var(--s-line);
 }
 .s-sect {
   display: flex;
@@ -515,11 +515,54 @@ html[data-activity="blurred"] .s-eq i {
   display: grid;
   place-items: center;
   border-radius: 50%;
-  background: var(--text);
-  color: #0b0b0d;
+  background: var(--accent);
+  color: var(--on-accent);
+  transition:
+    transform var(--motion-color),
+    filter var(--motion-color),
+    opacity var(--motion-color);
+}
+.s-pp:hover:not(:disabled) {
+  filter: brightness(1.08);
 }
 .s-pp:disabled {
-  opacity: 0.5;
+  opacity: 0.4;
+}
+
+/* crisp tooltip labels for bottom bar icon buttons */
+.s-tip {
+  position: relative;
+}
+.s-tip[data-tip]:hover::after,
+.s-tip[data-tip]:focus-visible::after {
+  content: attr(data-tip);
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 80;
+  pointer-events: none;
+  white-space: nowrap;
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--s-line2);
+  background: rgba(16, 16, 20, 0.96);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.25;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.45);
+}
+.s-tip-start[data-tip]:hover::after,
+.s-tip-start[data-tip]:focus-visible::after {
+  left: 0;
+  transform: none;
+}
+.s-tip-end[data-tip]:hover::after,
+.s-tip-end[data-tip]:focus-visible::after {
+  left: auto;
+  right: 0;
+  transform: none;
 }
 .s-vol {
   -webkit-appearance: none;
@@ -660,7 +703,8 @@ html[data-activity="blurred"] .s-eq i {
   padding: 4px 14px 28px 8px;
 }
 .s-shell main [role="region"] > header .display-heading {
-  font-size: 24px;
+  font-size: 32px;
+  font-weight: 700;
   transform: none;
 }
 

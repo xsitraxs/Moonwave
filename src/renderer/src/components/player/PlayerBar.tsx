@@ -64,7 +64,8 @@ export function LikeButton({ track, white = false }: { track: Track; white?: boo
       filled={liked}
       aria-pressed={liked}
       onClick={() => void toggleLike(track)}
-      {...(white && liked ? { style: { color: "#fff", filter: "drop-shadow(0 0 4px rgba(255, 255, 255, 0.45))" } } : {})}
+      className={liked && !white ? "!text-[var(--accent)]" : ""}
+      {...(white && liked ? { style: { color: "#fff" } } : {})}
     />
   );
 }

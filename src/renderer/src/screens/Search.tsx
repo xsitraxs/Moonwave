@@ -22,11 +22,16 @@ const ONE_ROW = "grid grid-cols-[repeat(auto-fill,minmax(132px,1fr))] grid-rows-
 
 function SectionHead({ title, action, onAction }: { title: string; action?: string; onAction?: () => void }) {
   return (
-    <div className="mb-2.5 flex items-center gap-3">
-      <h2 className="s-lbl">{title}</h2>
+    <div className="mb-3 flex items-baseline gap-3">
+      <h2 className="text-[20px] font-semibold leading-[1.25] tracking-[-0.015em] text-text">{title}</h2>
       {action && onAction && (
-        <button type="button" onClick={onAction} className="ml-auto text-[12px] text-[var(--s-dim)] transition-colors motion-color hover:text-text">
-          {action}
+        <button
+          type="button"
+          onClick={onAction}
+          className="group ml-auto inline-flex items-center gap-1 text-[13px] font-medium text-muted transition-colors motion-color hover:text-text"
+        >
+          <span>{action}</span>
+          <Icon name="forward" size={16} className="transition-transform motion-color group-hover:translate-x-0.5" />
         </button>
       )}
     </div>
@@ -324,11 +329,11 @@ export default function Search() {
                           )}
                           <span aria-hidden="true" className="absolute inset-0 bg-black/20 opacity-0 transition-opacity motion-color group-hover:opacity-100 group-focus-visible:opacity-100" />
                           <span className={`s-pp absolute bottom-2 right-2 h-8 w-8 transition-opacity motion-color ${on ? "opacity-100" : "opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100"}`}>
-                            <Icon name={on && playing ? "pause" : "play"} size={14} />
+                            <Icon name={on && playing ? "pause" : "play"} size={16} />
                           </span>
                         </span>
-                        <span className={`mt-2 block truncate text-[12.5px] font-semibold ${on ? "text-[var(--accent)]" : "text-text"}`}>{tr.title}</span>
-                        <span className="mt-px block truncate text-[12px] text-[var(--s-dim)]">{tr.artist}</span>
+                        <span className="mt-2 block truncate text-[15px] font-semibold leading-[1.35] text-text">{tr.title}</span>
+                        <span className="mt-px block truncate text-[13px] font-normal leading-[1.4] text-muted">{tr.artist}</span>
                       </button>
                     );
                   })}

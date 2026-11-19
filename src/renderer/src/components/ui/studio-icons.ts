@@ -1,6 +1,6 @@
 /**
- * The studio design's icons: thin geometric lines (1.6 on a 24 grid), round ends, a few solid shapes (play, pause,
- * the skip triangles). Same names as the marker icons, plus a few only studio screens use.
+ * The studio design's icons: unified geometric outlines (1.5 on a 24 grid), round ends, never mixing filled and
+ * outline styles. Active states are communicated strictly by colour, never by filling an icon.
  */
 const circle = (cx: number, cy: number, r: number) => `M${cx - r} ${cy}a${r} ${r} 0 1 0 ${2 * r} 0a${r} ${r} 0 1 0 ${-2 * r} 0Z`;
 const rect = (x: number, y: number, w: number, h: number, r: number) =>
@@ -9,16 +9,16 @@ const rect = (x: number, y: number, w: number, h: number, r: number) =>
 const HEART = "M12 19.5s-7-4.3-8.6-8.8C2.3 7.4 4.5 4.6 7.5 4.6c1.9 0 3.4 1 4.5 2.6 1.1-1.6 2.6-2.6 4.5-2.6 3 0 5.2 2.8 4.1 6.1-1.6 4.5-8.6 8.8-8.6 8.8z";
 
 export const STUDIO_ICONS: Record<string, { fill?: string; stroke?: string }> = {
-  play: { fill: "M8 5.5v13l10.5-6.5z" },
-  pause: { fill: `${rect(7, 5.5, 3.2, 13, 0.8)}${rect(13.8, 5.5, 3.2, 13, 0.8)}` },
-  next: { stroke: "M17.5 5.5v13", fill: "M6 5.5v13l9-6.5z" },
-  prev: { stroke: "M6.5 5.5v13", fill: "M18 5.5v13l-9-6.5z" },
+  play: { stroke: "M8 5.5v13l10.5-6.5z" },
+  pause: { stroke: "M9 5.5v13M15 5.5v13" },
+  next: { stroke: "M6 6v12l8.5-6zM17.5 6v12" },
+  prev: { stroke: "M18 6v12l-8.5-6zM6.5 6v12" },
   shuffle: { stroke: "M16 4h4v4M5 19 20 4M20 16v4h-4M15 15l5 5M5 5l4.5 4.5" },
   repeat: { stroke: "M16.5 3 20 6.5 16.5 10M4 11v-.5A4 4 0 0 1 8 6.5h12M7.5 21 4 17.5 7.5 14M20 13v.5a4 4 0 0 1-4 4H4" },
   repeatOne: { stroke: "M16.5 3 20 6.5 16.5 10M4 11v-.5A4 4 0 0 1 8 6.5h12M7.5 21 4 17.5 7.5 14M20 13v.5a4 4 0 0 1-4 4H4M11 10.5l1.2-.8v4.6" },
   volume: { stroke: "M4 9.5v5h3.5L12 18V6L7.5 9.5zM15.5 9a4.2 4.2 0 0 1 0 6M18 6.5a8 8 0 0 1 0 11" },
   mute: { stroke: "M4 9.5v5h3.5L12 18V6L7.5 9.5zM16 9.5l5 5M21 9.5l-5 5" },
-  queue: { stroke: "M4 6.5h16M4 12h10M4 17.5h10", fill: "M17 14.5v5l4-2.5z" },
+  queue: { stroke: "M4 6.5h16M4 12h10M4 17.5h10M17 14.5v5l4-2.5z" },
   heart: { stroke: HEART },
   plus: { stroke: "M12 5v14M5 12h14" },
   playNext: { stroke: "M4 6.5h12M4 12h8M4 17.5h8M18 13v7M14.5 16.5h7" },
@@ -45,7 +45,7 @@ export const STUDIO_ICONS: Record<string, { fill?: string; stroke?: string }> = 
   block: { stroke: `${circle(12, 12, 8)}M6.4 6.4l11.2 11.2` },
   moon: { stroke: "M19 14.5A7.5 7.5 0 0 1 9.5 5a7.5 7.5 0 1 0 9.5 9.5z" },
   lyrics: { stroke: "M4 6.5h10M4 12h16M4 17.5h12" },
-  feed: { stroke: "M5 11a8 8 0 0 1 8 8M5 5a14 14 0 0 1 14 14", fill: circle(6, 18, 1.1) },
+  feed: { stroke: `M5 11a8 8 0 0 1 8 8M5 5a14 14 0 0 1 14 14${circle(6, 18, 1)}` },
   home: { stroke: "M4 10.5 12 4l8 6.5V20h-5.5v-5.5h-5V20H4z" },
   inbox: { stroke: "M4 13.5 6.5 5h11l2.5 8.5V19H4zM4 13.5h4.5l1.5 2.5h4l1.5-2.5H20" },
   send: { stroke: "M20.5 3.5 10 14M20.5 3.5 14 20.5l-4-6.5-6.5-4z" },
@@ -54,7 +54,7 @@ export const STUDIO_ICONS: Record<string, { fill?: string; stroke?: string }> = 
   check: { stroke: "m5 12.5 4.5 4.5L19 7.5" },
   expand: { stroke: "M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" },
   collapse: { stroke: "M4 14h6v6M20 10h-6V4" },
-  grip: { fill: `${circle(9, 6.5, 1.2)}${circle(15, 6.5, 1.2)}${circle(9, 12, 1.2)}${circle(15, 12, 1.2)}${circle(9, 17.5, 1.2)}${circle(15, 17.5, 1.2)}` },
+  grip: { stroke: `${circle(9, 6.5, 0.9)}${circle(15, 6.5, 0.9)}${circle(9, 12, 0.9)}${circle(15, 12, 0.9)}${circle(9, 17.5, 0.9)}${circle(15, 17.5, 0.9)}` },
   bell: { stroke: "M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 1.5h-15zM10 20.5a2 2 0 0 0 4 0" },
   disc: { stroke: `${circle(12, 12, 8)}${circle(12, 12, 2.2)}` },
   radio: { stroke: `${rect(4, 9, 16, 11, 1.5)}M8 9l9-5${circle(9, 14.5, 2)}` },
@@ -62,5 +62,5 @@ export const STUDIO_ICONS: Record<string, { fill?: string; stroke?: string }> = 
   wave: { stroke: "M4 12h1.5M8 8.5v7M12 5.5v13M16 9v6M19.5 11v2" },
   image: { stroke: `${rect(3.5, 5, 17, 14, 1.5)}${circle(9, 10, 1.8)}M20.5 16l-5-5-8.5 8` },
   sparkle: { stroke: "M12 4v4M12 16v4M4 12h4M16 12h4" },
-  more: { fill: `${circle(5.5, 12, 1.2)}${circle(12, 12, 1.2)}${circle(18.5, 12, 1.2)}` },
+  more: { stroke: `${circle(5.5, 12, 1)}${circle(12, 12, 1)}${circle(18.5, 12, 1)}` },
 };
