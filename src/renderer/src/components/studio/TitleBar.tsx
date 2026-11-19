@@ -6,6 +6,7 @@ import { errorCode } from "@/lib/sky";
 import { useUi } from "@/state/ui";
 import { useAuth } from "@/state/auth";
 import { useNav } from "@/state/nav";
+import { useSettings } from "@/state/settings";
 import { unreadTotal, useSocial } from "@/state/social";
 import { getViewValue, setViewValue, subscribeView } from "@/state/viewState";
 import { WindowButtons } from "../chrome/TitleBar";
@@ -49,11 +50,28 @@ function SearchBox() {
   const change = (v: string) => {
     setText(v);
     setViewValue(SEARCH_ROUTE, "text", v);
-    if (!onSearch) open("search", { name: "search" });
+    if (!v.trim()) setViewValue(SEARCH_ROUTE, "query", "");
+    if (!onSearch && v.trim()) open("search", { name: "search" });
+  };
+
+  const clear = () => {
+    setText("");
+    setViewValue(SEARCH_ROUTE, "text", "");
+    setViewValue(SEARCH_ROUTE, "query", "");
+    box.current?.focus();
   };
 
   return (
-    <label className="s-search s-glass" data-titlebar-search>
+    <div
+      className="s-search s-glass"
+      data-titlebar-search
+      onMouseDown={(e) => {
+        if ((e.target as HTMLElement).closest("button") === null && e.target !== box.current) {
+          e.preventDefault();
+          box.current?.focus();
+        }
+      }}
+    >
       <Icon name="search" size={14} />
       <input
         ref={box}
@@ -61,15 +79,35 @@ function SearchBox() {
         onChange={(e) => change(e.target.value)}
         onKeyDown={(e) => {
           if (e.key === "Escape") box.current?.blur();
-          // a pasted soundcloud.com link opens directly
-          if (e.key === "Enter" && looksLikeLink(text)) void openLink(text).catch((err) => toast(errorText(t, errorCode(err))));
+          if (e.key === "Enter") {
+            if (looksLikeLink(text)) {
+              void openLink(text).catch((err) => toast(errorText(t, errorCode(err))));
+            } else {
+              const q = text.trim();
+              setViewValue(SEARCH_ROUTE, "query", q);
+              useSettings.getState().recordSearch(q);
+              if (!onSearch && q) open("search", { name: "search" });
+            }
+          }
         }}
         placeholder={t.searchEverywhere}
         aria-label={t.search}
         data-keys-own
       />
-      <kbd>Ctrl K</kbd>
-    </label>
+      {text ? (
+        <button
+          type="button"
+          onClick={clear}
+          aria-label={t.clearSearch}
+          title={t.clearSearch}
+          className="grid h-5 w-5 shrink-0 place-items-center rounded text-[var(--s-dim)] transition-colors motion-color hover:bg-white/[0.08] hover:text-text"
+        >
+          <Icon name="close" size={11} />
+        </button>
+      ) : (
+        <kbd>Ctrl K</kbd>
+      )}
+    </div>
   );
 }
 

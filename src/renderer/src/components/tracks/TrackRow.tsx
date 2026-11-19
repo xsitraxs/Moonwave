@@ -1,8 +1,9 @@
 import { memo, type KeyboardEvent } from "react";
-import { artwork, type Track } from "@shared/types";
+import { artwork, isLocalTrack, type Track } from "@shared/types";
 import { useT } from "@/i18n";
 import { duration } from "@/lib/format";
 import { call } from "@/lib/sky";
+import { toggleLike, useCanLike, useLiked } from "@/state/likes";
 import { useNav } from "@/state/nav";
 import { player, useSubs } from "@/state/player";
 import { useSettings } from "@/state/settings";
@@ -38,6 +39,10 @@ function TrackRow({ track, index, current, playing, onPlay, focused }: Props) {
   const t = useT();
   const go = useNav((s) => s.go);
   const openMenu = useUi((s) => s.openMenu);
+  const canLike = useCanLike();
+  const localLikes = useSettings((s) => s.prefs.localLikes);
+  const showLike = canLike && (!isLocalTrack(track.id) || localLikes);
+  const liked = useLiked(track.id);
   // a protected track plays through another upload when substitution is on (and one exists)
   const subOn = useSettings((s) => track.playability !== "ok" && s.prefs.substitute && !s.prefs.noSubstitute.includes(track.id));
   const sub = useSubs((s) => (track.playability === "ok" ? undefined : s.byTrack[track.id]));
@@ -82,20 +87,23 @@ function TrackRow({ track, index, current, playing, onPlay, focused }: Props) {
         openMenu(e.clientX, e.clientY, track);
       }}
       onKeyDown={onKey}
-      className={`group relative grid h-full grid-cols-[2.25rem_2.75rem_minmax(0,1fr)_auto_3.5rem] items-center gap-3 rounded-md pl-3 pr-2 outline-offset-[-2px] hover:bg-[var(--row-hover)] ${unplayable ? "opacity-45" : ""}`}
+      className={`group relative grid h-full grid-cols-[2.25rem_2.75rem_minmax(0,1fr)_auto_3.5rem] items-center gap-3 rounded-md pl-3 pr-2 outline-offset-[-2px] transition-colors motion-color hover:bg-white/[0.06] focus-within:bg-white/[0.05] ${unplayable ? "opacity-45" : ""}`}
     >
       {current && <MarkerStroke />}
       <button
         type="button"
         tabIndex={-1}
-        aria-label={`${t.play}: ${track.title}`}
+        aria-label={current && playing ? t.pause : `${t.play}: ${track.title}`}
         onClick={() => onPlay(index)}
         className="grid h-8 w-8 place-items-center font-type text-xs text-muted"
       >
         {current ? (
-          <span className={`text-base text-glow ${playing ? "" : "opacity-70"}`} aria-hidden="true">
-            ✦
-          </span>
+          <>
+            <span className={`text-base text-glow group-hover:hidden ${playing ? "" : "opacity-70"}`} aria-hidden="true">
+              ✦
+            </span>
+            <Icon name={playing ? "pause" : "play"} size={16} className="hidden text-glow group-hover:block" />
+          </>
         ) : (
           <>
             <span className="group-hover:hidden">{index + 1}</span>
@@ -103,8 +111,19 @@ function TrackRow({ track, index, current, playing, onPlay, focused }: Props) {
           </>
         )}
       </button>
-      <div className="h-10 w-10 overflow-hidden rounded-sm bg-[var(--paper)]" role="gridcell">
-        {track.artworkUrl && <img src={artwork(track.artworkUrl, "large") ?? undefined} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover" draggable={false} />}
+      <div className="h-10 w-10" role="gridcell">
+        <button
+          type="button"
+          tabIndex={-1}
+          aria-label={current && playing ? t.pause : `${t.play}: ${track.title}`}
+          onClick={() => onPlay(index)}
+          className="relative h-full w-full overflow-hidden rounded-sm bg-[var(--paper)] ring-1 ring-inset ring-white/[0.06] transition-all group-hover:ring-white/20"
+        >
+          {track.artworkUrl && <img src={artwork(track.artworkUrl, "large") ?? undefined} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover" draggable={false} />}
+          <span aria-hidden="true" className="absolute inset-0 grid place-items-center bg-black/45 text-white opacity-0 transition-opacity group-hover:opacity-100">
+            <Icon name={current && playing ? "pause" : "play"} size={14} />
+          </span>
+        </button>
       </div>
       <div className="min-w-0" role="gridcell">
         <button type="button" tabIndex={-1} onClick={() => go({ name: "track", id: track.id })} className={`block max-w-full truncate text-left text-[0.95rem] font-medium hover:underline ${current ? "text-glow" : "text-text"}`}>
@@ -119,15 +138,39 @@ function TrackRow({ track, index, current, playing, onPlay, focused }: Props) {
       </div>
       <div className="flex items-center gap-0.5 opacity-0 transition-opacity motion-color group-focus-within:opacity-100 group-hover:opacity-100">
         {unplayable && (
-          <button type="button" aria-label={t.openOnSoundCloud} title={t.openOnSoundCloud} className="grid h-8 w-8 place-items-center rounded-full text-muted hover:text-text" onClick={() => void call("shell:open", track.permalinkUrl)}>
+          <button type="button" aria-label={t.openOnSoundCloud} title={t.openOnSoundCloud} className="grid h-8 w-8 place-items-center rounded-full text-muted hover:bg-white/[0.08] hover:text-text" onClick={() => void call("shell:open", track.permalinkUrl)}>
             <Icon name="external" size={17} />
           </button>
         )}
-        <button type="button" aria-label={t.playNext} title={t.playNext} className="grid h-8 w-8 place-items-center rounded-full text-muted hover:text-text" onClick={() => player.playNext(track)}>
+        {showLike && (
+          <button
+            type="button"
+            aria-label={liked ? t.unlike : t.like}
+            title={liked ? t.unlike : t.like}
+            aria-pressed={liked}
+            className={`grid h-8 w-8 place-items-center rounded-full transition-colors motion-color hover:bg-white/[0.08] ${liked ? "text-glow" : "text-muted hover:text-text"}`}
+            onClick={() => void toggleLike(track)}
+          >
+            <Icon name="heart" size={16} filled={liked} />
+          </button>
+        )}
+        <button type="button" aria-label={t.playNext} title={t.playNext} className="grid h-8 w-8 place-items-center rounded-full text-muted hover:bg-white/[0.08] hover:text-text" onClick={() => player.playNext(track)}>
           <Icon name="playNext" size={18} />
         </button>
-        <button type="button" aria-label={t.addToQueue} title={t.addToQueue} className="grid h-8 w-8 place-items-center rounded-full text-muted hover:text-text" onClick={() => player.addToQueue(track)}>
+        <button type="button" aria-label={t.addToQueue} title={t.addToQueue} className="grid h-8 w-8 place-items-center rounded-full text-muted hover:bg-white/[0.08] hover:text-text" onClick={() => player.addToQueue(track)}>
           <Icon name="queue" size={18} />
+        </button>
+        <button
+          type="button"
+          aria-label={t.moreActions}
+          title={t.moreActions}
+          className="grid h-8 w-8 place-items-center rounded-full text-muted hover:bg-white/[0.08] hover:text-text"
+          onClick={(e) => {
+            const r = e.currentTarget.getBoundingClientRect();
+            openMenu(r.right, r.bottom + 4, track);
+          }}
+        >
+          <Icon name="more" size={17} />
         </button>
       </div>
       <div className="text-right font-type text-xs text-muted tabular-nums" role="gridcell">{duration(track.durationMs)}</div>

@@ -79,7 +79,12 @@ function Item({ track, index, alt, dragging, over, drag }: { track: Track; index
       className={`s-qi group relative cursor-default ${dragging ? "opacity-40" : ""}`}
     >
       {over && <span aria-hidden="true" className="absolute inset-x-2 -top-px h-0.5 rounded bg-[var(--accent)]" />}
-      <Cover url={track.artworkUrl} size={28} />
+      <button type="button" tabIndex={-1} aria-label={`${t.play}: ${track.title}`} onClick={() => player.jumpTo(index)} className="relative shrink-0 overflow-hidden rounded-[4px]">
+        <Cover url={track.artworkUrl} size={28} />
+        <span aria-hidden="true" className="absolute inset-0 grid place-items-center bg-black/50 text-white opacity-0 transition-opacity group-hover:opacity-100">
+          <Icon name="play" size={11} />
+        </span>
+      </button>
       <span className="min-w-0 flex-1">
         <span className="t flex items-center">
           <span className="truncate">{track.title}</span>
@@ -96,7 +101,7 @@ function Item({ track, index, alt, dragging, over, drag }: { track: Track; index
 }
 
 /** What is playing and what comes next; drag to reorder (or Alt+↑/↓), Delete removes, double-click plays. */
-export function QueueList() {
+export function QueueList({ showCurrent = true }: { showCurrent?: boolean } = {}) {
   const t = useT();
   const queue = usePlayer((s) => s.queue);
   const index = usePlayer((s) => s.index);
@@ -112,7 +117,7 @@ export function QueueList() {
 
   return (
     <>
-      {current && (
+      {showCurrent && current && (
         <div className="s-np">
           <Cover url={current.artworkUrl} size={44} />
           <div className="min-w-0">
@@ -122,7 +127,7 @@ export function QueueList() {
           </div>
         </div>
       )}
-      <div className="s-lbl mx-1.5 mb-1 mt-4 flex">
+      <div className={`s-lbl mx-1.5 mb-1 flex ${showCurrent ? "mt-4" : "mt-1"}`}>
         {t.upNext}
         {more > 0 && <span className="ml-auto normal-case tracking-normal text-[11px]">{t.moreCount(more)}</span>}
       </div>
@@ -175,8 +180,13 @@ function History() {
     <ol>
       {history.slice(0, 100).map((track, i) => (
         <li key={`${track.id}-${i}`}>
-          <button type="button" onDoubleClick={() => player.playFrom(history, i, { kind: "static" })} onKeyDown={(e) => e.key === "Enter" && player.playFrom(history, i, { kind: "static" })} className="s-qi">
-            <Cover url={track.artworkUrl} size={28} />
+          <button type="button" onClick={() => player.playFrom(history, i, { kind: "static" })} className="s-qi group">
+            <span className="relative shrink-0 overflow-hidden rounded-[4px]">
+              <Cover url={track.artworkUrl} size={28} />
+              <span aria-hidden="true" className="absolute inset-0 grid place-items-center bg-black/50 text-white opacity-0 transition-opacity group-hover:opacity-100">
+                <Icon name="play" size={11} />
+              </span>
+            </span>
             <span className="min-w-0 flex-1">
               <span className="t block">{track.title}</span>
               <span className="s block">{track.artist}</span>
@@ -189,25 +199,14 @@ function History() {
   );
 }
 
-/** Studio: the queue on the right of the window, next to the page. */
-export default function StudioQueue() {
+/** Shared queue tabs, actions, scrollable track list, and Autopilot switch (sidebar & fullscreen). */
+export function QueuePanel({ showCurrent = true }: { showCurrent?: boolean }) {
   const t = useT();
   const [tab, setTab] = useState<"next" | "history">("next");
   const autopilot = useSettings((s) => s.prefs.autopilot);
   const setPref = useSettings((s) => s.setPref);
   const hasUpcoming = usePlayer((s) => s.queue.length > s.index + 1);
-  const inRoom = useRoom((s) => !!s.room);
   const toast = useUi((s) => s.showToast);
-  const sideQueue = useUi((s) => s.sideQueue);
-  const fullOpen = useUi((s) => s.fullOpen);
-  const closeSideQueue = useUi((s) => s.closeSideQueue);
-  const inert = !sideQueue || fullOpen;
-  const onAsideKey = (e: KeyboardEvent) => {
-    if (e.key === "Escape") {
-      e.stopPropagation();
-      closeSideQueue();
-    }
-  };
   // what plays now and what comes after it, as a playlist of your own
   const saveQueue = async () => {
     const { queue, index } = usePlayer.getState();
@@ -217,6 +216,57 @@ export default function StudioQueue() {
       toast(t.savedQueue(p.title));
     } catch {
       toast(t.playlistFailed);
+    }
+  };
+
+  return (
+    <>
+      <div className="mx-1 mb-2.5 flex items-center gap-2">
+        <b className="min-w-0 truncate text-[13px] font-semibold text-text">{t.queue}</b>
+        <div className="s-seg ml-auto shrink-0" role="tablist">
+          <button type="button" role="tab" aria-selected={tab === "next"} className={tab === "next" ? "on" : ""} onClick={() => setTab("next")}>
+            {t.next}
+          </button>
+          <button type="button" role="tab" aria-selected={tab === "history"} className={tab === "history" ? "on" : ""} onClick={() => setTab("history")}>
+            {t.history}
+          </button>
+        </div>
+      </div>
+      {tab === "next" && hasUpcoming && (
+        <div className="mx-1 -mt-1 mb-2 flex items-center gap-3">
+          <button type="button" onClick={player.clearUpcoming} className="text-[11px] text-[var(--s-dim)] hover:text-text">
+            {t.clearQueue}
+          </button>
+          <button type="button" onClick={() => void saveQueue()} title={t.saveQueueHint} className="text-[11px] text-[var(--s-dim)] hover:text-text">
+            {t.saveQueue}
+          </button>
+        </div>
+      )}
+      <div className="min-h-0 flex-1 overflow-y-auto pr-1">{tab === "next" ? <QueueList showCurrent={showCurrent} /> : <History />}</div>
+      <button type="button" role="switch" aria-checked={autopilot} onClick={() => setPref("autopilot", !autopilot)} className="s-row mt-2 w-full text-left">
+        <Icon name="radio" size={17} className="text-muted" />
+        <span>
+          <span className="t block">{t.autopilot}</span>
+          <span className="s block">{t.autopilotShort}</span>
+        </span>
+        <span className={`s-sw ${autopilot ? "on" : ""}`} />
+      </button>
+    </>
+  );
+}
+
+/** Studio: the queue on the right of the window, next to the page. */
+export default function StudioQueue() {
+  const t = useT();
+  const inRoom = useRoom((s) => !!s.room);
+  const sideQueue = useUi((s) => s.sideQueue);
+  const fullOpen = useUi((s) => s.fullOpen);
+  const closeSideQueue = useUi((s) => s.closeSideQueue);
+  const inert = !sideQueue || fullOpen;
+  const onAsideKey = (e: KeyboardEvent) => {
+    if (e.key === "Escape") {
+      e.stopPropagation();
+      closeSideQueue();
     }
   };
 
@@ -230,36 +280,7 @@ export default function StudioQueue() {
 
   return (
     <aside id="studio-queue" aria-label={t.queue} inert={inert} onKeyDown={onAsideKey} className="s-queue s-glass">
-      <div className="mx-1 mb-2.5 flex items-center">
-        <b className="text-[13px] font-semibold text-text">{t.queue}</b>
-        {tab === "next" && hasUpcoming && (
-          <button type="button" onClick={player.clearUpcoming} className="ml-3 text-[11px] text-[var(--s-dim)] hover:text-text">
-            {t.clearQueue}
-          </button>
-        )}
-        {tab === "next" && hasUpcoming && (
-          <button type="button" onClick={() => void saveQueue()} title={t.saveQueueHint} className="ml-3 text-[11px] text-[var(--s-dim)] hover:text-text">
-            {t.saveQueue}
-          </button>
-        )}
-        <div className="s-seg ml-auto" role="tablist">
-          <button type="button" role="tab" aria-selected={tab === "next"} className={tab === "next" ? "on" : ""} onClick={() => setTab("next")}>
-            {t.next}
-          </button>
-          <button type="button" role="tab" aria-selected={tab === "history"} className={tab === "history" ? "on" : ""} onClick={() => setTab("history")}>
-            {t.history}
-          </button>
-        </div>
-      </div>
-      <div className="min-h-0 flex-1 overflow-y-auto">{tab === "next" ? <QueueList /> : <History />}</div>
-      <button type="button" role="switch" aria-checked={autopilot} onClick={() => setPref("autopilot", !autopilot)} className="s-row mt-2 w-full text-left">
-        <Icon name="radio" size={17} className="text-muted" />
-        <span>
-          <span className="t block">{t.autopilot}</span>
-          <span className="s block">{t.autopilotShort}</span>
-        </span>
-        <span className={`s-sw ${autopilot ? "on" : ""}`} />
-      </button>
+      <QueuePanel />
     </aside>
   );
 }

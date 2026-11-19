@@ -41,6 +41,7 @@ html[data-design="studio"] .home-greeting {
 /* The first screenful of Home. One place, one dominant action, three labelled ways in; the content below is browse. */
 .home-start {
   margin-bottom: 22px;
+  container-type: inline-size;
 }
 .home-start-head {
   margin-bottom: 14px;
@@ -73,10 +74,15 @@ html[data-design="studio"] .home-greeting {
 }
 .home-start-grid {
   display: grid;
-  grid-template-columns: minmax(240px, 1.25fr) minmax(260px, 1fr);
+  grid-template-columns: minmax(260px, 1.15fr) minmax(380px, 1fr);
   gap: 8px;
 }
 @media (max-width: 1000px) {
+  .home-start-grid {
+    grid-template-columns: 1fr;
+  }
+}
+@container (max-width: 840px) {
   .home-start-grid {
     grid-template-columns: 1fr;
   }
@@ -150,7 +156,8 @@ html[data-design="studio"] .home-greeting {
 }
 .home-start-more {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
   gap: 8px;
 }
 .home-start-mini {
@@ -170,13 +177,35 @@ html[data-design="studio"] .home-greeting {
   background: var(--row-hover);
 }
 .home-start-mini-copy {
+  width: 100%;
   min-width: 0;
 }
 .home-start-mini-title {
   font-size: 12px;
 }
 .home-start-mini-note {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  white-space: normal;
+  line-height: 1.35;
   font-size: 11px;
+}
+@container (max-width: 480px) {
+  .home-start-more {
+    grid-auto-flow: row;
+    grid-template-columns: 1fr;
+  }
+  .home-start-mini {
+    min-height: 0;
+    flex-direction: row;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 12px;
+  }
+  .home-start-mini-note {
+    -webkit-line-clamp: 1;
+  }
 }
 html:not([data-design="studio"]) .home-start-title {
   font-family: var(--font-display);

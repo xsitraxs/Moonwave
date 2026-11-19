@@ -756,6 +756,7 @@ export const ru: Dict = {
   queueEmptyHint: "Нажмите на трек правой кнопкой и выберите «Добавить в очередь».",
   playNext: "Включить следующим",
   addToQueue: "Добавить в очередь",
+  moreActions: "Действия с треком",
   remove: "Убрать",
   clearQueue: "Очистить",
   nowPlaying: "Сейчас играет",
@@ -804,6 +805,13 @@ export const ru: Dict = {
   emptySearch: "начните вводить, чтобы найти треки",
   noResults: "ничего не найдено",
   searchPlaceholder: "Поиск треков",
+  clearSearch: "Очистить поиск",
+  searchLead: "Ищите треки, плейлисты и исполнителей — или вставьте ссылку на SoundCloud",
+  searchQuickGenres: "Жанры и настроения",
+  searchSuggestions: "Подсказки",
+  artists: "Исполнители",
+  searchEmptyTip: "Введите хотя бы 2 символа или вставьте ссылку SoundCloud",
+  searchLinkReady: "Нажмите Enter или «Открыть», чтобы перейти по ссылке SoundCloud",
 
   // importing playlists from other services
   importTitle: "Импорт",

@@ -109,8 +109,16 @@ export function paletteOf(source: CanvasImageSource): Palette {
   const [hue, sat] = vivid.h;
   // grey or nearly black pictures keep the default violet accent
   const accent = sat < 0.12 ? DEFAULT.accent : rgb([hue, Math.min(0.62, Math.max(0.42, sat)), 0.66]);
-  const field = groups.map(({ h: [hh, ss, ll] }) => rgb([hh, Math.min(0.8, ss), Math.min(0.5, Math.max(0.14, ll))]));
-  while (field.length < 5) field.push(rgb([(hue + field.length * 0.06) % 1, sat * 0.7, 0.25]));
+  const baseHue = sat < 0.12 ? 0.72 : hue;
+  const baseSat = sat < 0.12 ? 0.34 : Math.min(0.65, Math.max(0.32, sat));
+  const field = groups.map(({ h: [hh, ss, ll] }, idx) => {
+    const tinted = ss < 0.14;
+    const fh = tinted ? (baseHue + idx * 0.04) % 1 : hh;
+    const fs = tinted ? baseSat * (0.65 + (idx % 3) * 0.12) : Math.min(0.88, ss * 1.15);
+    const fl = Math.min(0.56, Math.max(0.18, ll));
+    return rgb([fh, fs, fl]);
+  });
+  while (field.length < 5) field.push(rgb([(baseHue + field.length * 0.06) % 1, baseSat * 0.7, 0.28]));
   return { accent, field: field.slice(0, 5).map((c) => c.map((v) => v / 255) as RGB) };
 }
 

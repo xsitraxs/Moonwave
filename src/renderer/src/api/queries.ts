@@ -69,12 +69,36 @@ export const usePlaylistTracks = (id: string) =>
 
 export const useUser = (id: number) => useQuery({ queryKey: ["user", id], queryFn: () => call("data:user", id), staleTime: 5 * 60_000 });
 
-export const useSearchTracks = (query: string) =>
+export const useSearchTracks = (query: string, enabled = true) =>
   useInfiniteQuery({
     queryKey: ["search", "tracks", query],
     queryFn: async ({ pageParam }) => (await call("data:search", query, "tracks", pageParam)) as Page<Track>,
-    enabled: query.trim().length > 1,
+    enabled: enabled && query.trim().length > 1,
     ...pages,
+  });
+
+export const useSearchPlaylists = (query: string, enabled = true) =>
+  useInfiniteQuery({
+    queryKey: ["search", "playlists", query],
+    queryFn: async ({ pageParam }) => (await call("data:search", query, "playlists", pageParam)) as Page<Playlist>,
+    enabled: enabled && query.trim().length > 1,
+    ...pages,
+  });
+
+export const useSearchUsers = (query: string, enabled = true) =>
+  useInfiniteQuery({
+    queryKey: ["search", "users", query],
+    queryFn: async ({ pageParam }) => (await call("data:search", query, "users", pageParam)) as Page<User>,
+    enabled: enabled && query.trim().length > 1,
+    ...pages,
+  });
+
+export const useSearchSuggestions = (query: string, enabled = true) =>
+  useQuery({
+    queryKey: ["search", "suggest", query],
+    queryFn: () => call("data:suggest", query),
+    enabled: enabled && query.trim().length > 1,
+    staleTime: 5 * 60_000,
   });
 
 export const useTrackDetails = (id: number) => useQuery({ queryKey: ["track", id], queryFn: () => call("data:trackDetails", id), staleTime: 5 * 60_000 });
