@@ -135,9 +135,11 @@ jobs:
         run: npm test
 
       # lint + typecheck + electron-vite build + electron-builder + verify-dist (fails if the update metadata is missing).
+      # Same universal dmg + zip work as CI, on a 60-minute job: keep enough headroom for the two architectures and
+      # the codesign/ASAR verification so a valid release is never cut off by the step's own timer.
       - name: Package and verify the update metadata
         shell: bash
-        timeout-minutes: 25
+        timeout-minutes: 50
         run: |
           set -eo pipefail
           ec=0
