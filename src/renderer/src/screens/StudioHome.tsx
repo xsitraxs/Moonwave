@@ -1,8 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
-import { useMemo, useState, type ReactNode } from "react";
-import { artwork, type Playlist, type Track } from "@shared/types";
-import { useFeed, useLikes, usePlaylists } from "@/api/queries";
-import PlaylistCover from "@/components/playlists/PlaylistCover";
+import { useMemo, useState } from "react";
+import { artwork, type Track } from "@shared/types";
+import { useFeed, usePlaylists } from "@/api/queries";
+import { useHomeActions, HomeStart } from "@/components/home/HomeStart";
 import { Avatar, when } from "@/components/social/bits";
 import Icon from "@/components/ui/Icon";
 import { Screen } from "@/components/ui/Screen";
@@ -12,118 +12,22 @@ import { useVisibleTracks } from "@/lib/hidden";
 import { call } from "@/lib/sky";
 import { useAuth } from "@/state/auth";
 import { useNav } from "@/state/nav";
-import { player, useCurrentTrack, usePlayer, usePosition } from "@/state/player";
+import { useCurrentTrack, player, usePlayer } from "@/state/player";
 import { useSettings } from "@/state/settings";
 import { playShared, playSharedPlaylist, useSocial } from "@/state/social";
 import { useUi } from "@/state/ui";
-import { useSourceLabel } from "@/components/studio/Queue";
 import { startStation } from "./Library";
 
 type Filter = "all" | "tracks" | "playlists" | "stations";
 const STATIC = { kind: "static" } as const;
 
-function Cover({ url, size, round = false }: { url: string | null; size: number | string; round?: boolean }) {
-  const src = artwork(url, typeof size === "number" && size <= 60 ? "large" : "t300x300");
+function Cover({ url, size }: { url: string | null; size: number }) {
+  const src = artwork(url, size <= 60 ? "large" : "t300x300");
   return (
-    <span className={`block shrink-0 overflow-hidden bg-white/[0.06] ${round ? "rounded-full" : ""}`} style={{ width: size, height: size }}>
+    <span className="block shrink-0 overflow-hidden bg-white/[0.06]" style={{ width: size, height: size }}>
       {src ? <img src={src} alt="" loading="lazy" decoding="async" draggable={false} className="h-full w-full object-cover" /> : <span className="stipple-night block h-full w-full" />}
     </span>
   );
-}
-
-function Pp({ playing, onClick, label, size = 28 }: { playing: boolean; onClick: () => void; label: string; size?: number }) {
-  return (
-    <span
-      role="button"
-      tabIndex={0}
-      aria-label={label}
-      title={label}
-      onClick={(e) => {
-        e.stopPropagation();
-        onClick();
-      }}
-      onKeyDown={(e) => {
-        if (e.key !== "Enter" && e.key !== " ") return;
-        e.preventDefault();
-        e.stopPropagation();
-        onClick();
-      }}
-      className="s-pp shrink-0"
-      style={{ width: size, height: size }}
-    >
-      <Icon name={playing ? "pause" : "play"} size={size * 0.46} />
-    </span>
-  );
-}
-
-function Tile({ cover, title, sub, onClick, children, featured = false }: { cover: ReactNode; title: string; sub: string; onClick: () => void; children?: ReactNode; featured?: boolean }) {
-  return (
-    <button type="button" onClick={onClick} className={`relative flex h-[52px] min-w-0 items-center gap-3 overflow-hidden rounded-[var(--r2)] border pr-3 text-left transition-colors ${featured ? "border-[rgba(var(--accent-rgb),0.28)] bg-[rgba(var(--accent-rgb),0.08)] hover:bg-[rgba(var(--accent-rgb),0.13)]" : "border-[var(--s-line)] bg-white/[0.035] hover:bg-white/[0.06]"}`}>
-      {cover}
-      <span className="min-w-0 flex-1">
-        <span className="block truncate text-[13px] font-semibold text-text">{title}</span>
-        <span className="mt-px block truncate text-[12px] text-[var(--s-dim)]">{sub}</span>
-      </span>
-      {children}
-    </button>
-  );
-}
-
-function Bar() {
-  const position = usePosition((s) => s.position);
-  const total = usePlayer((s) => s.duration);
-  return (
-    <span className="absolute bottom-0 left-[52px] right-0 h-[2px] bg-white/[0.06]">
-      <i className="block h-full bg-[var(--accent)]" style={{ width: `${total ? Math.min(100, (position / total) * 100) : 0}%` }} />
-    </span>
-  );
-}
-
-function NowTile() {
-  const t = useT();
-  const current = useCurrentTrack();
-  const history = useSettings((s) => s.history);
-  const status = usePlayer((s) => s.status);
-  const index = usePlayer((s) => s.index);
-  const total = usePlayer((s) => s.queue.length);
-  const from = useSourceLabel();
-  const openFull = useUi((s) => s.openFull);
-  const track = current ?? history[0];
-  if (!track) return null;
-  const playing = !!current && (status === "playing" || status === "loading");
-  const replay = () => player.playFrom(history, 0, STATIC);
-  return (
-    <Tile featured cover={<Cover url={track.artworkUrl} size={52} />} title={current ? (from ?? track.title) : track.title} sub={current ? `${playing ? t.playingShort : t.paused} · ${t.ofCount(index + 1, total)}` : t.lastPlayed} onClick={() => (current ? openFull() : replay())}>
-      <Pp playing={playing} label={playing ? t.pause : t.play} onClick={() => (current ? player.toggle() : replay())} />
-      {current && <Bar />}
-    </Tile>
-  );
-}
-
-function LikesTile() {
-  const t = useT();
-  const open = useNav((s) => s.open);
-  const count = useAuth((s) => s.status?.user?.likesCount ?? 0);
-  const q = useLikes("me");
-  const tracks = useMemo(() => q.data?.pages.flatMap((p) => p.items) ?? [], [q.data]);
-  return <Tile cover={<Cover url={tracks[0]?.artworkUrl ?? null} size={52} />} title={t.likedTracks} sub={t.tracks(count || tracks.length)} onClick={() => open("likes", { name: "likes" })} />;
-}
-
-function PlaylistTile({ p }: { p: Playlist }) {
-  const t = useT();
-  const go = useNav((s) => s.go);
-  const cover = (
-    <span className="block h-[52px] w-[52px] shrink-0 overflow-hidden">
-      <PlaylistCover playlist={p} size="large" />
-    </span>
-  );
-  return <Tile cover={cover} title={p.title} sub={t.tracks(p.trackCount)} onClick={() => go({ name: "playlist", id: p.id })} />;
-}
-
-function StationTile({ seed }: { seed: Track }) {
-  const t = useT();
-  const toast = useUi((s) => s.showToast);
-  return <Tile cover={<Cover url={seed.artworkUrl} size={52} />} title={t.stationOf(seed.title)} sub={t.basedOnTrack} onClick={() => void startStation(seed).catch(() => toast(t.stationFailed))} />;
 }
 
 function Heading({ title, action, onAction }: { title: string; action?: string; onAction?: () => void }) {
@@ -139,19 +43,15 @@ function Heading({ title, action, onAction }: { title: string; action?: string; 
   );
 }
 
-function Card({ cover, title, sub, on, playing, onClick, round = false }: { cover: string | null; title: string; sub: string; on?: boolean; playing?: boolean; onClick: () => void; round?: boolean }) {
+function Card({ cover, title, sub, on, playing, onClick }: { cover: string | null; title: string; sub: string; on?: boolean; playing?: boolean; onClick: () => void }) {
   return (
     <button type="button" onClick={onClick} title={`${title} — ${sub}`} className="group min-w-0 text-left">
-      <span className={`relative block aspect-square overflow-hidden bg-white/[0.06] ${round ? "rounded-full" : "rounded-[var(--r2)]"}`}>
+      <span className="relative block aspect-square overflow-hidden bg-white/[0.06] rounded-[var(--r2)]">
         {cover ? <img src={artwork(cover, "t300x300") ?? undefined} alt="" loading="lazy" decoding="async" draggable={false} className="h-full w-full object-cover" /> : <span className="stipple-night block h-full w-full" />}
-        {!round && (
-          <span aria-hidden="true" className="absolute inset-0 bg-black/20 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100" />
-        )}
-        {!round && (
-          <span className={`s-pp absolute bottom-2 right-2 h-8 w-8 transition-opacity ${on ? "opacity-100" : "opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100"}`}>
-            <Icon name={on && playing ? "pause" : "play"} size={14} />
-          </span>
-        )}
+        <span aria-hidden="true" className="absolute inset-0 bg-black/20 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100" />
+        <span className={`s-pp absolute bottom-2 right-2 h-8 w-8 transition-opacity ${on ? "opacity-100" : "opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100"}`}>
+          <Icon name={on && playing ? "pause" : "play"} size={14} />
+        </span>
       </span>
       <span className={`mt-2 block truncate text-[12.5px] font-semibold ${on ? "text-[var(--accent)]" : "text-text"}`}>{title}</span>
       <span className="mt-px block truncate text-[12px] text-[var(--s-dim)]">{sub}</span>
@@ -326,33 +226,25 @@ function FeedRows() {
   );
 }
 
-function greeting(t: ReturnType<typeof useT>, name: string | undefined) {
-  const h = new Date().getHours();
-  const hello = h >= 5 && h < 12 ? t.goodMorning : h >= 12 && h < 17 ? t.goodAfternoon : h >= 17 && h < 23 ? t.goodEvening : t.lateNight;
-  return name ? `${hello}, ${name}` : hello;
-}
-
-/** Studio home: a greeting with a filter, a dial of four, what you played, what friends sent, what is new. */
+/** Studio home: the start block answers "where am I / what can I do / what next"; the rest is browsable music. */
 export default function StudioHome() {
   const t = useT();
   const open = useNav((s) => s.open);
   const go = useNav((s) => s.go);
-  const status = useAuth((s) => s.status);
-  const signedIn = status?.mode === "session";
+  const auth = useAuth((s) => s.status);
+  const signedIn = auth?.mode === "session";
   const [filter, setFilter] = useState<Filter>("all");
   const history = useSettings((s) => s.history);
   const current = useCurrentTrack();
   const recent = useVisibleTracks(history).slice(0, 12);
   const pq = usePlaylists("me", signedIn);
   const playlists = useMemo(() => pq.data?.pages.flatMap((p) => p.items) ?? [], [pq.data]);
-  const own = playlists.filter((p) => p.relation === "own");
-  const firstList = (own.length ? own : playlists)[0];
-  const seed = current ?? history[0];
   const seeds = useMemo(() => {
     const seen = new Set<number>();
     return [...(current ? [current] : []), ...history].filter((s) => !seen.has(s.id) && seen.add(s.id)).slice(0, 12);
   }, [current, history]);
   const toast = useUi((s) => s.showToast);
+  const { primary, secondary, hasMusic } = useHomeActions();
 
   const filters: [Filter, string][] = [
     ["all", t.all],
@@ -363,8 +255,10 @@ export default function StudioHome() {
 
   return (
     <Screen label={t.home}>
-      <div className="mb-4 mt-2.5 flex items-end gap-3">
-        <h1 className="text-[24px] font-semibold tracking-[-0.02em] text-text">{greeting(t, status?.user?.username)}</h1>
+      <HomeStart name={auth?.mode === "session" ? auth.user?.username : undefined} signedIn={signedIn} hasMusic={hasMusic} primary={primary} secondary={secondary} />
+
+      <div className="mb-4 flex items-center gap-3">
+        <span className="s-lbl">{t.homeBrowse}</span>
         <div className="s-seg ml-auto" role="tablist">
           {filters.map(([k, label]) => (
             <button key={k} type="button" role="tab" aria-selected={filter === k} className={filter === k ? "on" : ""} onClick={() => setFilter(k)}>
@@ -373,15 +267,6 @@ export default function StudioHome() {
           ))}
         </div>
       </div>
-
-      {filter === "all" && (
-        <div className="mb-6 grid grid-cols-2 gap-1.5">
-          <NowTile />
-          {signedIn && <LikesTile />}
-          {firstList && <PlaylistTile p={firstList} />}
-          {seed && <StationTile seed={seed} />}
-        </div>
-      )}
 
       {(filter === "all" || filter === "tracks") && recent.length > 0 && (
         <section className="mb-6">
@@ -427,8 +312,6 @@ export default function StudioHome() {
           </div>
         </section>
       )}
-
-      {!signedIn && !recent.length && <p className="mt-10 max-w-md text-sm text-muted">{t.homeEmpty}</p>}
     </Screen>
   );
 }
