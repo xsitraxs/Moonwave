@@ -196,9 +196,12 @@ jobs:
       # failed download poisoned this job until the cache existed. Downloads resume from the per-job cache on retry, so
       # three attempts ride out a gateway flap without hiding a real failure: the last attempt's exit code decides, and
       # the tail of the log (stack frames stripped, credentials scrubbed) goes into the check-run as an annotation.
+      # macOS packages two architectures as dmg + zip and then deep-verifies both .app bundles. That takes ~25 min
+      # on the shared arm64 runners (the step's old 25-minute limit killed a good build 1 minute from the end), so give
+      # it room under the job's 45-minute cap. mac.compression=normal in package.json keeps the actual work shorter.
       - name: Package and verify the update metadata
         shell: bash
-        timeout-minutes: 25
+        timeout-minutes: 40
         run: |
           set -eo pipefail
           ec=0
