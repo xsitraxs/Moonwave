@@ -7,6 +7,7 @@ import Icon from "@/components/ui/Icon";
 import { Screen } from "@/components/ui/Screen";
 import { EmptyState, ErrorState, Loading } from "@/components/ui/States";
 import { useT } from "@/i18n";
+import { enter, exit } from "@/lib/motion";
 import { ask, askText } from "@/state/dialog";
 import { call, errorCode } from "@/lib/sky";
 import { fitTo } from "@/lib/videoFit";
@@ -28,8 +29,8 @@ function Modal({ label, onClose, children, width = "w-[44rem]" }: { label: strin
     <motion.div
       className="fixed inset-0 z-[70] grid place-items-center bg-black/50 p-6"
       initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0, transition: { duration: 0.08 } }}
+      animate={{ opacity: 1, transition: enter() }}
+      exit={{ opacity: 0, transition: exit() }}
       onPointerDown={(e) => !ref.current?.contains(e.target as Node) && onClose()}
     >
       <div ref={ref} role="dialog" aria-label={label} className={`float-card paper-fill sketch sketch-thin max-h-full max-w-full overflow-y-auto rounded-md shadow-[0_30px_80px_rgba(0,0,0,0.55)] ${width}`} data-keys-own>
@@ -44,7 +45,7 @@ function Card({ theme, onOpen }: { theme: WsTheme; onOpen: () => void }) {
   return (
     <button type="button" onClick={onOpen} className="group min-w-0 text-left">
       <span className="ws-preview relative block aspect-[16/10] overflow-hidden rounded-md bg-white/[0.04] shadow-[0_10px_26px_rgba(0,0,0,0.35)]">
-        <img src={theme.previewUrl} alt="" loading="lazy" decoding="async" draggable={false} className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]" />
+        <img src={theme.previewUrl} alt="" loading="lazy" decoding="async" draggable={false} className="h-full w-full object-cover" />
         {theme.background.startsWith("video/") && <span className="absolute left-2 top-2 rounded-[4px] bg-black/60 px-1.5 py-0.5 font-type text-[0.6rem] uppercase tracking-wider text-white/90">{t.video}</span>}
         {theme.hidden && <span className="absolute right-2 top-2 rounded-[4px] bg-blood/80 px-1.5 py-0.5 font-type text-[0.6rem] uppercase tracking-wider text-white">{t.hidden}</span>}
       </span>
@@ -248,7 +249,7 @@ function PublishDialog({ onClose }: { onClose: () => void }) {
         {fitting !== null && (
           <div className="mt-3">
             <div className="h-1.5 overflow-hidden rounded-full bg-white/[0.08]">
-              <div className="h-full rounded-full bg-[var(--accent)] transition-[width] duration-300" style={{ width: `${Math.round(fitting * 100)}%` }} />
+              <div className="h-full rounded-full bg-[var(--accent)] transition-[width] motion-progress" style={{ width: `${Math.round(fitting * 100)}%` }} />
             </div>
             <p className="mt-2 text-xs text-muted">{t.fittingVideo(Math.round(fitting * 100))}</p>
           </div>

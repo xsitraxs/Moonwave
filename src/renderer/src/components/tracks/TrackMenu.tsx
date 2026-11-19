@@ -2,6 +2,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
 import { queryClient } from "@/api/queries";
 import { useT } from "@/i18n";
+import { enterFast, exit } from "@/lib/motion";
 import { canEdit, removeFromPlaylist } from "@/lib/playlists";
 import { call } from "@/lib/sky";
 import { useNav } from "@/state/nav";
@@ -181,9 +182,8 @@ export default function TrackMenu() {
           aria-label={track?.title}
           onKeyDown={onKey}
           initial={{ opacity: 0, scale: 0.96 }}
-          animate={{ opacity: 1, scale: 1 }}
-          exit={{ opacity: 0, transition: { duration: 0.08 } }}
-          transition={{ duration: 0.12 }}
+          animate={{ opacity: 1, scale: 1, transition: enterFast() }}
+          exit={{ opacity: 0, transition: exit() }}
           className="float-card paper-fill sketch sketch-thin fixed z-[60] min-w-56 max-w-80 rounded-md py-1.5 shadow-[4px_6px_0_rgba(0,0,0,0.5)]"
           style={{ ...pos, transformOrigin: "top left" }}
         >

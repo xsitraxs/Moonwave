@@ -60,7 +60,7 @@ export default function Local() {
         }}
         onDragLeave={(e) => e.currentTarget === e.target && setOver(false)}
         onDrop={drop}
-        className={`min-h-[60vh] rounded-md transition-colors ${over ? "bg-white/[0.04] outline-dashed outline-1 outline-white/25" : ""}`}
+        className={`min-h-[60vh] rounded-md transition-colors motion-color ${over ? "bg-white/[0.04] outline-dashed outline-1 outline-white/25" : ""}`}
       >
         <ScreenTitle meta={tracks.length ? t.tracks(tracks.length) : undefined}>{t.localMusic.toLowerCase()}</ScreenTitle>
         <p className="-mt-2 mb-4 max-w-xl text-sm text-muted">{t.localHint}</p>

@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
 import { artwork, type Playlist } from "@shared/types";
 import { useT } from "@/i18n";
+import { enter, exit } from "@/lib/motion";
 import { addToPlaylist } from "@/lib/playlists";
 import { call } from "@/lib/sky";
 import { useUi } from "@/state/ui";
@@ -56,8 +57,8 @@ export default function PlaylistPicker() {
         <motion.div
           className="fixed inset-0 z-[70] grid place-items-center bg-black/40"
           initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0, transition: { duration: 0.08 } }}
+          animate={{ opacity: 1, transition: enter() }}
+          exit={{ opacity: 0, transition: exit() }}
           onPointerDown={(e) => !ref.current?.contains(e.target as Node) && close()}
         >
           <div ref={ref} role="dialog" aria-label={t.addToPlaylist} className="float-card paper-fill sketch sketch-thin w-[22rem] max-w-[90vw] rounded-md py-2 shadow-[4px_6px_0_rgba(0,0,0,0.5)]">

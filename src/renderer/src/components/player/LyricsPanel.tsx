@@ -1,5 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { enter, exit, shiftPx } from "@/lib/motion";
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { largestMove } from "@shared/fitTiming";
 import type { Lyrics, LyricsHit, SyncRequest, Track } from "@shared/types";
@@ -143,6 +144,7 @@ function useSyncNext(go: boolean, model: string | undefined) {
 
 /** Synced words: the line being sung is lit and kept in view; a click on a line jumps there. */
 function SyncedLines({ lines }: { lines: NonNullable<Lyrics["synced"]> }) {
+  const still = useReducedMotion() ?? false;
   const box = useRef<HTMLOListElement>(null);
   const userScroll = useRef(0);
   const [at, setAt] = useState(-1);
@@ -168,8 +170,8 @@ function SyncedLines({ lines }: { lines: NonNullable<Lyrics["synced"]> }) {
   useEffect(() => {
     if (at < 0 || Date.now() - userScroll.current < 4000) return;
     const row = box.current?.children[at] as HTMLElement | undefined;
-    row?.scrollIntoView({ block: "center", behavior: fast ? "auto" : "smooth" });
-  }, [at, fast]);
+    row?.scrollIntoView({ block: "center", behavior: fast || still ? "instant" : "smooth" });
+  }, [at, fast, still]);
 
   return (
     <ol ref={box} onWheel={() => (userScroll.current = Date.now())} className="space-y-1 px-4 pb-24 pt-2">
@@ -178,7 +180,7 @@ function SyncedLines({ lines }: { lines: NonNullable<Lyrics["synced"]> }) {
           <button
             type="button"
             onClick={() => player.seek(l.t)}
-            className={`w-full rounded-md px-2 py-1 text-left text-[1.05rem] leading-snug transition-colors hover:bg-[var(--row-hover)] ${i === at ? "font-semibold text-glow" : i < at ? "text-muted/70" : "text-text/85"}`}
+            className={`w-full rounded-md px-2 py-1 text-left text-[1.05rem] leading-snug transition-colors motion-color hover:bg-[var(--row-hover)] ${i === at ? "font-semibold text-glow" : i < at ? "text-muted/70" : "text-text/85"}`}
           >
             {l.text || "♪"}
           </button>
@@ -541,15 +543,16 @@ export default function LyricsPanel() {
   const close = useUi((s) => s.closeLyrics);
   const track = useCurrentTrack();
 
+  const shift = shiftPx();
+
   return (
     <AnimatePresence>
       {open && (
         <motion.aside
           aria-label={t.lyrics}
-          initial={{ x: 24, opacity: 0 }}
-          animate={{ x: 0, opacity: 1 }}
-          exit={{ x: 24, opacity: 0 }}
-          transition={{ duration: 0.18, ease: "easeOut" }}
+          initial={{ x: shift, opacity: 0 }}
+          animate={{ x: 0, opacity: 1, transition: enter() }}
+          exit={{ x: shift, opacity: 0, transition: exit() }}
           onKeyDown={(e) => e.key === "Escape" && close()}
           className="panel absolute bottom-0 right-0 top-0 z-40 flex w-[380px] flex-col shadow-[-8px_0_24px_rgba(0,0,0,0.45)]"
         >

@@ -1,6 +1,7 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
 import { useT } from "@/i18n";
+import { enterFast, exit } from "@/lib/motion";
 import { sleep, useSleep } from "@/state/sleep";
 import { IconButton } from "../ui/Buttons";
 
@@ -59,10 +60,9 @@ export default function SleepTimer() {
           <motion.div
             role="menu"
             aria-label={t.sleepTimer}
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, transition: { duration: 0.08 } }}
-            transition={{ duration: 0.12 }}
+            initial={{ opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0, transition: enterFast() }}
+            exit={{ opacity: 0, transition: exit() }}
             className="float-card paper-fill sketch sketch-thin absolute bottom-11 right-0 z-[60] w-48 rounded-md py-1.5 shadow-[4px_6px_0_rgba(0,0,0,0.5)]"
           >
             <div className="px-3 pb-1 pt-0.5 font-type text-xs text-muted">{t.sleepTimer}</div>

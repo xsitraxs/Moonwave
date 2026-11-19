@@ -49,7 +49,7 @@ function Recent({ tracks }: { tracks: Track[] }) {
               <span className="home-card-cover block aspect-square w-full overflow-hidden rounded-md bg-[var(--paper)] shadow-[0_10px_24px_rgba(0,0,0,0.35)]">
                 {track.artworkUrl ? <img src={artwork(track.artworkUrl, "t300x300") ?? undefined} alt="" loading="lazy" decoding="async" draggable={false} className="h-full w-full object-cover" /> : <span className="stipple-night block h-full w-full" />}
               </span>
-              <span className={`home-play absolute bottom-2 right-2 grid h-9 w-9 place-items-center rounded-full transition-opacity ${on ? "opacity-100" : "opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100"}`}>
+              <span className={`home-play absolute bottom-2 right-2 grid h-9 w-9 place-items-center rounded-full transition-opacity motion-color ${on ? "opacity-100" : "opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100"}`}>
                 <Icon name={on && playing ? "pause" : "play"} size={16} />
               </span>
             </span>

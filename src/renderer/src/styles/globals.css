@@ -33,6 +33,62 @@
   --card: rgba(18, 12, 36, 0.82);
   --card-edge: rgba(107, 85, 200, 0.45);
   color-scheme: dark;
+
+  /* ── Motion ────────────────────────────────────────────────────────
+     Единственное место, где живут длительности и кривые.
+     Правила: см. docs/motion.md. Коротко —
+     fast   : отклик (цвет, прозрачность, меню)        90 ms
+     base   : состояние интерфейса (панель, экран)    160 ms
+     slow   : перемещение целого слоя (сцена, плеер)  240 ms
+     exit   : всегда короче входа (берём fast)
+     Всё, что не объясняет изменение, не анимируется вовсе.         */
+  --motion-fast: 90ms;
+  --motion-base: 160ms;
+  --motion-slow: 240ms;
+  --motion-drag: 0ms;
+  --motion-progress: 300ms;
+
+  --motion-ease-enter: cubic-bezier(0.16, 1, 0.3, 1);
+  --motion-ease-exit: cubic-bezier(0.4, 0, 1, 1);
+  --motion-ease-move: cubic-bezier(0.4, 0, 0.2, 1);
+
+  --motion-enter: var(--motion-base) var(--motion-ease-enter);
+  --motion-exit: var(--motion-fast) var(--motion-ease-exit);
+  --motion-move: var(--motion-base) var(--motion-ease-move);
+  --motion-slow-move: var(--motion-slow) var(--motion-ease-move);
+  --motion-color: var(--motion-fast) var(--motion-ease-move);
+
+  --motion-shift: 8px;
+}
+
+@utility motion-color {
+  transition-duration: var(--motion-fast);
+  transition-timing-function: var(--motion-ease-move);
+}
+
+@utility motion-enter {
+  transition-duration: var(--motion-base);
+  transition-timing-function: var(--motion-ease-enter);
+}
+
+@utility motion-enter-fast {
+  transition-duration: var(--motion-fast);
+  transition-timing-function: var(--motion-ease-enter);
+}
+
+@utility motion-exit {
+  transition-duration: var(--motion-fast);
+  transition-timing-function: var(--motion-ease-exit);
+}
+
+@utility motion-move {
+  transition-duration: var(--motion-base);
+  transition-timing-function: var(--motion-ease-move);
+}
+
+@utility motion-progress {
+  transition-duration: var(--motion-progress);
+  transition-timing-function: var(--motion-ease-move);
 }
 
 @theme inline {
@@ -262,7 +318,7 @@ html[data-quality="2"] .sky-clouds {
   border: 3px solid var(--sketch-color, var(--ink));
   border-radius: 8px 14px 6px 12px / 12px 6px 14px 8px;
   filter: url(#rough-1);
-  transition: border-color 0.2s ease;
+  transition: border-color var(--motion-color);
 }
 /* round things (avatars) get a round rough outline, not the uneven rectangle */
 .sketch-round::after {
@@ -380,10 +436,12 @@ html[data-activity="blurred"] .deco *,
 html[data-activity="blurred"] .deco::after,
 html[data-activity="blurred"] .grain,
 html[data-activity="blurred"] .sketch-boil::after,
+html[data-activity="blurred"] .np-skel,
 html[data-quality] .deco,
 html[data-quality] .deco *,
 html[data-quality] .grain,
-html[data-quality] .sketch-boil::after {
+html[data-quality] .sketch-boil::after,
+html[data-quality] .np-skel {
   animation-play-state: paused !important;
 }
 
@@ -392,12 +450,44 @@ html[data-quality] .sketch-boil::after {
 /* ------------------------------------------------------------------ */
 
 @media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-fast: 0s;
+    --motion-base: 0s;
+    --motion-slow: 0s;
+    --motion-progress: 0s;
+    --motion-drag: 0s;
+
+    --motion-ease-enter: linear;
+    --motion-ease-exit: linear;
+    --motion-ease-move: linear;
+
+    --motion-shift: 0px;
+  }
+
   .grain,
   .sketch-boil::after,
   .rgb-glitch,
   .deco,
-  .deco * {
+  .deco *,
+  .np-skel {
     animation: none !important;
+  }
+
+  .s-eq i,
+  .social-eq i {
+    animation: none;
+    transform: none;
+  }
+
+  .now-playing .np-ui,
+  .now-playing .s-ftb,
+  .now-playing .s-dock,
+  .now-playing.resting .np-ui,
+  .now-playing.resting .s-ftb,
+  .now-playing.resting .s-dock,
+  .stipple-night,
+  .sky-cloud-tex {
+    transition: none;
   }
 }
 

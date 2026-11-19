@@ -199,7 +199,7 @@ function People() {
               type="button"
               onClick={() => openChat(f.code)}
               aria-current={open === f.code ? "true" : undefined}
-              className={`flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left transition-colors ${open === f.code ? "bg-[var(--row-hover)]" : "hover:bg-[var(--row-hover)]"}`}
+              className={`flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left transition-colors motion-color ${open === f.code ? "bg-[var(--row-hover)]" : "hover:bg-[var(--row-hover)]"}`}
             >
               <Avatar name={f.name} code={f.code} size={34} live={!!live} />
               <span className="min-w-0 flex-1">
@@ -257,7 +257,7 @@ function PlaylistBubble({ m }: { m: Message & { playlist: NonNullable<Message["p
       <div className={`group flex w-[min(30rem,90%)] items-center gap-3 rounded-lg p-2 pr-3 ${m.mine ? "bg-white/[0.07]" : "bg-white/[0.035]"}`}>
         <button type="button" onClick={() => void playSharedPlaylist(m).catch(() => toast(t.trackGone))} aria-label={t.playAll} className="relative shrink-0">
           <Cover url={m.track.artworkUrl} size={46} />
-          <span className="absolute inset-0 grid place-items-center rounded-[5px] bg-black/45 text-white opacity-0 transition-opacity group-hover:opacity-100">
+          <span className="absolute inset-0 grid place-items-center rounded-[5px] bg-black/45 text-white opacity-0 transition-opacity motion-color group-hover:opacity-100">
             <Icon name="play" size={16} />
           </span>
         </button>
@@ -295,11 +295,11 @@ function Bubble({ m, onPlay, playing }: { m: Message; onPlay: () => void; playin
       <button
         type="button"
         onClick={onPlay}
-        className={`group flex w-[min(26rem,85%)] items-center gap-3 rounded-lg p-2 pr-3 text-left transition-colors ${m.mine ? "bg-white/[0.07] hover:bg-white/[0.1]" : "bg-white/[0.035] hover:bg-white/[0.07]"} ${playing ? "ring-1 ring-glow/60" : ""}`}
+        className={`group flex w-[min(26rem,85%)] items-center gap-3 rounded-lg p-2 pr-3 text-left transition-colors motion-color ${m.mine ? "bg-white/[0.07] hover:bg-white/[0.1]" : "bg-white/[0.035] hover:bg-white/[0.07]"} ${playing ? "ring-1 ring-glow/60" : ""}`}
       >
         <span className="relative">
           <Cover url={m.track.artworkUrl} size={46} />
-          <span className="absolute inset-0 grid place-items-center rounded-[5px] bg-black/45 text-white opacity-0 transition-opacity group-hover:opacity-100">
+          <span className="absolute inset-0 grid place-items-center rounded-[5px] bg-black/45 text-white opacity-0 transition-opacity motion-color group-hover:opacity-100">
             <Icon name={playing ? "pause" : "play"} size={16} />
           </span>
         </span>

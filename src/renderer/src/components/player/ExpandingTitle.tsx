@@ -1,5 +1,6 @@
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { useLayoutEffect, useRef, useState } from "react";
+import { exit } from "@/lib/motion";
 
 const OPEN_DELAY_MS = 120; // a pointer just passing by doesn't open it
 
@@ -56,7 +57,7 @@ export default function ExpandingTitle({ text }: { text: string }) {
             style={{ left: -PAD_X, top: -PAD_Y, transformOrigin: "left center" }}
             initial={still ? false : { rotate: 0, y: 0 }}
             animate={{ rotate: -1.5, y: -3 }}
-            exit={still ? undefined : { rotate: 0, y: 0, opacity: 0, transition: { duration: 0.12 } }}
+            exit={still ? undefined : { rotate: 0, y: 0, opacity: 0, transition: exit() }}
             transition={{ type: "spring", stiffness: 420, damping: 26 }}
           >
             <motion.div

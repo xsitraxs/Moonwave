@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { PREFS_DEFAULTS, type BackgroundKind, type Look } from "@shared/ipc";
 import { useT } from "@/i18n";
 import { onPalette, palette, type Palette } from "@/lib/look";
+import { enterFast, exit } from "@/lib/motion";
 import { call } from "@/lib/sky";
 import { useNav } from "@/state/nav";
 import { useSettings } from "@/state/settings";
@@ -92,10 +93,9 @@ export default function AppearancePopover() {
           ref={box}
           role="dialog"
           aria-label={t.secAppearance}
-          initial={{ opacity: 0, y: 6 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: 6, transition: { duration: 0.1 } }}
-          transition={{ duration: 0.16, ease: "easeOut" }}
+          initial={{ opacity: 0, y: 4 }}
+          animate={{ opacity: 1, y: 0, transition: enterFast() }}
+          exit={{ opacity: 0, y: 4, transition: exit() }}
           className="s-pop s-glass w-[312px]"
           style={where === "side" ? { left: 252, bottom: 100 } : { right: 14, bottom: 58 }}
           data-keys-own

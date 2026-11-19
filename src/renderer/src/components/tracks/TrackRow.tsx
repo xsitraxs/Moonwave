@@ -117,7 +117,7 @@ function TrackRow({ track, index, current, playing, onPlay, focused }: Props) {
           {badge && <span className={`shrink-0 rounded-sm border border-current px-1 font-type text-[0.65rem] uppercase leading-4 ${alt ? "text-glow" : ""}`}>{badge}</span>}
         </div>
       </div>
-      <div className="flex items-center gap-0.5 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100">
+      <div className="flex items-center gap-0.5 opacity-0 transition-opacity motion-color group-focus-within:opacity-100 group-hover:opacity-100">
         {unplayable && (
           <button type="button" aria-label={t.openOnSoundCloud} title={t.openOnSoundCloud} className="grid h-8 w-8 place-items-center rounded-full text-muted hover:text-text" onClick={() => void call("shell:open", track.permalinkUrl)}>
             <Icon name="external" size={17} />

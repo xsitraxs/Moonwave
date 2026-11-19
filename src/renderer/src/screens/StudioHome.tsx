@@ -48,8 +48,8 @@ function Card({ cover, title, sub, on, playing, onClick }: { cover: string | nul
     <button type="button" onClick={onClick} title={`${title} — ${sub}`} className="group min-w-0 text-left">
       <span className="relative block aspect-square overflow-hidden bg-white/[0.06] rounded-[var(--r2)]">
         {cover ? <img src={artwork(cover, "t300x300") ?? undefined} alt="" loading="lazy" decoding="async" draggable={false} className="h-full w-full object-cover" /> : <span className="stipple-night block h-full w-full" />}
-        <span aria-hidden="true" className="absolute inset-0 bg-black/20 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100" />
-        <span className={`s-pp absolute bottom-2 right-2 h-8 w-8 transition-opacity ${on ? "opacity-100" : "opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100"}`}>
+        <span aria-hidden="true" className="absolute inset-0 bg-black/20 opacity-0 transition-opacity motion-color group-hover:opacity-100 group-focus-visible:opacity-100" />
+        <span className={`s-pp absolute bottom-2 right-2 h-8 w-8 transition-opacity motion-color ${on ? "opacity-100" : "opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100"}`}>
           <Icon name={on && playing ? "pause" : "play"} size={14} />
         </span>
       </span>
@@ -210,7 +210,7 @@ function FeedRows() {
             e.preventDefault();
             useUi.getState().openMenu(e.clientX, e.clientY, tr);
           }}
-          className="flex h-12 w-full items-center gap-3 rounded-[var(--r2)] border-b border-[var(--s-line)] px-1 text-left text-[12.5px] transition-colors hover:bg-white/[0.08] focus-visible:bg-white/[0.08]"
+          className="flex h-12 w-full items-center gap-3 rounded-[var(--r2)] border-b border-[var(--s-line)] px-1 text-left text-[12.5px] transition-colors motion-color hover:bg-white/[0.08] focus-visible:bg-white/[0.08]"
         >
           <span className="w-6 text-[12px] tabular-nums text-[var(--s-dim)]">{i + 1}</span>
           <Cover url={tr.artworkUrl} size={32} />

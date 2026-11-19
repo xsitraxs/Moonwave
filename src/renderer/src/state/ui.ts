@@ -1,5 +1,8 @@
 import { create } from "zustand";
 import type { Track } from "@shared/types";
+import { isReducedMotion, queueExitMs } from "@/lib/motion";
+
+export type QueuePhase = "closed" | "open" | "closing";
 
 interface UiStore {
   queueOpen: boolean;
@@ -11,6 +14,10 @@ interface UiStore {
   closeLyrics(): void;
   /** studio: the queue panel on the right (remembered on this PC) */
   sideQueue: boolean;
+  /** three-phase layout/animation state for the side queue (`open` / `closing` / `closed`) */
+  queuePhase: QueuePhase;
+  openSideQueue(): void;
+  closeSideQueue(): void;
   toggleSideQueue(): void;
   /** studio: the Appearance popover, opened from the sidebar ("side") or the full screen player ("full") */
   appearance: "side" | "full" | null;
@@ -46,6 +53,7 @@ export type FullTab = "lyrics" | "queue" | "visualizer";
 
 let toastTimer = 0;
 let skippedTimer = 0;
+let sideQueueTimer = 0;
 const SIDE_QUEUE = "sc.sideQueue";
 const stored = (() => {
   try {
@@ -54,24 +62,58 @@ const stored = (() => {
     return null;
   }
 })();
+const initialSideQueue = stored !== "0";
 
-export const useUi = create<UiStore>((set) => ({
+function persistSideQueue(open: boolean) {
+  try {
+    localStorage.setItem(SIDE_QUEUE, open ? "1" : "0");
+  } catch {
+    /* only for this run then */
+  }
+}
+
+/** Return focus to the queue toggle before `inert` is committed on `<aside class="s-queue">`. */
+function restoreQueueFocusIfInside() {
+  if (typeof document === "undefined") return;
+  const active = document.activeElement;
+  const panel = document.querySelector(".s-queue");
+  if (panel && active && panel.contains(active)) {
+    document.querySelector<HTMLElement>("[data-queue-toggle]")?.focus();
+  }
+}
+
+export const useUi = create<UiStore>((set, get) => ({
   queueOpen: false,
   toggleQueue: () => set((s) => ({ queueOpen: !s.queueOpen, lyricsOpen: false })),
   lyricsOpen: false,
   toggleLyrics: () => set((s) => ({ lyricsOpen: !s.lyricsOpen, queueOpen: false })),
   closeLyrics: () => set({ lyricsOpen: false }),
   closeQueue: () => set({ queueOpen: false }),
-  sideQueue: stored !== "0",
-  toggleSideQueue: () =>
-    set((s) => {
-      try {
-        localStorage.setItem(SIDE_QUEUE, s.sideQueue ? "0" : "1");
-      } catch {
-        /* only for this run then */
-      }
-      return { sideQueue: !s.sideQueue };
-    }),
+  sideQueue: initialSideQueue,
+  queuePhase: initialSideQueue ? "open" : "closed",
+  openSideQueue: () => {
+    window.clearTimeout(sideQueueTimer);
+    persistSideQueue(true);
+    set({ sideQueue: true, queuePhase: "open" });
+  },
+  closeSideQueue: () => {
+    window.clearTimeout(sideQueueTimer);
+    persistSideQueue(false);
+    restoreQueueFocusIfInside();
+    const delay = isReducedMotion() ? 0 : queueExitMs();
+    if (delay <= 0) {
+      set({ sideQueue: false, queuePhase: "closed" });
+      return;
+    }
+    set({ sideQueue: false, queuePhase: "closing" });
+    sideQueueTimer = window.setTimeout(() => {
+      set((s) => (s.queuePhase === "closing" ? { queuePhase: "closed" } : s));
+    }, delay);
+  },
+  toggleSideQueue: () => {
+    if (get().sideQueue) get().closeSideQueue();
+    else get().openSideQueue();
+  },
   appearance: null,
   setAppearance: (appearance) => set({ appearance }),
   posing: false,

@@ -3,6 +3,7 @@ import { useEffect, useRef, type CSSProperties } from "react";
 import type { SpectrumLook } from "@shared/ipc";
 import { analyser } from "@/audio/engine";
 import { useT } from "@/i18n";
+import { enterFast, exit } from "@/lib/motion";
 import { usePlayingLoop } from "@/lib/playingLoop";
 import { useSettings } from "@/state/settings";
 import { spectrum } from "./CoverRing";
@@ -129,10 +130,9 @@ export function SpectrumPopover({ open, onClose }: { open: boolean; onClose: () 
           ref={box}
           role="dialog"
           aria-label={t.spectrum}
-          initial={{ opacity: 0, y: 6 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: 6, transition: { duration: 0.1 } }}
-          transition={{ duration: 0.16, ease: "easeOut" }}
+          initial={{ opacity: 0, y: 4 }}
+          animate={{ opacity: 1, y: 0, transition: enterFast() }}
+          exit={{ opacity: 0, y: 4, transition: exit() }}
           className="s-pop s-glass w-[312px]"
           style={{ right: 14, bottom: 58 }}
           data-keys-own

@@ -114,7 +114,7 @@ export function Following() {
           <div className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-x-5 gap-y-7">
             {users.map((u) => (
               <button key={u.id} type="button" onClick={() => go({ name: "profile", userId: u.id })} className="group min-w-0 text-center">
-                <span className="mx-auto block aspect-square w-full overflow-hidden rounded-full bg-[var(--paper)] shadow-[0_10px_24px_rgba(0,0,0,0.35)] transition-transform group-hover:-translate-y-0.5">
+                <span className="mx-auto block aspect-square w-full overflow-hidden rounded-full bg-[var(--paper)] shadow-[0_10px_24px_rgba(0,0,0,0.35)] transition-transform motion-color group-hover:-translate-y-0.5 motion-reduce:group-hover:translate-y-0">
                   {u.avatarUrl ? <img src={artwork(u.avatarUrl, "t300x300") ?? undefined} alt="" loading="lazy" className="h-full w-full object-cover" draggable={false} /> : <span className="stipple-night block h-full w-full" />}
                 </span>
                 <span className="mt-2 block truncate text-sm font-semibold text-text">{u.username}</span>

@@ -34,7 +34,7 @@ export default function Equalizer() {
         </div>
         <Toggle on={eq.enabled} onChange={(enabled) => setPref("eq", { ...eq, enabled })} label={t.equalizer} />
       </div>
-      <div className={`mt-3 transition-opacity ${eq.enabled ? "" : "pointer-events-none opacity-40"}`} aria-disabled={!eq.enabled}>
+      <div className={`mt-3 transition-opacity motion-color ${eq.enabled ? "" : "pointer-events-none opacity-40"}`} aria-disabled={!eq.enabled}>
         <Choice
           label={t.presets.flat ?? "Presets"}
           value={eq.preset}

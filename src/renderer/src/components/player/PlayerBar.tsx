@@ -88,7 +88,7 @@ export function PlayButton() {
       disabled={!hasTrack}
       aria-label={active ? t.pause : t.play}
       title={active ? t.pause : t.play}
-      className="sketch sketch-thin marker-fill mx-1 grid h-11 w-11 shrink-0 place-items-center rounded-full transition-transform hover:rotate-6 disabled:opacity-50"
+      className="sketch sketch-thin marker-fill mx-1 grid h-11 w-11 shrink-0 place-items-center rounded-full disabled:opacity-50"
     >
       <Icon name={active ? "pause" : "play"} size={22} />
     </button>

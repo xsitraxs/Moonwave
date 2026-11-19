@@ -1,5 +1,6 @@
-import { motion } from "framer-motion";
+import { MotionConfig, motion } from "framer-motion";
 import LivingBackdrop from "@/components/deco/LivingBackdrop";
+import { enter } from "@/lib/motion";
 import SvgDefs from "@/components/deco/SvgDefs";
 import NowPlaying from "@/components/player/NowPlaying";
 import AppearancePopover from "@/components/studio/AppearancePopover";
@@ -81,8 +82,7 @@ function ScreenFor({ route }: { route: Route }) {
 function Page() {
   const route = useNav((s) => s.route);
   return (
-    // short screen transition (~180 ms)
-    <motion.div key={JSON.stringify(route)} className="h-full" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.18, ease: "easeOut" }}>
+    <motion.div key={JSON.stringify(route)} className="h-full" initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={enter()}>
       <ScreenBoundary>
         <ScreenFor route={route} />
       </ScreenBoundary>
@@ -97,10 +97,10 @@ function Page() {
  */
 export default function App() {
   const full = useUi((s) => s.fullOpen);
-  const sideQueue = useUi((s) => s.sideQueue);
+  const queuePhase = useUi((s) => s.queuePhase);
   const posing = useUi((s) => s.posing);
   return (
-    <>
+    <MotionConfig reducedMotion="user">
       <SvgDefs />
       <LivingBackdrop />
       <TrackMenu />
@@ -111,21 +111,21 @@ export default function App() {
       <InviteFloat />
       <SkipNotice />
       {/* the theme workshop's CSS is scoped to this element (lib/themeCss.ts): a theme restyles the shell and what is in it, nothing outside */}
-      <div data-theme-scope="" className={`s-shell relative z-10${sideQueue ? " with-queue" : ""}${full ? " full-open" : ""}`}>
+      <div data-theme-scope="" data-queue={queuePhase} className={`s-shell relative z-10${full ? " full-open" : ""}`}>
         <StudioTitleBar />
         <StudioSidebar />
         <main className="relative min-h-0 overflow-hidden">
           {!posing && <Page />}
           {!posing && <Toast />}
         </main>
-        {sideQueue && <StudioQueue />}
+        <StudioQueue />
         <StudioPlayerBar />
         <NowPlaying />
       </div>
       <AppearancePopover />
       <Dialog />
       <SharingPrompt />
-    </>
+    </MotionConfig>
   );
 }
 

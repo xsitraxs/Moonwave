@@ -1,15 +1,4 @@
-/* The full screen player (both designs). */
-
-/* everything under the title bar steps back while it is open (kept mounted: scroll places and state stay) */
-.app-grid > :not(:first-child):not(.now-playing) {
-  transition: opacity 0.22s ease-out, visibility 0s linear 0s;
-}
-.app-grid.full-open > :not(:first-child):not(.now-playing) {
-  opacity: 0;
-  visibility: hidden;
-  pointer-events: none;
-  transition: opacity 0.22s ease-out, visibility 0s linear 0.22s;
-}
+/* The full screen player. */
 
 /* the lines fade out at the top and bottom edges; no scrollbar */
 .np-lines {
@@ -31,11 +20,14 @@
   line-height: 1.22;
   color: rgba(255, 255, 255, 0.3);
   text-shadow: 0 1px 12px rgba(0, 0, 0, 0.25);
-  transition: color 0.4s, filter 0.4s, opacity 0.4s;
+  transition:
+    color var(--motion-slow-move),
+    filter var(--motion-slow-move),
+    opacity var(--motion-slow-move);
 }
-/* fast rap: lines change in a blink, not with a 0.4 s fade */
+/* fast rap: lines change in a blink, not with a 240 ms fade */
 .np-lines.fast .np-line {
-  transition-duration: 0.1s;
+  transition-duration: var(--motion-fast);
 }
 .np-line.near {
   filter: blur(0.5px);
@@ -67,13 +59,17 @@
 
 /* studio: the full screen player covers the whole window, title bar too (it has its own) */
 .s-shell > :not(.now-playing) {
-  transition: opacity 0.22s ease-out, visibility 0s linear 0s;
+  transition:
+    opacity var(--motion-exit),
+    visibility 0s linear 0s;
 }
 .s-shell.full-open > :not(.now-playing) {
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
-  transition: opacity 0.22s ease-out, visibility 0s linear 0.22s;
+  transition:
+    opacity var(--motion-slow-move),
+    visibility 0s linear var(--motion-slow);
 }
 
 /* lines that stand in for the words while they load */
