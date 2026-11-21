@@ -10,6 +10,7 @@ const NIGHT = "#0b1240";
 const SEA = "#1d8e9b";
 const badges = {
   download: { label: "скачать", message: "Moonwave", style: "for-the-badge" },
+  version: { label: "версия", message: "2.5.12" },
   windows: { label: "Windows", message: "10 / 11" },
   macos: { label: "macOS", message: "13+" },
   linux: { label: "Linux", message: "AppImage / deb" },
