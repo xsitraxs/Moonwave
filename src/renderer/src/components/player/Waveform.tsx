@@ -112,6 +112,7 @@ export default function Waveform({ track, height = 44, big = false, white = fals
     const peaks = data ?? placeholder(track.id);
     const played = document.createElement("canvas");
     const rest = document.createElement("canvas");
+    const buffered = document.createElement("canvas");
     let dpr = 1;
     let w = 0;
     let h = 0;
@@ -128,8 +129,8 @@ export default function Waveform({ track, height = 44, big = false, white = fals
       dpr = window.devicePixelRatio || 1;
       w = Math.max(1, Math.round(wrap.clientWidth * dpr));
       h = Math.max(1, Math.round(height * dpr));
-      canvas.width = played.width = rest.width = w;
-      canvas.height = played.height = rest.height = h;
+      canvas.width = played.width = rest.width = buffered.width = w;
+      canvas.height = played.height = rest.height = buffered.height = h;
       const bar = big ? 3 : 2;
       const gap = 2;
       // the studio design: the accent from the cover and grey bars ahead; the night: yellow and violet
@@ -140,6 +141,7 @@ export default function Waveform({ track, height = 44, big = false, white = fals
       shadow = `rgba(${accentRgb}, 0.8)`;
       paintBars(played.getContext("2d")!, peaks, w, h, dpr, { color: glow, alpha: 1, halo: `rgba(${accentRgb}, ${white ? 0.25 : studio ? 0.35 : 0.45})` }, track.id, bar, gap);
       paintBars(rest.getContext("2d")!, peaks, w, h, dpr, { color: studio ? "#8e8e98" : "#6b55c8", alpha: studio ? 0.45 : 0.55, halo: null }, track.id, bar, gap);
+      paintBars(buffered.getContext("2d")!, peaks, w, h, dpr, { color: studio ? "#b8b8c2" : "#9987dc", alpha: 0.72, halo: null }, track.id, bar, gap);
       dirty = true;
     };
 
@@ -159,11 +161,8 @@ export default function Waveform({ track, height = 44, big = false, white = fals
           dirty = false;
           ctx.clearRect(0, 0, w, h);
           ctx.drawImage(rest, 0, 0);
-          // buffered ahead of the playhead: a lighter wash so a stall is visible before it happens
-          if (bufX > x) {
-            ctx.fillStyle = "rgba(255,255,255,0.14)";
-            ctx.fillRect(x, 0, bufX - x, h);
-          }
+          // Show buffering on the waveform bars themselves, without a rectangular overlay.
+          if (bufX > x) ctx.drawImage(buffered, x, 0, bufX - x, h, x, 0, bufX - x, h);
           if (x > 0) ctx.drawImage(played, 0, 0, x, h, 0, 0, x, h);
           if (x > 0) {
             // playhead: a thin glowing line across the whole height

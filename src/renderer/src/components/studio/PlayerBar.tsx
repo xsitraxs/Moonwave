@@ -340,11 +340,15 @@ export default function StudioPlayerBar() {
               {t.retry}
             </button>
           )}
-          <div className="s-player-group">
-            {canSend && track && !isLocalTrack(track.id) && <Btn icon="send" label={t.sendToFriends} onClick={() => openSend(track)} />}
-            {rooms && <Btn icon="users" label={t.listenTogether} on={inRoom} onClick={() => (inRoom ? !sideQueue && openSideQueue() : useRoomSheet.setState({ open: true }))} />}
-          </div>
-          <span className="s-player-sep" aria-hidden="true" />
+          {(rooms || (canSend && track && !isLocalTrack(track.id))) && (
+            <>
+              <div className="s-player-group">
+                {canSend && track && !isLocalTrack(track.id) && <Btn icon="send" label={t.sendToFriends} onClick={() => openSend(track)} />}
+                {rooms && <Btn icon="users" label={t.listenTogether} on={inRoom} onClick={() => (inRoom ? !sideQueue && openSideQueue() : useRoomSheet.setState({ open: true }))} />}
+              </div>
+              <span className="s-player-sep" aria-hidden="true" />
+            </>
+          )}
           <div className="s-player-group">
             <Btn
               icon="lyrics"

@@ -655,7 +655,11 @@ export const currentTime = () => active.audio.currentTime;
 export function bufferedEnd(): number {
   try {
     const b = active.audio.buffered;
-    return b.length ? b.end(b.length - 1) : 0;
+    const time = active.audio.currentTime;
+    for (let i = 0; i < b.length; i++) {
+      if (b.start(i) <= time + 0.05 && b.end(i) >= time) return b.end(i);
+    }
+    return 0;
   } catch {
     return 0;
   }
