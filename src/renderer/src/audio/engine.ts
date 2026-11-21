@@ -651,6 +651,15 @@ async function takePrefetched(streamId: number): Promise<StreamInfo | null> {
 // ---- public -------------------------------------------------------------------------------------------------------
 
 export const currentTime = () => active.audio.currentTime;
+/** how far the current deck has buffered, seconds (0 when the element can't tell, e.g. HLS over MSE) */
+export function bufferedEnd(): number {
+  try {
+    const b = active.audio.buffered;
+    return b.length ? b.end(b.length - 1) : 0;
+  } catch {
+    return 0;
+  }
+}
 /** whose stream the current deck plays (the track's own id, or a substitute upload's) */
 export const activeStreamId = () => active.streamId;
 

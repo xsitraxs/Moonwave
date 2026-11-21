@@ -489,6 +489,7 @@ function look(v: unknown) {
     bgReact: int(l.bgReact, 0, 100, "look.bgReact"),
     panelOpacity: int(l.panelOpacity, 10, 100, "look.panelOpacity"),
     panelBlur: int(l.panelBlur, 0, 60, "look.panelBlur"),
+    neutralBg: l.neutralBg === true,
     accent: colour(l.accent, "accent"),
     surface: colour(l.surface, "surface"),
   };

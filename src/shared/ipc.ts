@@ -126,6 +126,8 @@ export interface Look {
   panelBlur: number;
   /** no blur behind panels (for slow PCs) */
   lite: boolean;
+  /** neutral background: no cover colours behind the window (the graphite default palette, no tint) */
+  neutralBg: boolean;
   /** a fixed accent "#rrggbb" (a workshop theme can set one); "" = from the cover */
   accent: string;
   /** the interface's own colour "#rrggbb" — panels, menus, the window behind them — kept dark; "" = graphite */
@@ -221,6 +223,8 @@ export interface Prefs {
    * with both off and sees it once; an install that already ran never sees it, because its settings are its own answer.
    */
   telemetryAsked: boolean;
+  /** The first-run introduction was completed or skipped. */
+  onboardingDone: boolean;
 }
 
 export type Language = "auto" | "en" | "ru";
@@ -252,7 +256,7 @@ export const PREFS_DEFAULTS: Prefs = {
   substituteTolerance: 3,
   noSubstitute: [],
   proxy: { mode: "auto", url: "", username: "", v: 2 },
-  look: { design: "studio", bg: "liquid", bgFile: "", bgFileType: "", bgBlur: 14, bgDim: 72, bgReact: 40, panelOpacity: 58, panelBlur: 30, lite: false, accent: "", surface: "", css: "" },
+  look: { design: "studio", bg: "liquid", bgFile: "", bgFileType: "", bgBlur: 14, bgDim: 72, bgReact: 40, panelOpacity: 58, panelBlur: 30, lite: false, neutralBg: false, accent: "", surface: "", css: "" },
   spectrum: { place: "cover", style: "bars", height: 120, color: "accent", mirror: true },
   socialPopups: true,
   // off for a new install: sending anything to Moonwave's server is a decision the person makes, not one made for them
@@ -265,6 +269,7 @@ export const PREFS_DEFAULTS: Prefs = {
   language: "auto",
   memorySaver: false,
   telemetryAsked: false,
+  onboardingDone: false,
 };
 
 /**
@@ -284,6 +289,8 @@ export function withPrefDefaults(stored: Partial<Prefs> | undefined): Prefs {
   // an install with saved settings has already been asked (before this version, simply by having the switches): it is
   // not shown the first-run question, and its choices stay exactly as saved
   if (stored && stored.telemetryAsked === undefined) merged.telemetryAsked = true;
+  // Existing installations should not be interrupted by a new first-run wizard.
+  if (stored && stored.onboardingDone === undefined) merged.onboardingDone = true;
   return merged;
 }
 
@@ -316,6 +323,8 @@ export interface RendererState {
   /** playlists pinned to the sidebar */
   pinnedPlaylists: PinnedPlaylist[];
   history: Track[];
+  /** Recently interrupted tracks, keyed by track ID, in seconds. */
+  trackProgress: Record<string, number>;
   searchHistory: string[];
   prefs: Prefs;
   player: PlayerSnapshot | null;
@@ -328,6 +337,7 @@ export const RENDERER_DEFAULTS: RendererState = {
   savedProfiles: [],
   pinnedPlaylists: [],
   history: [],
+  trackProgress: {},
   searchHistory: [],
   prefs: PREFS_DEFAULTS,
   player: null,
@@ -453,6 +463,7 @@ export interface InvokeMap {
   "bg:size": (file: string) => number;
   "win:minimize": () => void;
   "win:toggleMaximize": () => void;
+  "win:mini": (enabled: boolean) => void;
   "win:close": () => void;
 
   "store:get": () => RendererState;
@@ -704,6 +715,7 @@ export const INVOKE_CHANNELS = [
   "data:waveform",
   "win:minimize",
   "win:toggleMaximize",
+  "win:mini",
   "win:close",
   "store:get",
   "store:set",

@@ -56,3 +56,10 @@ test("discord: the short status names the app unless the user picks the artist o
   assert.equal(withPrefDefaults({ discordPresence: true }).discordStatus, "app");
   assert.equal(withPrefDefaults({ discordStatus: "track" }).discordStatus, "track");
 });
+
+test("onboarding: new installs see it; existing installs are not interrupted", () => {
+  assert.equal(withPrefDefaults(undefined).onboardingDone, false);
+  assert.equal(withPrefDefaults({ language: "ru" }).onboardingDone, true);
+  assert.equal(withPrefDefaults({ onboardingDone: false }).onboardingDone, false);
+  assert.equal(withPrefDefaults({ onboardingDone: true }).onboardingDone, true);
+});

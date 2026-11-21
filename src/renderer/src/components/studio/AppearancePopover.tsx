@@ -102,7 +102,7 @@ export default function AppearancePopover() {
         >
           <div className="mx-2 mb-2.5 mt-1 flex items-center">
             <b className="text-[13px] font-semibold text-text">{t.secAppearance}</b>
-            <span className="ml-auto text-[11px] text-[var(--s-dim)]">{kinds.find(([k]) => k === look.bg)?.[1]}</span>
+            <span className="ml-auto text-[12px] text-[var(--s-dim)]">{look.neutralBg ? t.neutralBg : kinds.find(([k]) => k === look.bg)?.[1]}</span>
           </div>
           <div className="s-lbl mx-2 mb-1.5">{t.background}</div>
           <div className="s-seg mx-2 mb-1">
@@ -113,7 +113,7 @@ export default function AppearancePopover() {
             ))}
           </div>
           {look.bg === "file" && (
-            <button type="button" onClick={() => void pick()} className="mx-2 mt-1 flex items-center gap-1.5 text-[11.5px] text-muted hover:text-text">
+            <button type="button" onClick={() => void pick()} className="mx-2 mt-1 flex items-center gap-1.5 text-[12px] text-muted hover:text-text">
               <Icon name="image" size={13} />
               {t.bgChoose}
             </button>
@@ -121,6 +121,14 @@ export default function AppearancePopover() {
           <Knob label={t.blur} value={look.bgBlur} min={0} max={40} unit="px" onChange={(v) => set({ bgBlur: v })} />
           <Knob label={t.dim} value={look.bgDim} min={0} max={100} unit="%" onChange={(v) => set({ bgDim: v })} />
           <Knob label={t.bgReact} value={look.bgReact} min={0} max={100} unit="%" onChange={(v) => set({ bgReact: v })} />
+          <button type="button" role="switch" aria-checked={look.neutralBg} onClick={() => set({ neutralBg: !look.neutralBg })} className="s-row mt-1 w-full !border-t-[var(--s-line)] !px-2 text-left">
+            <Icon name="disc" size={17} className="text-muted" />
+            <span>
+              <span className="t block">{t.neutralBg}</span>
+              <span className="s block">{t.neutralBgHint}</span>
+            </span>
+            <span className={`s-sw ${look.neutralBg ? "on" : ""}`} />
+          </button>
           <div className="s-lbl mx-2 mb-0.5 mt-3">{t.panels}</div>
           <Knob label={t.panelOpacity} value={look.panelOpacity} min={10} max={100} unit="%" onChange={(v) => set({ panelOpacity: v })} />
           <Knob label={t.blurBehind} value={look.panelBlur} min={0} max={60} unit="px" onChange={(v) => set({ panelBlur: v })} />
@@ -132,13 +140,13 @@ export default function AppearancePopover() {
             </span>
             <span className={`s-sw ${look.lite || saver ? "on" : ""}`} />
           </button>
-          <div className="flex items-center justify-between px-2 pb-0.5 pt-2 text-[11px] text-[var(--s-dim)]">
+          <div className="flex items-center justify-between px-2 pb-0.5 pt-2 text-[12px] text-[var(--s-dim)]">
             <button type="button" className="hover:text-text" onClick={() => set({ ...PREFS_DEFAULTS.look, bgFile: look.bgFile, bgFileType: look.bgFileType, lite: look.lite })}>
               {t.resetToTheme}
             </button>
             <Swatches />
           </div>
-          <div className="mt-1.5 flex items-center justify-between border-t border-[var(--s-line)] px-2 pt-2 text-[11px] text-[var(--s-dim)]">
+          <div className="mt-1.5 flex items-center justify-between border-t border-[var(--s-line)] px-2 pt-2 text-[12px] text-[var(--s-dim)]">
             <button
               type="button"
               className="hover:text-text"

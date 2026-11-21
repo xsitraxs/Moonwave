@@ -14,6 +14,7 @@ import { useSettings } from "@/state/settings";
 export default function SharingPrompt() {
   const t = useT();
   const asked = useSettings((s) => s.prefs.telemetryAsked);
+  const onboardingDone = useSettings((s) => s.prefs.onboardingDone);
 
   const answer = (yes: boolean) => {
     // one write for both switches and the "asked" mark: a crash can never leave the mark set without the choice it
@@ -24,7 +25,7 @@ export default function SharingPrompt() {
 
   return (
     <AnimatePresence>
-      {!asked && (
+      {onboardingDone && !asked && (
         <motion.div
           className="fixed inset-0 z-[85] grid place-items-center bg-black/60 p-6"
           initial={{ opacity: 0 }}

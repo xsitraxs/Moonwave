@@ -32,8 +32,9 @@ export default function LivingBackdrop() {
   const viz = useUi((s) => s.fullOpen && s.fullTab === "visualizer");
   const track = useCurrentTrack();
   const cover = track?.artworkUrl ? artwork(track.artworkUrl, "t500x500") : null;
-  const want: Want =
-    look.bg === "liquid"
+  const want: Want = look.neutralBg
+    ? { key: "none", kind: "none", src: "" }
+    : look.bg === "liquid"
       ? { key: "liquid", kind: "liquid", src: "" }
       : look.bg === "cover" && cover
         ? { key: `cover:${cover}`, kind: "image", src: cover }

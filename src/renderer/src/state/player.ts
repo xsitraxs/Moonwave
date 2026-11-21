@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import type { PlayerSnapshot, RepeatMode } from "@shared/ipc";
 import { waveformQuiet } from "@shared/audioHealth";
+import { updateTrackProgress } from "@shared/track-progress";
 import type { ErrorCode, Page, QueueSource, Track } from "@shared/types";
 import * as engine from "@/audio/engine";
 import { queryClient } from "@/api/queries";
@@ -413,19 +414,36 @@ function skipSoon(ms: number) {
   skipTimer = window.setTimeout(() => void advance(true), ms);
 }
 
+let lastProgressSave = 0;
+function saveTrackProgress(position: number) {
+  const state = get();
+  const track = state.queue[state.index];
+  if (!track || remote || !Number.isFinite(position)) return;
+  const settings = useSettings.getState();
+  const before = settings.trackProgress;
+  const next = updateTrackProgress(before, track.id, position, state.duration || track.durationMs / 1000);
+  if (JSON.stringify(before) !== JSON.stringify(next)) settings.save({ trackProgress: next });
+  lastProgressSave = Date.now();
+}
+
 engine.bindEngine({
   loading: () => set({ status: "loading" }),
   playing: () => {
     skipsInARow = 0;
     set({ status: "playing", error: null });
   },
-  paused: () => set({ status: get().status === "error" ? "error" : "paused" }),
+  paused: () => {
+    if (get().status === "playing") saveTrackProgress(engine.currentTime());
+    set({ status: get().status === "error" ? "error" : "paused" });
+  },
   duration: (d) => set({ duration: d }),
   // nobody sees the time while the window is hidden: no DOM updates then (they kept the GPU process busy)
   time: (t) => {
     if (getActivity() !== "hidden") usePosition.setState({ position: t });
+    if (get().status === "playing" && Date.now() - lastProgressSave >= 5000) saveTrackProgress(t);
   },
   ended: () => {
+    saveTrackProgress(get().duration);
     if (stopAtEnd) {
       // the sleep timer's "end of track"
       stopAtEnd = false;
@@ -478,6 +496,7 @@ engine.bindEngine({
     if (at < 0) at = queue.indexOf(track);
     if (at < 0) at = queue.findIndex((t) => t.id === track.id);
     if (at < 0) return;
+    saveTrackProgress(get().duration);
     starts++;
     const alt = needsSub(track) ? substituteFor(track) : null;
     set({ index: at, error: null, duration: (alt ?? track).durationMs / 1000 });
@@ -546,20 +565,21 @@ async function advance(auto: boolean) {
 
 export const player = {
   /** Play `tracks` from `index`; `source` lets the queue keep loading (or shuffle) the whole list it came from. */
-  playFrom(tracks: Track[], index: number, source: QueueSource) {
+  playFrom(tracks: Track[], index: number, source: QueueSource, startAt?: number) {
     const target = tracks[index];
     if (!target) return;
     if (remote) return remote.playFrom(tracks, index, source);
+    if (startAt !== undefined && (!Number.isFinite(startAt) || startAt < 0 || (target.durationMs > 0 && startAt >= target.durationMs / 1000))) startAt = undefined;
     rebuild++;
     skipsInARow = 0;
     if (get().shuffle) {
       const rest = shuffled(tracks.filter((t, i) => i !== index && playable(t)));
       set({ queue: [target, ...rest], original: [...tracks], pending: [], source, autoFrom: -1 });
-      start(0);
+      start(0, { startAt });
       void shuffleWholeList();
     } else {
       set({ queue: [...tracks], original: null, pending: [], source, autoFrom: -1 });
-      start(index);
+      start(index, { startAt });
     }
   },
   /** The Shuffle button of a list: shuffle on, a random first track from the whole list when it's known. */

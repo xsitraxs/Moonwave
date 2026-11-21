@@ -4,6 +4,7 @@ import { app, BrowserWindow, shell } from "electron";
 import type { EventMap, WindowActivity } from "@shared/ipc";
 import { isOwnIndexFile } from "@shared/appUrl";
 import { appIcon } from "../system/tray";
+import { enterMiniGeometry } from "./mini-window-geometry";
 
 /** Windows' own window buttons: as tall as the page's title bars (the main one's 52 px box, the full screen player's 48),
  * so their hover squares sit around the page's drawn icons (WindowButtons draws them in this same strip) */
@@ -35,6 +36,41 @@ export function send<K extends keyof EventMap>(win: BrowserWindow | null, channe
  * draws its marker-style buttons underneath, while Windows keeps dragging, double-click to maximize and the Windows 11
  * Snap Layouts flyout working on the real maximize button.
  */
+let miniRestore: { bounds: Electron.Rectangle; maximized: boolean; resizable: boolean; maximizable: boolean } | null = null;
+
+/** Temporarily resize the same window, preserving playback and the original window geometry. */
+export function setMiniWindow(win: BrowserWindow, enabled: boolean) {
+  if (enabled) {
+    if (miniRestore) return;
+    if (win.isFullScreen()) throw new Error("Exit system fullscreen before entering mini mode");
+    const previous = { bounds: win.getNormalBounds(), maximized: win.isMaximized(), resizable: win.isResizable(), maximizable: win.isMaximizable() };
+    miniRestore = previous;
+    try {
+      enterMiniGeometry(win, previous.maximized);
+    } catch (error) {
+      try {
+        win.setResizable(true);
+        win.setMaximizable(previous.maximizable);
+        win.setMinimumSize(900, 600);
+        win.setBounds(previous.bounds);
+        if (previous.maximized) win.maximize();
+        win.setResizable(previous.resizable);
+        miniRestore = null;
+      } catch { /* retain restore data so another attempt can recover */ }
+      throw error;
+    }
+  } else if (miniRestore) {
+    const previous = miniRestore;
+    win.setResizable(true);
+    win.setMaximizable(previous.maximizable);
+    win.setMinimumSize(900, 600);
+    win.setBounds(previous.bounds);
+    if (previous.maximized) win.maximize();
+    win.setResizable(previous.resizable);
+    miniRestore = null;
+  }
+}
+
 export function createMainWindow(opts: { startHidden: boolean; closeToTray: () => boolean; quitting: () => boolean }) {
   const isMac = process.platform === "darwin";
   const win = new BrowserWindow({
@@ -64,6 +100,8 @@ export function createMainWindow(opts: { startHidden: boolean; closeToTray: () =
       spellcheck: false,
     },
   });
+
+  win.once("closed", () => { miniRestore = null; });
 
   // started with Windows and "start minimized": stay in the tray until the icon is clicked
   win.once("ready-to-show", () => {

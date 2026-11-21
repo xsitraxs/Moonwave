@@ -47,6 +47,14 @@ interface UiStore {
   /** a short message at the bottom ("Link copied") */
   toast: { id: number; text: string } | null;
   showToast(text: string): void;
+  /** studio: the sidebar collapsed to icons only (remembered on this PC) */
+  sidebarCollapsed: boolean;
+  toggleSidebar(): void;
+  /** the keyboard shortcuts cheat sheet */
+  hotkeysOpen: boolean;
+  setHotkeysOpen(open: boolean): void;
+  miniPlayer: boolean;
+  setMiniPlayer(open: boolean): void;
 }
 
 export type FullTab = "lyrics" | "queue" | "visualizer";
@@ -67,6 +75,21 @@ const initialSideQueue = stored === "1";
 function persistSideQueue(open: boolean) {
   try {
     localStorage.setItem(SIDE_QUEUE, open ? "1" : "0");
+  } catch {
+    /* only for this run then */
+  }
+}
+const SIDEBAR = "sc.sidebarCollapsed";
+const storedSidebar = (() => {
+  try {
+    return localStorage.getItem(SIDEBAR);
+  } catch {
+    return null;
+  }
+})();
+function persistSidebar(collapsed: boolean) {
+  try {
+    localStorage.setItem(SIDEBAR, collapsed ? "1" : "0");
   } catch {
     /* only for this run then */
   }
@@ -145,4 +168,14 @@ export const useUi = create<UiStore>((set, get) => ({
     set({ toast: { id: Date.now(), text } });
     toastTimer = window.setTimeout(() => set({ toast: null }), 2200);
   },
+  sidebarCollapsed: storedSidebar === "1",
+  toggleSidebar: () =>
+    set((s) => {
+      persistSidebar(!s.sidebarCollapsed);
+      return { sidebarCollapsed: !s.sidebarCollapsed };
+    }),
+  hotkeysOpen: false,
+  setHotkeysOpen: (hotkeysOpen) => set({ hotkeysOpen }),
+  miniPlayer: false,
+  setMiniPlayer: (miniPlayer) => set({ miniPlayer }),
 }));

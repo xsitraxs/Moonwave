@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { isLocalTrack, artwork, type Track } from "@shared/types";
 import { errorText, useT } from "@/i18n";
 import { duration } from "@/lib/format";
+import { setMiniPlayer } from "@/lib/miniPlayer";
 import { toggleLike, useLiked, useCanLike } from "@/state/likes";
 import { useNav } from "@/state/nav";
 import { player, useCurrentTrack, usePlayer, usePosition, useStreamTrack } from "@/state/player";
@@ -45,7 +46,7 @@ function Btn({
   return (
     <button
       type="button"
-      className={`s-ib s-tip ${alignClass} !h-8 !w-8 ${on ? "on" : ""}`}
+      className={`s-ib s-tip ${alignClass} !h-9 !w-9 ${on ? "on" : ""}`}
       aria-label={label}
       data-tip={label}
       aria-pressed={alwaysPressed ? on : on || undefined}
@@ -56,7 +57,7 @@ function Btn({
       disabled={disabled}
     >
       <Icon name={icon} size={size} />
-      {on && <span aria-hidden="true" className="absolute bottom-0.5 h-[3px] w-[3px] rounded-full bg-text/80" />}
+      {on && <span aria-hidden="true" className="absolute bottom-0.5 h-[3px] w-[3px] rounded-full bg-[var(--accent)]" />}
     </button>
   );
 }
@@ -67,22 +68,28 @@ function Like({ track }: { track: Track }) {
   // files from this computer: only with likes kept here
   const local = useSettings((s) => s.prefs.localLikes);
   const liked = useLiked(track.id);
+  const [pop, setPop] = useState(0);
   if (!canLike || (isLocalTrack(track.id) && !local)) return null;
   return (
     <button
       type="button"
-      onClick={() => void toggleLike(track)}
+      onClick={() => {
+        setPop((p) => p + 1);
+        void toggleLike(track);
+      }}
       aria-pressed={liked}
       aria-label={liked ? t.unlike : t.like}
       data-tip={liked ? t.unlike : t.like}
-      className={`s-tip grid h-8 w-8 shrink-0 place-items-center rounded-md transition-colors motion-color ${liked ? "text-[var(--accent)]" : "text-muted hover:text-text"}`}
+      className={`s-tip grid h-9 w-9 shrink-0 place-items-center rounded-md transition-colors motion-color ${liked ? "text-[var(--accent)]" : "text-muted hover:text-text"}`}
     >
-      <Icon name="heart" size={20} />
+      <span key={pop} className={pop ? "s-like-pop grid place-items-center" : "grid place-items-center"}>
+        <Icon name="heart" size={20} filled={liked} />
+      </span>
     </button>
   );
 }
 
-/** "Add to playlist" for what plays, next to the ♥ */
+/** "Add to playlist" for what plays, next to the ♥ (the queue has its own button on the right) */
 function AddTo({ track }: { track: Track }) {
   const t = useT();
   const openPicker = useUi((s) => s.openPicker);
@@ -92,7 +99,7 @@ function AddTo({ track }: { track: Track }) {
       onClick={() => openPicker(track)}
       aria-label={t.addToPlaylist}
       data-tip={t.addToPlaylist}
-      className="s-tip grid h-8 w-8 shrink-0 place-items-center rounded-md text-muted transition-colors motion-color hover:text-text"
+      className="s-tip grid h-9 w-9 shrink-0 place-items-center rounded-md text-muted transition-colors motion-color hover:text-text"
     >
       <Icon name="playlistAdd" size={20} />
     </button>
@@ -102,6 +109,25 @@ function AddTo({ track }: { track: Track }) {
 function Elapsed() {
   const position = usePosition((s) => s.position);
   return <span className="min-w-10 shrink-0 text-right text-[12px] tabular-nums text-[var(--s-dim)]">{duration(position * 1000)}</span>;
+}
+
+function Remaining({ totalMs }: { totalMs: number }) {
+  const t = useT();
+  const position = usePosition((s) => s.position);
+  const [showRemaining, setShowRemaining] = useState(false);
+  const remaining = Math.max(0, totalMs / 1000 - position);
+  const label = showRemaining ? `-${duration(remaining * 1000)}` : duration(totalMs);
+  return (
+    <button
+      type="button"
+      onClick={() => setShowRemaining((v) => !v)}
+      aria-label={showRemaining ? t.showTotal : t.showRemaining}
+      title={showRemaining ? t.showTotal : t.showRemaining}
+      className="min-w-10 shrink-0 text-[12px] tabular-nums text-[var(--s-dim)] transition-colors motion-color hover:text-text"
+    >
+      {label}
+    </button>
+  );
 }
 
 /** Where the sound goes: the system default or one of the audio outputs. */
@@ -175,6 +201,25 @@ function Volume() {
   );
 }
 
+function TrackTitle({ title, onClick }: { title: string; onClick: () => void }) {
+  const box = useRef<HTMLButtonElement>(null);
+  const text = useRef<HTMLSpanElement>(null);
+  const [overflow, setOverflow] = useState(0);
+  useEffect(() => {
+    const measure = () => setOverflow(Math.max(0, (text.current?.scrollWidth ?? 0) - (box.current?.clientWidth ?? 0)));
+    measure();
+    const observer = new ResizeObserver(measure);
+    if (box.current) observer.observe(box.current);
+    if (text.current) observer.observe(text.current);
+    return () => observer.disconnect();
+  }, [title]);
+  return (
+    <button ref={box} type="button" onClick={onClick} title={title} className={`s-track-title block max-w-full overflow-hidden text-left text-[15px] font-semibold leading-snug text-text hover:underline ${overflow > 0 ? "s-track-title-overflow" : ""}`} style={{ "--title-overflow": `${overflow}px` } as CSSProperties}>
+      <span ref={text}>{title}</span>
+    </button>
+  );
+}
+
 /** Studio player: always-visible transport & progress bar, reviving last played track in idle state. */
 export default function StudioPlayerBar() {
   const t = useT();
@@ -208,15 +253,18 @@ export default function StudioPlayerBar() {
   const roomMember = useRoom((s) => !!s.room && s.room.host !== s.me);
   const active = !!track && (status === "playing" || status === "loading");
   const repeatLabel = repeat === "off" ? t.repeatOff : repeat === "all" ? t.repeatAll : t.repeatOne;
+  const hotkeys = useSettings((s) => s.prefs.hotkeys);
 
   const playOrResume = () => {
     if (track) player.toggle();
-    else if (history.length) player.playFrom(history, 0, STATIC);
+    else if (history.length) player.playFrom(history, 0, STATIC, useSettings.getState().trackProgress[`t:${history[0]!.id}`]);
   };
+
+  const totalMs = track ? (total || 0) * 1000 : (displayTrack?.durationMs ?? 0);
 
   return (
     <footer className="s-player s-glass">
-      <div className="flex min-w-0 items-center gap-3.5 pl-1.5">
+      <div className="s-player-track flex min-w-0 items-center gap-3.5 pl-1.5">
         {displayTrack ? (
           <>
             <button
@@ -224,22 +272,20 @@ export default function StudioPlayerBar() {
               onClick={() => (track ? openFull() : playOrResume())}
               aria-label={track ? t.fullPlayer : `${t.play}: ${displayTrack.title}`}
               data-tip={track ? t.fullPlayer : t.play}
-              className={`s-tip s-tip-start relative h-[52px] w-[52px] shrink-0 ${track ? "cursor-zoom-in" : "cursor-pointer opacity-60 transition-opacity hover:opacity-90"}`}
+              className={`s-tip s-tip-start relative h-16 w-16 shrink-0 ${track ? "cursor-zoom-in" : "cursor-pointer opacity-60 transition-opacity hover:opacity-90"}`}
             >
-              {track && <CoverRing size={52} />}
-              <span className="block h-full w-full overflow-hidden rounded-[5px] bg-white/[0.06]">
+              {track && <CoverRing size={64} />}
+              <span className="block h-full w-full overflow-hidden rounded-[var(--r2)] bg-white/[0.06]">
                 {displayTrack.artworkUrl && <img src={artwork(displayTrack.artworkUrl, "t300x300") ?? undefined} alt="" className="h-full w-full object-cover" draggable={false} />}
               </span>
             </button>
-            <div className={`min-w-0 ${isIdleLast ? "opacity-65" : ""}`}>
-              <div className="truncate text-[15px] font-semibold leading-snug text-text" title={displayTrack.title}>
-                {displayTrack.title}
-              </div>
-              <button type="button" onClick={() => go({ name: "profile", userId: displayTrack.user.id })} className="mt-0.5 block max-w-full truncate text-[13px] font-normal text-muted hover:text-text hover:underline">
+            <div className={`min-w-0 flex-1 ${isIdleLast ? "opacity-65" : ""}`}>
+              <TrackTitle title={displayTrack.title} onClick={() => go({ name: "track", id: displayTrack.id })} />
+              <button type="button" onClick={() => go({ name: "profile", userId: displayTrack.user.id })} className="mt-0.5 block max-w-full truncate text-left text-[13px] font-normal text-muted hover:text-text hover:underline">
                 {displayTrack.artist}
               </button>
             </div>
-            <div className={`ml-auto flex shrink-0 items-center ${isIdleLast ? "opacity-75" : ""}`}>
+            <div className={`flex shrink-0 items-center ${isIdleLast ? "opacity-75" : ""}`}>
               <Like track={displayTrack} />
               <AddTo track={displayTrack} />
             </div>
@@ -252,65 +298,77 @@ export default function StudioPlayerBar() {
         )}
       </div>
 
-      <div className="flex min-w-0 flex-col items-center gap-1">
+      <div className="s-player-transport flex min-w-0 flex-col items-center gap-1">
         <div className="flex items-center gap-[18px]">
           {/* in a listening room: no shuffle or repeat (the host's queue), tracks changed by the host only */}
           <Btn icon="shuffle" label={t.shuffle} on={shuffle && !inRoom} onClick={player.toggleShuffle} disabled={!track || inRoom} />
-          <Btn icon="prev" label={t.previous} onClick={player.prev} disabled={!track || roomMember} />
+          <Btn icon="prev" label={`${t.previous} (${hotkeys.previous || "—"})`} onClick={player.prev} disabled={!track || roomMember} />
           <button
             type="button"
             onClick={playOrResume}
             disabled={!displayTrack}
             aria-label={active ? t.pause : t.play}
-            data-tip={active ? t.pause : t.play}
+            data-tip={`${active ? t.pause : t.play} (${hotkeys.playPause || "Space"})`}
             className="s-pp s-tip h-[34px] w-[34px]"
           >
             <Icon name={active ? "pause" : "play"} size={20} />
           </button>
-          <Btn icon="next" label={t.next} onClick={player.next} disabled={!track || roomMember} />
+          <Btn icon="next" label={`${t.next} (${hotkeys.next || "—"})`} onClick={player.next} disabled={!track || roomMember} />
           <Btn icon={repeat === "one" ? "repeatOne" : "repeat"} label={repeatLabel} on={repeat !== "off" && !inRoom} onClick={player.cycleRepeat} disabled={!track || inRoom} />
         </div>
         <div className={`flex w-full max-w-[560px] items-center gap-2.5 ${isIdleLast ? "opacity-65" : ""}`}>
           {track ? <Elapsed /> : <span className="min-w-10 shrink-0 text-right text-[12px] tabular-nums text-[var(--s-dim)]">{duration(savedPos * 1000)}</span>}
           <div className="min-w-0 flex-1">
             {sound ? (
-              <Waveform key={sound.id} track={sound} height={24} />
+              <Waveform key={sound.id} track={sound} height={32} />
             ) : (
-              <div className="flex h-6 items-center" aria-hidden="true">
+              <div className="flex h-8 items-center" aria-hidden="true">
                 <div className="h-[3px] w-full overflow-hidden rounded-full bg-white/[0.12]">
                   {idlePct > 0 && <div className="h-full rounded-full bg-[var(--accent)]" style={{ width: `${idlePct}%` }} />}
                 </div>
               </div>
             )}
           </div>
-          <span className="min-w-10 shrink-0 text-[12px] tabular-nums text-[var(--s-dim)]">
-            {duration(track ? (total || 0) * 1000 : (displayTrack?.durationMs ?? 0))}
-          </span>
+          {track ? <Remaining totalMs={totalMs} /> : <span className="min-w-10 shrink-0 text-[12px] tabular-nums text-[var(--s-dim)]">{duration(totalMs)}</span>}
         </div>
       </div>
 
-      <div className="flex items-center justify-end gap-1">
-        {error && (
-          <button type="button" onClick={player.retry} title={errorText(t, error)} className="s-btn mr-1 !h-7 shrink-0 !px-2 text-[11px]">
-            {t.retry}
-          </button>
-        )}
-        {canSend && track && !isLocalTrack(track.id) && <Btn icon="send" label={t.sendToFriends} onClick={() => openSend(track)} />}
-        {rooms && <Btn icon="users" label={t.listenTogether} on={inRoom} onClick={() => (inRoom ? !sideQueue && openSideQueue() : useRoomSheet.setState({ open: true }))} />}
-        <Btn
-          icon="lyrics"
-          label={t.lyrics}
-          disabled={!track}
-          onClick={() => {
-            setFullTab("lyrics");
-            openFull();
-          }}
-        />
-        <Btn icon="queue" label={t.queue} on={sideQueue} alwaysPressed expanded={sideQueue} controls="studio-queue" queueToggle onClick={toggleSideQueue} />
-        <SleepTimer />
-        <Device />
-        <Volume />
-        <Btn icon="expand" label={t.fullPlayer} tipAlign="end" onClick={openFull} disabled={!track} />
+      <div className="s-player-actions min-w-0">
+        <div className="s-player-actions-inner flex w-max items-center">
+          {error && (
+            <button type="button" onClick={player.retry} title={errorText(t, error)} className="s-btn mr-1 !h-7 shrink-0 !px-2 text-[12px]">
+              {t.retry}
+            </button>
+          )}
+          <div className="s-player-group">
+            {canSend && track && !isLocalTrack(track.id) && <Btn icon="send" label={t.sendToFriends} onClick={() => openSend(track)} />}
+            {rooms && <Btn icon="users" label={t.listenTogether} on={inRoom} onClick={() => (inRoom ? !sideQueue && openSideQueue() : useRoomSheet.setState({ open: true }))} />}
+          </div>
+          <span className="s-player-sep" aria-hidden="true" />
+          <div className="s-player-group">
+            <Btn
+              icon="lyrics"
+              label={t.lyrics}
+              disabled={!track}
+              onClick={() => {
+                setFullTab("lyrics");
+                openFull();
+              }}
+            />
+            <Btn icon="queue" label={t.queue} on={sideQueue} alwaysPressed expanded={sideQueue} controls="studio-queue" queueToggle onClick={toggleSideQueue} />
+          </div>
+          <span className="s-player-sep" aria-hidden="true" />
+          <div className="s-player-group">
+            <SleepTimer />
+            <Device />
+            <Volume />
+          </div>
+          <span className="s-player-sep" aria-hidden="true" />
+          <div className="s-player-group">
+            <Btn icon="collapse" label={t.miniPlayer} onClick={() => void setMiniPlayer(true)} />
+            <Btn icon="expand" label={t.fullPlayer} tipAlign="end" onClick={openFull} disabled={!track} />
+          </div>
+        </div>
       </div>
     </footer>
   );
