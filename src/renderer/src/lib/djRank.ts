@@ -68,14 +68,24 @@ export interface DjPick {
 const SEED_WEIGHT = 1000;
 const FEEDBACK_WEIGHT = 500;
 
-/** Starting numbers for the MVP: one seed × 20 related, no artist twice in a row of three. Tune by listening. */
+/** A count from options: a finite integer ≥ `min`, or `min` when the caller passed garbage (NaN stays deterministic). */
+function asCount(value: number, min: number): number {
+  return Number.isFinite(value) ? Math.max(min, Math.floor(value)) : min;
+}
+
+/** A related-list position: a finite number ≥ 0 (garbage becomes 0, i.e. "top of the list"). */
+function asOrder(value: number): number {
+  return Number.isFinite(value) ? Math.max(0, value) : 0;
+}
+
+/** Starting numbers for the MVP: one seed × 20 related, at most 2 tracks per artist in the output. Tune by listening. */
 export const DJ_RANK_DEFAULTS = { perArtistCap: 2, limit: 20 } as const;
 
 export function rankDjCandidates(candidates: readonly DjCandidate[], options: DjRankOptions): DjPick[] {
   const seedById = new Map(options.seeds.map((s) => [s.id, s]));
   const excluded = new Set(options.exclude);
-  const perArtistCap = Math.max(1, Math.floor(options.perArtistCap));
-  const limit = Math.max(0, Math.floor(options.limit));
+  const perArtistCap = asCount(options.perArtistCap, 1);
+  const limit = asCount(options.limit, 0);
   if (!limit || candidates.length === 0) return [];
   const feedbackOn = options.feedbackOn ?? true;
   const more = feedbackOn ? new Set(options.feedback?.moreArtists ?? []) : new Set<number>();
@@ -83,16 +93,18 @@ export function rankDjCandidates(candidates: readonly DjCandidate[], options: Dj
 
   // Duplicates merged: the union of the seeds that listed the track, SoundCloud's best position for it.
   // Unknown seed ids are dropped — only real seeds count towards the score and the reason.
+  // The first-seen track object wins when two snapshots of the same id disagree (deterministic).
   const merged = new Map<number, { track: Track; via: Set<number>; order: number }>();
   for (const c of candidates) {
+    const order = asOrder(c.order);
     const prev = merged.get(c.track.id);
     if (!prev) {
       const via = new Set<number>();
       for (const s of c.viaSeeds) if (seedById.has(s)) via.add(s);
-      merged.set(c.track.id, { track: c.track, via, order: c.order });
+      merged.set(c.track.id, { track: c.track, via, order });
     } else {
       for (const s of c.viaSeeds) if (seedById.has(s)) prev.via.add(s);
-      if (c.order < prev.order) prev.order = c.order;
+      if (order < prev.order) prev.order = order;
     }
   }
 

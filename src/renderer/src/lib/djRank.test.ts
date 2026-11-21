@@ -119,6 +119,22 @@ test("paused feedback changes nothing", () => {
   assert.deepEqual(paused, plain);
 });
 
+test("no seeds: neutral reasons, SoundCloud order decides", () => {
+  const picks = rankDjCandidates([cand(makeTrack(2), [1], 1), cand(makeTrack(3), [1], 0)], { ...base, seeds: [] });
+  assert.deepEqual(picks.map((p) => p.track.id), [3, 2]);
+  assert.ok(picks.every((p) => p.why.kind === "generic"));
+});
+
+test("garbage numbers stay deterministic", () => {
+  const pool = [cand(makeTrack(2), [1], -5), cand(makeTrack(3), [1], Number.NaN)];
+  // a negative / NaN position becomes "top of the list": full tie, the smaller id wins
+  assert.deepEqual(rankDjCandidates(pool, base).map((p) => p.track.id), [2, 3]);
+  // a NaN cap falls back to 1, a NaN limit to 0
+  const sameArtist = (id: number) => cand(makeTrack(id, { user: { id: 42, username: "Same", permalinkUrl: "" } }), [1], 0);
+  assert.equal(rankDjCandidates([sameArtist(2), sameArtist(3)], { ...base, perArtistCap: Number.NaN }).length, 1);
+  assert.deepEqual(rankDjCandidates(pool, { ...base, limit: Number.NaN }), []);
+});
+
 test("deterministic: same input, same output, input untouched", () => {
   const pool = [cand(makeTrack(3), [1], 1), cand(makeTrack(2), [1], 1), cand(makeTrack(4), [1], 0)];
   const frozen = structuredClone(pool);
