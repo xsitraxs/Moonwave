@@ -107,15 +107,16 @@ export function paletteOf(source: CanvasImageSource): Palette {
   const score = (x: (typeof groups)[number]) => x.h[1] * Math.sqrt(x.n) * (1 - Math.abs(x.h[2] - 0.5));
   const vivid = [...groups].sort((a, b) => score(b) - score(a))[0]!;
   const [hue, sat] = vivid.h;
-  // grey or nearly black pictures keep the default violet accent
-  const accent = sat < 0.12 ? DEFAULT.accent : rgb([hue, Math.min(0.62, Math.max(0.42, sat)), 0.66]);
+  // grey or nearly black pictures keep the default violet accent. Saturation and lightness are clamped so the
+  // background never turns muddy olive or neon: the accent stays quiet, the field stays dark and muted.
+  const accent = sat < 0.12 ? DEFAULT.accent : rgb([hue, Math.min(0.5, Math.max(0.35, sat)), 0.66]);
   const baseHue = sat < 0.12 ? 0.72 : hue;
-  const baseSat = sat < 0.12 ? 0.34 : Math.min(0.55, Math.max(0.24, sat * 0.85));
+  const baseSat = sat < 0.12 ? 0.3 : Math.min(0.4, Math.max(0.2, sat * 0.7));
   const field = groups.map(({ h: [hh, ss, ll] }, idx) => {
     const tinted = ss < 0.14;
     const fh = tinted ? (baseHue + idx * 0.04) % 1 : hh;
-    const fs = tinted ? baseSat * (0.55 + (idx % 3) * 0.1) : Math.min(0.62, ss * 0.9);
-    const fl = Math.min(0.38, Math.max(0.14, ll * 0.82));
+    const fs = tinted ? baseSat * (0.55 + (idx % 3) * 0.1) : Math.min(0.42, ss * 0.75);
+    const fl = Math.min(0.32, Math.max(0.16, ll * 0.75));
     return rgb([fh, fs, fl]);
   });
   while (field.length < 5) field.push(rgb([(baseHue + field.length * 0.06) % 1, baseSat * 0.65, 0.22]));
@@ -176,9 +177,15 @@ let job = 0;
 async function update() {
   const look = useSettings.getState().prefs.look;
   const t: Track | undefined = usePlayer.getState().queue[usePlayer.getState().index];
-  const picture =
-    look.bg === "file" && look.bgFile ? `${look.bgFileType}:${bgUrl(look.bgFile)}` : t?.artworkUrl ? `image:${artwork(t.artworkUrl, "t300x300")}` : "";
-  const next = `${look.accent}|${picture}`;
+  // neutral background: no cover colours at all — the graphite default stays whatever plays
+  const picture = look.neutralBg
+    ? ""
+    : look.bg === "file" && look.bgFile
+      ? `${look.bgFileType}:${bgUrl(look.bgFile)}`
+      : t?.artworkUrl
+        ? `image:${artwork(t.artworkUrl, "t300x300")}`
+        : "";
+  const next = `${look.accent}|${look.neutralBg ? "neutral" : picture}`;
   if (next === source) return;
   source = next;
   const mine = ++job;

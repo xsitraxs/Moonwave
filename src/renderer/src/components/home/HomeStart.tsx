@@ -1,6 +1,6 @@
 import { artwork, type Track } from "@shared/types";
 import Icon from "@/components/ui/Icon";
-import { useT } from "@/i18n";
+import { useT, numberLocale } from "@/i18n";
 import { formatGreeting, greetingKey } from "@/lib/homeHelpers";
 import { duration } from "@/lib/format";
 import { useNav } from "@/state/nav";
@@ -29,8 +29,9 @@ function HeroProgress({ active, durationMs }: { active: boolean; durationMs: num
 }
 
 /**
- * The first screenful of Home: H1 time-of-day greeting and a single prominent hero card for continuing playback
- * (or starting with search when history is empty). No duplicate sidebar quick-access tiles.
+ * The first screenful of Home: H1 time-of-day greeting with a date subtitle, and a compact now-playing strip
+ * (cover, title, progress, play — the full player is the bar below, not a second copy). The strip's right side
+ * shows what's next in the queue. Guests get three tiles instead of a dead hero.
  */
 export function HomeStart({ name, signedIn }: { name?: string; signedIn: boolean }) {
   const t = useT();
@@ -39,6 +40,9 @@ export function HomeStart({ name, signedIn }: { name?: string; signedIn: boolean
   const current = useCurrentTrack();
   const status = usePlayer((s) => s.status);
   const history = useSettings((s) => s.history);
+  const progress = useSettings((s) => s.trackProgress);
+  const queue = usePlayer((s) => s.queue);
+  const index = usePlayer((s) => s.index);
   const openFull = useUi((s) => s.openFull);
 
   const heroTrack: Track | null = current ?? history[0] ?? null;
@@ -46,10 +50,12 @@ export function HomeStart({ name, signedIn }: { name?: string; signedIn: boolean
   const playing = isCurrent && (status === "playing" || status === "loading");
   const coverSrc = heroTrack?.artworkUrl ? artwork(heroTrack.artworkUrl, "t300x300") : null;
   const hello = formatGreeting(t[greetingKey(new Date().getHours())], name);
+  const dateLine = new Intl.DateTimeFormat(numberLocale(), { weekday: "long", day: "numeric", month: "long" }).format(new Date());
+  const nextTrack = isCurrent ? (queue[index + 1] ?? null) : null;
 
   const onPlay = () => {
     if (isCurrent) player.toggle();
-    else if (history.length) player.playFrom(history, 0, STATIC);
+    else if (history.length) player.playFrom(history, 0, STATIC, progress[`t:${history[0]!.id}`]);
     else goTo("search", { name: "search" });
   };
 
@@ -65,6 +71,7 @@ export function HomeStart({ name, signedIn }: { name?: string; signedIn: boolean
     <section className="home-start" aria-label={t.homeStartLabel}>
       <header className="home-start-head">
         <h1 className="home-start-title">{hello}</h1>
+        <p className="home-start-sub">{dateLine}</p>
       </header>
 
       {heroTrack ? (
@@ -83,7 +90,7 @@ export function HomeStart({ name, signedIn }: { name?: string; signedIn: boolean
                 className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
               />
             ) : (
-              <Icon name="disc" size={40} className="text-muted" />
+              <Icon name="disc" size={28} className="text-muted" />
             )}
           </button>
 
@@ -122,11 +129,30 @@ export function HomeStart({ name, signedIn }: { name?: string; signedIn: boolean
               )}
             </div>
           </div>
+
+          {nextTrack && (
+            <div className="home-hero-next">
+              <span className="block h-10 w-10 shrink-0 overflow-hidden rounded-[var(--r2)] bg-white/[0.06]">
+                {nextTrack.artworkUrl ? (
+                  <img src={artwork(nextTrack.artworkUrl, "large") ?? undefined} alt="" loading="lazy" draggable={false} className="h-full w-full object-cover" />
+                ) : (
+                  <span className="stipple-night block h-full w-full" />
+                )}
+              </span>
+              <span className="min-w-0">
+                <span className="block text-[12px] font-semibold uppercase tracking-wider text-[var(--s-dim)]">{t.nextInQueue}</span>
+                <span className="block truncate text-[13px] font-medium text-text" title={nextTrack.title}>
+                  {nextTrack.title}
+                </span>
+                <span className="block truncate text-[12px] text-muted">{nextTrack.artist}</span>
+              </span>
+            </div>
+          )}
         </div>
       ) : (
         <div className="home-hero">
           <div className="home-hero-cover">
-            <Icon name="search" size={36} className="text-muted" />
+            <Icon name="search" size={28} className="text-muted" />
           </div>
           <div className="home-hero-body">
             <div>
@@ -141,6 +167,32 @@ export function HomeStart({ name, signedIn }: { name?: string; signedIn: boolean
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {!signedIn && (
+        <div className="home-guest-tiles">
+          <button type="button" onClick={() => goTo("signin", { name: "signin" })} className="home-guest-tile">
+            <Icon name="user" size={22} className="shrink-0 text-[var(--accent)]" />
+            <span className="min-w-0">
+              <span className="block break-words text-[14px] font-semibold text-text">{t.guestSignInTitle}</span>
+              <span className="block break-words text-[12px] text-muted">{t.guestSignInText}</span>
+            </span>
+          </button>
+          <button type="button" onClick={() => goTo("search", { name: "search" })} className="home-guest-tile">
+            <Icon name="sparkle" size={22} className="shrink-0 text-[var(--accent)]" />
+            <span className="min-w-0">
+              <span className="block break-words text-[14px] font-semibold text-text">{t.guestPopularTitle}</span>
+              <span className="block break-words text-[12px] text-muted">{t.guestPopularText}</span>
+            </span>
+          </button>
+          <button type="button" onClick={() => go({ name: "import" })} className="home-guest-tile">
+            <Icon name="copy" size={22} className="shrink-0 text-[var(--accent)]" />
+            <span className="min-w-0">
+              <span className="block break-words text-[14px] font-semibold text-text">{t.guestImportTitle}</span>
+              <span className="block break-words text-[12px] text-muted">{t.guestImportText}</span>
+            </span>
+          </button>
         </div>
       )}
     </section>

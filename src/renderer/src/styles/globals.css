@@ -15,6 +15,18 @@
   --blood: #9b1111;
   --text: #ece7ff;
   --muted: #a79ed0;
+  /* text scale (WCAG AA on the dark panels): primary for titles, secondary for body, tertiary for meta only.
+     Secondary and tertiary are light enough to stay ≥ 4.5:1 even over a tinted glass background. */
+  --text-primary: #f4f4f7;
+  --text-secondary: #c9c9d4;
+  --text-tertiary: #b4b6c2;
+  /* three surface levels: page, panel, elevated (menus/dialogs) */
+  --surface-1: #07050d;
+  --surface-2: #0e0e11;
+  --surface-3: #17171c;
+  /* the only two radii (plus 999px for pills/circles) */
+  --r: 10px;
+  --r2: 7px;
   --ink: #000000;
   --paper: #1b1336;
   --tape: rgba(242, 220, 26, 0.28);

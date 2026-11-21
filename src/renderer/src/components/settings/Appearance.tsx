@@ -64,6 +64,9 @@ export default function Appearance() {
       <Row label={t.bgReact} hint={look.bgReact ? `${look.bgReact}%` : t.bgReactOff}>
         <Slider value={look.bgReact} min={0} max={100} step={1} onChange={(v) => set({ bgReact: v })} label={t.bgReact} />
       </Row>
+      <Row label={t.neutralBg} hint={t.neutralBgHint}>
+        <Toggle on={look.neutralBg} onChange={(v) => set({ neutralBg: v })} label={t.neutralBg} />
+      </Row>
       <Row label={t.surface} hint={t.surfaceHint}>
         <Choice<"default" | "own">
           value={look.surface ? "own" : "default"}

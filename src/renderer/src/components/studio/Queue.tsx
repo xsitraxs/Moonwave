@@ -129,7 +129,7 @@ export function QueueList({ showCurrent = true }: { showCurrent?: boolean } = {}
       )}
       <div className={`s-lbl mx-1.5 mb-1 flex ${showCurrent ? "mt-4" : "mt-1"}`}>
         {t.upNext}
-        {more > 0 && <span className="ml-auto normal-case tracking-normal text-[11px]">{t.moreCount(more)}</span>}
+        {more > 0 && <span className="ml-auto normal-case tracking-normal text-[12px]">{t.moreCount(more)}</span>}
       </div>
       {upcoming.length ? (
         <ol>
@@ -234,10 +234,10 @@ export function QueuePanel({ showCurrent = true }: { showCurrent?: boolean }) {
       </div>
       {tab === "next" && hasUpcoming && (
         <div className="mx-1 -mt-1 mb-2 flex items-center gap-3">
-          <button type="button" onClick={player.clearUpcoming} className="text-[11px] text-[var(--s-dim)] hover:text-text">
+          <button type="button" onClick={player.clearUpcoming} className="text-[12px] text-[var(--s-dim)] hover:text-text">
             {t.clearQueue}
           </button>
-          <button type="button" onClick={() => void saveQueue()} title={t.saveQueueHint} className="text-[11px] text-[var(--s-dim)] hover:text-text">
+          <button type="button" onClick={() => void saveQueue()} title={t.saveQueueHint} className="text-[12px] text-[var(--s-dim)] hover:text-text">
             {t.saveQueue}
           </button>
         </div>

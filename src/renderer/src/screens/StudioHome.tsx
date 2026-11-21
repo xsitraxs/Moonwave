@@ -1,24 +1,26 @@
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { artwork, type Track } from "@shared/types";
-import { useFeed, usePlaylists } from "@/api/queries";
+import { useFeed, usePlaylists, useRelated } from "@/api/queries";
 import { HomeStart } from "@/components/home/HomeStart";
 import { Avatar, when } from "@/components/social/bits";
 import Icon from "@/components/ui/Icon";
 import { Screen } from "@/components/ui/Screen";
+import { ErrorState } from "@/components/ui/States";
 import { useT } from "@/i18n";
 import { dedupeRecentByAlbum } from "@/lib/homeHelpers";
 import { useVisibleTracks } from "@/lib/hidden";
 import { call } from "@/lib/sky";
 import { useAuth } from "@/state/auth";
+import { useCanLike, useLiked, toggleLike } from "@/state/likes";
 import { useNav } from "@/state/nav";
-import { useCurrentTrack, player, usePlayer } from "@/state/player";
+import { inRoom, useCurrentTrack, player, usePlayer, usePosition } from "@/state/player";
 import { useSettings } from "@/state/settings";
 import { playShared, playSharedPlaylist, useSocial } from "@/state/social";
 import { useUi } from "@/state/ui";
 import { startStation } from "./Library";
+import { localKey } from "./Local";
 
-type Filter = "all" | "tracks" | "playlists" | "stations";
 const STATIC = { kind: "static" } as const;
 
 function Cover({ url, size }: { url: string | null; size: number }) {
@@ -48,40 +50,95 @@ function Heading({ title, action, onAction }: { title: string; action?: string; 
   );
 }
 
-function Card({ cover, title, sub, on, playing, onClick }: { cover: string | null; title: string; sub: string; on?: boolean; playing?: boolean; onClick: () => void }) {
+/** Playback progress on the card of the track that is playing now. */
+function CardProgress() {
+  const position = usePosition((s) => s.position);
+  const durationS = usePlayer((s) => s.duration);
+  const pct = durationS > 0 ? Math.max(0, Math.min(100, (position / durationS) * 100)) : 0;
   return (
-    <button type="button" onClick={onClick} title={`${title} — ${sub}`} className="group min-w-0 text-left">
-      <span className="relative block aspect-square overflow-hidden rounded-[var(--r2)] bg-white/[0.06] ring-1 ring-inset ring-white/[0.06] transition-all duration-200 group-hover:ring-white/20">
-        {cover ? (
-          <img
-            src={artwork(cover, "t300x300") ?? undefined}
-            alt=""
-            loading="lazy"
-            decoding="async"
-            draggable={false}
-            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
-          />
-        ) : (
-          <span className="stipple-night block h-full w-full" />
-        )}
-        <span aria-hidden="true" className="absolute inset-0 bg-black/25 opacity-0 transition-opacity motion-color group-hover:opacity-100 group-focus-visible:opacity-100" />
+    <span className="home-card-progress" aria-hidden="true">
+      <i style={{ width: `${pct}%` }} />
+    </span>
+  );
+}
+
+function Card({ cover, title, sub, on, playing, badge, track, progress, onClick }: { cover: string | null; title: string; sub: string; on?: boolean; playing?: boolean; badge?: string; track?: Track; progress?: number; onClick: () => void }) {
+  const t = useT();
+  const liked = useLiked(track?.id);
+  const canLike = useCanLike();
+  const openMenu = useUi((s) => s.openMenu);
+  return (
+    <div className="home-card group min-w-0">
+      <div className="relative block aspect-square overflow-hidden rounded-[var(--r2)] bg-white/[0.06] ring-1 ring-inset ring-white/[0.06] transition-all duration-200 group-hover:ring-white/20">
+        <button type="button" onClick={onClick} aria-label={`${title} — ${sub}`} className="block h-full w-full cursor-pointer">
+          {cover ? (
+            <img
+              src={artwork(cover, "t300x300") ?? undefined}
+              alt=""
+              loading="lazy"
+              decoding="async"
+              draggable={false}
+              className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+            />
+          ) : (
+            <span className="stipple-night block h-full w-full" />
+          )}
+        </button>
+        <span aria-hidden="true" className="pointer-events-none absolute inset-0 bg-black/25 opacity-0 transition-opacity motion-color group-hover:opacity-100 group-focus-within:opacity-100" />
+        {badge && <span className="home-card-badge">{badge}</span>}
+        {on ? <CardProgress /> : progress !== undefined && progress > 0 && <span className="home-card-progress" aria-hidden="true"><i style={{ width: `${Math.min(100, progress * 100)}%` }} /></span>}
         <span
-          className={`s-pp absolute bottom-2.5 right-2.5 h-9 w-9 shadow-md transition-all duration-200 ${
-            on ? "opacity-100" : "translate-y-1 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 group-focus-visible:translate-y-0 group-focus-visible:opacity-100"
+          aria-hidden="true"
+          className={`s-pp pointer-events-none absolute bottom-2.5 right-2.5 h-9 w-9 shadow-md transition-all duration-200 ${
+            on ? "opacity-100" : "translate-y-1 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:translate-y-0 group-focus-within:opacity-100"
           }`}
         >
           <Icon name={on && playing ? "pause" : "play"} size={18} />
         </span>
-      </span>
-      <span className="mt-2.5 block truncate text-[15px] font-semibold leading-[1.35] text-text transition-colors motion-color group-hover:text-white">
-        {title}
-      </span>
+        {track && (
+          <button
+            type="button"
+            aria-label={t.moreActions}
+            title={t.moreActions}
+            onClick={(event) => {
+              const rect = event.currentTarget.getBoundingClientRect();
+              openMenu(rect.left, rect.bottom, track);
+            }}
+            className="absolute bottom-2 left-2 grid h-9 w-9 place-items-center rounded-full bg-black/65 text-white opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
+          >
+            <span aria-hidden="true" className="text-xl leading-none">⋯</span>
+          </button>
+        )}
+        {track && canLike && (
+          <button
+            type="button"
+            onClick={() => void toggleLike(track)}
+            aria-label={liked ? t.unlike : t.like}
+            aria-pressed={liked}
+            title={liked ? t.unlike : t.like}
+            className={`absolute right-2 top-2 grid h-8 w-8 place-items-center rounded-full backdrop-blur-md transition-all duration-200 ${
+              liked ? "bg-black/55 text-[var(--accent)] opacity-100" : "bg-black/55 text-white opacity-0 hover:text-[var(--accent)] group-hover:opacity-100 group-focus-within:opacity-100"
+            }`}
+          >
+            <Icon name="heart" size={16} filled={liked} />
+          </button>
+        )}
+      </div>
+      <button type="button" onClick={onClick} title={`${title} — ${sub}`} className="mt-2.5 block w-full text-left">
+        <span className="home-card-title block text-[15px] font-semibold leading-[1.35] text-text transition-colors motion-color group-hover:text-white">
+          {title}
+        </span>
+      </button>
       <span className="mt-0.5 block truncate text-[13px] font-normal leading-[1.4] text-muted">{sub}</span>
-    </button>
+    </div>
   );
 }
 
-function Carousel({ children }: { children: ReactNode }) {
+/**
+ * A home row: heading with carousel arrows and an optional "show all" action, cards scrolling under it
+ * (scroll-snap, fade mask, no native scrollbar — home.css).
+ */
+function Row({ title, action, onAction, children }: { title: string; action?: string; onAction?: () => void; children: ReactNode }) {
   const t = useT();
   const ref = useRef<HTMLDivElement>(null);
   const [canPrev, setCanPrev] = useState(false);
@@ -111,39 +168,71 @@ function Carousel({ children }: { children: ReactNode }) {
   };
 
   return (
-    <div className="group/row relative">
+    <section className="mb-7">
+      <div className="mb-3.5 flex items-center gap-2">
+        <h2 className="text-[20px] font-semibold leading-[1.25] tracking-[-0.015em] text-text">{title}</h2>
+        <span className="ml-auto flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => step(-1)}
+            disabled={!canPrev}
+            aria-label={t.previous}
+            className="grid h-7 w-7 place-items-center rounded-full text-muted transition-colors motion-color hover:bg-white/[0.07] hover:text-text disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-muted"
+          >
+            <Icon name="back" size={16} />
+          </button>
+          <button
+            type="button"
+            onClick={() => step(1)}
+            disabled={!canNext}
+            aria-label={t.next}
+            className="grid h-7 w-7 place-items-center rounded-full text-muted transition-colors motion-color hover:bg-white/[0.07] hover:text-text disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-muted"
+          >
+            <Icon name="forward" size={16} />
+          </button>
+          {action && onAction && (
+            <button
+              type="button"
+              onClick={onAction}
+              className="group ml-1 inline-flex items-center gap-1 text-[13px] font-medium text-muted transition-colors motion-color hover:text-text"
+            >
+              <span>{action}</span>
+              <Icon name="forward" size={16} className="transition-transform motion-color group-hover:translate-x-0.5" />
+            </button>
+          )}
+        </span>
+      </div>
       <div ref={ref} className="home-carousel">
         {children}
       </div>
-      {canPrev && (
-        <button
-          type="button"
-          onClick={() => step(-1)}
-          aria-label={t.previous}
-          className="absolute left-1.5 top-[calc(50%-26px)] z-10 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-full border border-[var(--s-line2)] bg-black/75 text-text opacity-0 backdrop-blur-md transition-opacity motion-color hover:bg-black/90 focus-visible:opacity-100 group-hover/row:opacity-100"
-        >
-          <Icon name="back" size={16} />
-        </button>
-      )}
-      {canNext && (
-        <button
-          type="button"
-          onClick={() => step(1)}
-          aria-label={t.next}
-          className="absolute right-1.5 top-[calc(50%-26px)] z-10 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-full border border-[var(--s-line2)] bg-black/75 text-text opacity-0 backdrop-blur-md transition-opacity motion-color hover:bg-black/90 focus-visible:opacity-100 group-hover/row:opacity-100"
-        >
-          <Icon name="forward" size={16} />
-        </button>
-      )}
-    </div>
+    </section>
   );
 }
 
-function TrackCarousel({ tracks }: { tracks: Track[] }) {
+function RowLoading({ title }: { title: string }) {
+  const t = useT();
+  return (
+    <section className="mb-7" aria-label={title} aria-busy="true">
+      <Heading title={title} />
+      <span className="sr-only">{t.loadingMore}</span>
+      <div className="home-carousel" aria-hidden="true">
+        {[0, 1, 2, 3, 4].map((i) => <div key={i}><div className="skeleton aspect-square rounded-[var(--r2)]" /><div className="skeleton mt-3 h-4 w-3/4 rounded" /></div>)}
+      </div>
+    </section>
+  );
+}
+
+function RowError({ title, error, retry }: { title: string; error: unknown; retry: () => void }) {
+  return <section className="mb-7"><Heading title={title} /><ErrorState compact error={error} onRetry={retry} /></section>;
+}
+
+function TrackCards({ tracks, resume = false }: { tracks: Track[]; resume?: boolean }) {
+  const t = useT();
+  const savedProgress = useSettings((s) => s.trackProgress);
   const currentId = usePlayer((s) => s.queue[s.index]?.id ?? null);
   const playing = usePlayer((s) => s.status === "playing" || s.status === "loading");
   return (
-    <Carousel>
+    <>
       {tracks.map((tr, i) => (
         <Card
           key={tr.id}
@@ -152,10 +241,33 @@ function TrackCarousel({ tracks }: { tracks: Track[] }) {
           sub={tr.artist}
           on={tr.id === currentId}
           playing={playing}
-          onClick={() => (tr.id === currentId ? player.toggle() : player.playFrom(tracks, i, STATIC))}
+          badge={tr.id === currentId ? t.nowPlaying : undefined}
+          track={tr}
+          progress={resume && tr.durationMs > 0 ? (savedProgress[`t:${tr.id}`] ?? 0) / (tr.durationMs / 1000) : undefined}
+          onClick={() => {
+            if (tr.id === currentId) return player.toggle();
+            const position = resume && !inRoom() ? savedProgress[`t:${tr.id}`] : undefined;
+            const startAt = position && Number.isFinite(position) && position > 0 && position < tr.durationMs / 1000 - 5 ? position : undefined;
+            player.playFrom(tracks, i, STATIC, startAt);
+          }}
         />
       ))}
-    </Carousel>
+    </>
+  );
+}
+
+/** Tracks like the one playing now: the row that fills the space under the hero. */
+function SimilarRow({ current }: { current: Track }) {
+  const t = useT();
+  const q = useRelated(current.id);
+  const tracks = useVisibleTracks(q.data ?? []).slice(0, 12);
+  if (q.isPending) return <RowLoading title={t.similarToPlaying} />;
+  if (q.isError && !q.data) return <RowError title={t.similarToPlaying} error={q.error} retry={() => void q.refetch()} />;
+  if (!tracks.length) return null;
+  return (
+    <Row title={t.similarToPlaying}>
+      <TrackCards tracks={tracks} />
+    </Row>
   );
 }
 
@@ -171,29 +283,26 @@ function FriendsListening() {
   if (!list.length) return null;
   const name = (code: string) => friends?.find((f) => f.code === code)?.name || code;
   return (
-    <section className="mb-7">
-      <Heading title={t.friendsListening} />
-      <Carousel>
-        {list.map(([code, tr], i) => (
-          <Card
-            key={code}
-            cover={tr.artworkUrl}
-            title={tr.title}
-            sub={name(code)}
-            on={tr.id === currentId}
-            playing={playing}
-            onClick={() =>
-              tr.id === currentId
-                ? player.toggle()
-                : void playShared(
-                    list.map((x) => x[1]),
-                    i,
-                  ).catch(() => toast(t.trackGone))
-            }
-          />
-        ))}
-      </Carousel>
-    </section>
+    <Row title={t.friendsListening}>
+      {list.map(([code, tr], i) => (
+        <Card
+          key={code}
+          cover={tr.artworkUrl}
+          title={tr.title}
+          sub={name(code)}
+          on={tr.id === currentId}
+          playing={playing}
+          onClick={() =>
+            tr.id === currentId
+              ? player.toggle()
+              : void playShared(
+                  list.map((x) => x[1]),
+                  i,
+                ).catch(() => toast(t.trackGone))
+          }
+        />
+      ))}
+    </Row>
   );
 }
 
@@ -213,10 +322,9 @@ function ScListening() {
   const tracks = useVisibleTracks(ordered).slice(0, 12);
   if (!tracks.length) return null;
   return (
-    <section className="mb-7">
-      <Heading title={t.scListening} />
-      <TrackCarousel tracks={tracks} />
-    </section>
+    <Row title={t.scListening}>
+      <TrackCards tracks={tracks} />
+    </Row>
   );
 }
 
@@ -283,23 +391,35 @@ function NewInFeed({ onShowAll }: { onShowAll: () => void }) {
   const q = useFeed(true);
   const all = useMemo(() => q.data?.pages.flatMap((p) => p.items) ?? [], [q.data]);
   const tracks = useVisibleTracks(all).slice(0, 14);
+  if (q.isPending) return <RowLoading title={t.newInFeed} />;
+  if (q.isError && !q.data) return <RowError title={t.newInFeed} error={q.error} retry={() => void q.refetch()} />;
   if (!tracks.length) return null;
   return (
-    <section className="mb-7">
-      <Heading title={t.newInFeed} action={t.showAll} onAction={onShowAll} />
-      <TrackCarousel tracks={tracks} />
-    </section>
+    <Row title={t.newInFeed} action={t.showAll} onAction={onShowAll}>
+      <TrackCards tracks={tracks} />
+    </Row>
   );
 }
 
-/** Studio home: single hero block on top, consistent cover carousels below. */
+/** Local library is already sorted by date added, newest first. */
+function RecentlyAddedLocal() {
+  const t = useT();
+  const open = useNav((s) => s.open);
+  const q = useQuery({ queryKey: localKey, queryFn: () => call("local:list") });
+  const tracks = useVisibleTracks(q.data ?? []).slice(0, 12);
+  if (q.isPending) return <RowLoading title={t.recentlyAddedLocal} />;
+  if (q.isError && !q.data) return <RowError title={t.recentlyAddedLocal} error={q.error} retry={() => void q.refetch()} />;
+  if (!tracks.length) return null;
+  return <Row title={t.recentlyAddedLocal} action={t.showAll} onAction={() => open("local", { name: "local" })}><TrackCards tracks={tracks} /></Row>;
+}
+
+/** Studio home: compact hero on top, rows of carousels below — no filter chips, no dead space. */
 export default function StudioHome() {
   const t = useT();
   const open = useNav((s) => s.open);
   const go = useNav((s) => s.go);
   const auth = useAuth((s) => s.status);
   const signedIn = auth?.mode === "session";
-  const [filter, setFilter] = useState<Filter>("all");
   const history = useSettings((s) => s.history);
   const current = useCurrentTrack();
   const visibleHistory = useVisibleTracks(history);
@@ -313,66 +433,43 @@ export default function StudioHome() {
   }, [current, history]);
   const toast = useUi((s) => s.showToast);
 
-  const filters: [Filter, string][] = [
-    ["all", t.all],
-    ["tracks", t.tracksTab],
-    ["playlists", t.playlists],
-    ["stations", t.stations],
-  ];
-
   return (
     <Screen label={t.home}>
       <HomeStart name={auth?.mode === "session" ? auth.user?.username : undefined} signedIn={signedIn} />
 
-      <div className="mb-5 flex items-center gap-3">
-        <div className="s-seg" role="tablist">
-          {filters.map(([k, label]) => (
-            <button key={k} type="button" role="tab" aria-selected={filter === k} className={filter === k ? "on" : ""} onClick={() => setFilter(k)}>
-              {label}
-            </button>
+      {recent.length > 0 && (
+        <Row title={t.jumpBackIn} action={t.showAll} onAction={() => open("history", { name: "history" })}>
+          <TrackCards tracks={recent} resume />
+        </Row>
+      )}
+
+      {current && <SimilarRow current={current} />}
+
+      {signedIn && <NewInFeed onShowAll={() => open("feed", { name: "feed" })} />}
+
+      <RecentlyAddedLocal />
+
+      {signedIn && pq.isPending && <RowLoading title={t.playlists} />}
+      {signedIn && pq.isError && !pq.data && <RowError title={t.playlists} error={pq.error} retry={() => void pq.refetch()} />}
+      {playlists.length > 0 && (
+        <Row title={t.playlists} action={t.showAll} onAction={() => open("playlists", { name: "playlists" })}>
+          {playlists.slice(0, 12).map((p) => (
+            <Card key={`${p.id}-${p.relation}`} cover={p.artworkUrl} title={p.title} sub={t.tracks(p.trackCount)} onClick={() => go({ name: "playlist", id: p.id })} />
           ))}
-        </div>
-      </div>
-
-      {(filter === "all" || filter === "tracks") && recent.length > 0 && (
-        <section className="mb-7">
-          <Heading title={t.jumpBackIn} action={t.showAll} onAction={() => open("history", { name: "history" })} />
-          <TrackCarousel tracks={recent} />
-        </section>
+        </Row>
       )}
 
-      {(filter === "all" || filter === "tracks") && (
-        <>
-          <FriendsListening />
-          <ScListening />
-        </>
+      {seeds.length > 0 && (
+        <Row title={t.stations} action={t.showAll} onAction={() => open("stations", { name: "stations" })}>
+          {seeds.map((s) => (
+            <Card key={s.id} cover={s.artworkUrl} title={t.stationOf(s.title)} sub={t.basedOnTrack} onClick={() => void startStation(s).catch(() => toast(t.stationFailed))} />
+          ))}
+        </Row>
       )}
 
-      {filter === "all" && <FromFriends />}
-
-      {(filter === "all" || filter === "tracks") && signedIn && <NewInFeed onShowAll={() => open("feed", { name: "feed" })} />}
-
-      {filter === "playlists" && (
-        <section className="mb-7">
-          <Heading title={t.playlists} action={t.showAll} onAction={() => open("playlists", { name: "playlists" })} />
-          <div className="grid grid-cols-[repeat(auto-fill,minmax(148px,1fr))] gap-x-4 gap-y-6">
-            {playlists.slice(0, 24).map((p) => (
-              <Card key={`${p.id}-${p.relation}`} cover={p.artworkUrl} title={p.title} sub={t.tracks(p.trackCount)} onClick={() => go({ name: "playlist", id: p.id })} />
-            ))}
-          </div>
-        </section>
-      )}
-
-      {filter === "stations" && (
-        <section className="mb-7">
-          <Heading title={t.stations} action={t.showAll} onAction={() => open("stations", { name: "stations" })} />
-          <div className="grid grid-cols-[repeat(auto-fill,minmax(148px,1fr))] gap-x-4 gap-y-6">
-            {seeds.map((s) => (
-              <Card key={s.id} cover={s.artworkUrl} title={t.stationOf(s.title)} sub={t.basedOnTrack} onClick={() => void startStation(s).catch(() => toast(t.stationFailed))} />
-            ))}
-          </div>
-        </section>
-      )}
+      <FriendsListening />
+      <ScListening />
+      <FromFriends />
     </Screen>
   );
 }

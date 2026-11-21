@@ -174,6 +174,8 @@ export interface ThemeLook {
   bgReact: number;
   panelOpacity: number;
   panelBlur: number;
+  /** neutral background (no cover colours); missing in themes published before it existed */
+  neutralBg?: boolean;
   /** "#rrggbb", or "" = from the cover */
   accent: string;
   /** the interface colour "#rrggbb", or "" = graphite (missing in themes published before it existed) */
@@ -240,6 +242,7 @@ export function cleanThemeLook(v: unknown, fallback: ThemeLook): ThemeLook {
     bgReact: num(l.bgReact, 0, 100, fallback.bgReact),
     panelOpacity: num(l.panelOpacity, 10, 100, fallback.panelOpacity),
     panelBlur: num(l.panelBlur, 0, 60, fallback.panelBlur),
+    neutralBg: typeof l.neutralBg === "boolean" ? l.neutralBg : (fallback.neutralBg ?? false),
     accent: colour(l.accent),
     surface: colour(l.surface),
   };

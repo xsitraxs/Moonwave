@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
 import type { Track } from "@shared/types";
 import { useWaveform } from "@/api/queries";
-import { currentTime } from "@/audio/engine";
+import { bufferedEnd, currentTime } from "@/audio/engine";
 import { useT } from "@/i18n";
 import { getActivity, subscribeActivity } from "@/lib/activity";
 import { duration as fmt } from "@/lib/format";
@@ -143,18 +143,27 @@ export default function Waveform({ track, height = 44, big = false, white = fals
       dirty = true;
     };
 
+    let lastBufX = -1;
     const frame = (now: number) => {
       raf = 0;
       const { playing: moving, durationS: total } = live.current;
       if (now - lastFrame >= FRAME_MS || dirty) {
         const time = drag.current ?? currentTime();
         const x = Math.round(total > 0 ? (Math.min(time, total) / total) * w : 0);
-        if (x !== lastX || dirty) {
+        const buf = bufferedEnd();
+        const bufX = total > 0 && buf > 0 ? Math.round((Math.min(buf, total) / total) * w) : 0;
+        if (x !== lastX || bufX !== lastBufX || dirty) {
           lastX = x;
+          lastBufX = bufX;
           lastFrame = now;
           dirty = false;
           ctx.clearRect(0, 0, w, h);
           ctx.drawImage(rest, 0, 0);
+          // buffered ahead of the playhead: a lighter wash so a stall is visible before it happens
+          if (bufX > x) {
+            ctx.fillStyle = "rgba(255,255,255,0.14)";
+            ctx.fillRect(x, 0, bufX - x, h);
+          }
           if (x > 0) ctx.drawImage(played, 0, 0, x, h, 0, 0, x, h);
           if (x > 0) {
             // playhead: a thin glowing line across the whole height

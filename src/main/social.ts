@@ -352,7 +352,7 @@ export async function wsGet(id: string): Promise<WsThemeFull> {
 }
 
 function themeLook(l: Look): ThemeLook {
-  return { design: l.design, bg: l.bg, bgBlur: l.bgBlur, bgDim: l.bgDim, bgReact: l.bgReact, panelOpacity: l.panelOpacity, panelBlur: l.panelBlur, accent: l.accent, surface: l.surface };
+  return { design: l.design, bg: l.bg, bgBlur: l.bgBlur, bgDim: l.bgDim, bgReact: l.bgReact, panelOpacity: l.panelOpacity, panelBlur: l.panelBlur, neutralBg: l.neutralBg, accent: l.accent, surface: l.surface };
 }
 
 /** The picture of the look a theme is shown with: taken while the page has stepped aside (the background shows). */

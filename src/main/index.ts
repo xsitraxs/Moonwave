@@ -49,7 +49,7 @@ import { createTray, showWindow, updateTray } from "./system/tray";
 import { updateThumbar } from "./system/thumbar";
 import { previewTrackPopup, trackPopup } from "./system/track-popup";
 import * as updater from "./system/updater";
-import { createMainWindow, isAppUrl, send } from "./windows/main-window";
+import { createMainWindow, isAppUrl, send, setMiniWindow } from "./windows/main-window";
 
 let main: BrowserWindow | null = null;
 let quitting = false;
@@ -647,6 +647,10 @@ function registerIpc() {
   handle("win:toggleMaximize", () => {
     if (main?.isMaximized()) main.unmaximize();
     else main?.maximize();
+  });
+  handle("win:mini", (_e, enabled) => {
+    if (typeof enabled !== "boolean" || !main || main.isDestroyed()) bad("mini");
+    setMiniWindow(main!, enabled);
   });
   handle("win:close", () => main?.close());
 

@@ -4,6 +4,8 @@ import { enter } from "@/lib/motion";
 import SvgDefs from "@/components/deco/SvgDefs";
 import NowPlaying from "@/components/player/NowPlaying";
 import AppearancePopover from "@/components/studio/AppearancePopover";
+import HotkeysModal from "@/components/studio/HotkeysModal";
+import MiniPlayer from "@/components/studio/MiniPlayer";
 import StudioPlayerBar from "@/components/studio/PlayerBar";
 import StudioQueue from "@/components/studio/Queue";
 import StudioSidebar from "@/components/studio/Sidebar";
@@ -35,6 +37,7 @@ import Toast from "@/components/ui/Toast";
 import PlaylistPicker from "@/components/tracks/PlaylistPicker";
 import CheckDialog from "@/components/CheckDialog";
 import SharingPrompt from "@/components/SharingPrompt";
+import Onboarding from "@/components/Onboarding";
 import Dialog from "@/components/Dialog";
 import { useNav, type Route } from "@/state/nav";
 
@@ -99,6 +102,9 @@ export default function App() {
   const full = useUi((s) => s.fullOpen);
   const queuePhase = useUi((s) => s.queuePhase);
   const posing = useUi((s) => s.posing);
+  const collapsed = useUi((s) => s.sidebarCollapsed);
+  const mini = useUi((s) => s.miniPlayer);
+  if (mini) return <MotionConfig reducedMotion="user"><SvgDefs /><MiniPlayer /><Toast /></MotionConfig>;
   return (
     <MotionConfig reducedMotion="user">
       <SvgDefs />
@@ -111,7 +117,7 @@ export default function App() {
       <InviteFloat />
       <SkipNotice />
       {/* the theme workshop's CSS is scoped to this element (lib/themeCss.ts): a theme restyles the shell and what is in it, nothing outside */}
-      <div data-theme-scope="" data-queue={queuePhase} className={`s-shell relative z-10${full ? " full-open" : ""}`}>
+      <div data-theme-scope="" data-queue={queuePhase} className={`s-shell relative z-10${full ? " full-open" : ""}${collapsed ? " s-collapsed" : ""}`}>
         <StudioTitleBar />
         <StudioSidebar />
         <main className="relative min-h-0 overflow-hidden">
@@ -123,8 +129,10 @@ export default function App() {
         <NowPlaying />
       </div>
       <AppearancePopover />
+      <HotkeysModal />
       <Dialog />
       <SharingPrompt />
+      <Onboarding />
     </MotionConfig>
   );
 }

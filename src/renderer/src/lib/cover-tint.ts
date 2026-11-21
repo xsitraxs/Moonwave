@@ -67,17 +67,18 @@ function apply(tone: [number, number] | null) {
     root.removeProperty("--haze-shift");
     return;
   }
-  const [h, s] = tone;
-  const sat = Math.round(Math.min(75, Math.max(35, s * 100)));
-  root.setProperty("--cloud", `hsl(${Math.round(h)} ${sat}% 64%)`);
-  root.setProperty("--tint", `hsl(${Math.round(h)} ${Math.min(90, sat + 15)}% 62%)`);
+  const [h] = tone;
+  // clamped in OKLCH terms (low chroma, mid lightness): the tint leans toward the cover without turning muddy
+  root.setProperty("--cloud", `oklch(0.65 0.07 ${Math.round(h)})`);
+  root.setProperty("--tint", `oklch(0.62 0.08 ${Math.round(h)})`);
   // the stippled far haze only leans toward the cover: a third of the way from its own violet, at most 45°
   const toward = ((h - HAZE_HUE + 540) % 360) - 180;
   root.setProperty("--haze-shift", `${Math.round(Math.max(-45, Math.min(45, toward / 3)))}deg`);
 }
 
 async function update() {
-  const on = useSettings.getState().prefs.coverTint;
+  const prefs = useSettings.getState().prefs;
+  const on = prefs.coverTint && !prefs.look.neutralBg;
   const { queue, index } = usePlayer.getState();
   const t = queue[index];
   const url = on && t?.artworkUrl ? artwork(t.artworkUrl, "t67x67") : null;
@@ -95,6 +96,6 @@ async function update() {
 
 export function initCoverTint() {
   usePlayer.subscribe((s, prev) => s.queue[s.index] !== prev.queue[prev.index] && void update());
-  useSettings.subscribe((s, prev) => s.prefs.coverTint !== prev.prefs.coverTint && void update());
+  useSettings.subscribe((s, prev) => (s.prefs.coverTint !== prev.prefs.coverTint || s.prefs.look.neutralBg !== prev.prefs.look.neutralBg) && void update());
   void update();
 }

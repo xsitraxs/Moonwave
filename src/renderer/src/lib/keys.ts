@@ -10,7 +10,7 @@ import { call } from "./sky";
  * SoundCloud link on the clipboard. Typing in a field, a slider or the shortcut recorder keeps its keys.
  */
 const typing = (el: Element | null) =>
-  !!el && (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement || el instanceof HTMLSelectElement || (el as HTMLElement).isContentEditable || el.getAttribute("role") === "slider" || !!el.closest("[data-keys-own]"));
+  !!el && (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement || el instanceof HTMLSelectElement || el instanceof HTMLButtonElement || el instanceof HTMLAnchorElement || (el as HTMLElement).isContentEditable || el.getAttribute("role") === "slider" || !!el.closest("[data-keys-own]"));
 
 function focusSearch() {
   // studio: the box in the title bar
@@ -49,11 +49,17 @@ async function openClipboardLink() {
 export function initKeys() {
   window.addEventListener("keydown", (e) => {
     if (e.defaultPrevented || e.altKey || e.metaKey) return;
+    if (useUi.getState().hotkeysOpen || document.querySelector("[data-onboarding-dialog]")) return;
     const ctrl = e.ctrlKey;
     if (ctrl && !e.shiftKey && (e.code === "KeyF" || e.code === "KeyL")) {
       e.preventDefault();
       if (e.code === "KeyF") focusSearch();
       else void openClipboardLink();
+      return;
+    }
+    if (!ctrl && e.key === "?" && !useUi.getState().miniPlayer && !typing(document.activeElement)) {
+      e.preventDefault();
+      useUi.getState().setHotkeysOpen(true);
       return;
     }
     if (ctrl || e.shiftKey || typing(document.activeElement)) return;
