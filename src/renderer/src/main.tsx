@@ -24,6 +24,7 @@ import { initReactive } from "@/lib/reactive";
 import { initCoverTint } from "@/lib/cover-tint";
 import { initLook } from "@/lib/look";
 import { initSocial } from "@/state/social";
+import { dj, initDj, useDj } from "@/state/dj";
 import { initLikes } from "@/state/likes";
 import { initFollows } from "@/state/follows";
 import { initVolume, player, roomPlayer, usePlayer } from "@/state/player";
@@ -58,9 +59,10 @@ async function boot() {
   void useAuth.getState().init();
   initLikes();
   initFollows();
+  initDj();
 
   // development (or a profiling run from the sources): the stores, for driving the page from DevTools (window.__sc)
-  if (import.meta.env.DEV || location.search === "?sc-debug") Object.assign(window, { __sc: { player, usePlayer, useNav, useUi, useSettings, useSocial, queryClient, call, useRoom, roomPlayer } });
+  if (import.meta.env.DEV || location.search === "?sc-debug") Object.assign(window, { __sc: { player, usePlayer, useNav, useUi, useSettings, useSocial, queryClient, call, useRoom, roomPlayer, dj, useDj } });
 
   createRoot(document.getElementById("root")!).render(
     <StrictMode>
