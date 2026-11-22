@@ -3,6 +3,7 @@ import { isLocalTrack, artwork, type Track } from "@shared/types";
 import { errorText, useT } from "@/i18n";
 import { duration } from "@/lib/format";
 import { setMiniPlayer } from "@/lib/miniPlayer";
+import { dj, useDj } from "@/state/dj";
 import { toggleLike, useLiked, useCanLike } from "@/state/likes";
 import { useNav } from "@/state/nav";
 import { player, useCurrentTrack, usePlayer, usePosition, useStreamTrack } from "@/state/player";
@@ -224,6 +225,7 @@ function TrackTitle({ title, onClick }: { title: string; onClick: () => void }) 
 export default function StudioPlayerBar() {
   const t = useT();
   const track = useCurrentTrack();
+  const djActive = useDj((s) => s.active);
   const history = useSettings((s) => s.history);
   const savedPlayer = useSettings((s) => s.player);
   const lastTrack = history[0] ?? null;
@@ -350,6 +352,7 @@ export default function StudioPlayerBar() {
             </>
           )}
           <div className="s-player-group">
+            <Btn icon="sparkle" label={!track ? t.djNeedTrack : djActive ? t.djStop : t.djStart} on={djActive} disabled={!track || inRoom} onClick={() => (djActive ? dj.stop() : dj.start())} />
             <Btn
               icon="lyrics"
               label={t.lyrics}

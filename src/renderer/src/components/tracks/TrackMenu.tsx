@@ -7,6 +7,7 @@ import { canEdit, removeFromPlaylist } from "@/lib/playlists";
 import { call } from "@/lib/sky";
 import { useNav } from "@/state/nav";
 import { isLocalTrack, type Playlist, type Track } from "@shared/types";
+import { dj, useDj } from "@/state/dj";
 import { useAuth } from "@/state/auth";
 import { toggleFollow, useFollowed } from "@/state/follows";
 import { toggleLike, useLikes } from "@/state/likes";
@@ -68,6 +69,8 @@ export default function TrackMenu() {
   const openSend = useSocial((s) => s.openSend);
   /** null out of a room; in one, whether this app is its host */
   const roomHost = useRoom((s) => (s.room ? s.room.host === s.me : null));
+  const djActive = useDj((s) => s.active);
+  const djReasons = useDj((s) => s.reasons);
 
   /** For a protected track: try another found upload, open the one that plays, or switch substitution for it. */
   const substituteItems = (tr: Track): { icon: IconName; label: string; run: () => void }[] => {
@@ -135,6 +138,14 @@ export default function TrackMenu() {
       ? localItems
       : [
         ...queueItems,
+        // a running session's suggestion: steer it, or take it out of the session
+        ...(djActive && djReasons[track.id]
+          ? [
+              { icon: "plus" as IconName, label: t.djVoteMore, run: () => dj.vote(track.id, useDj.getState().votes[track.id] === "more" ? null : "more") },
+              { icon: "minimize" as IconName, label: t.djVoteLess, run: () => dj.vote(track.id, useDj.getState().votes[track.id] === "less" ? null : "less") },
+              { icon: "close" as IconName, label: t.djDismiss, run: () => dj.dismiss(track.id) },
+            ]
+          : []),
         ...(signedIn || localLikes ? [{ icon: "heart" as IconName, label: likes.has(track.id) ? t.unlike : t.like, run: () => void toggleLike(track) }] : []),
         // following goes to SoundCloud: only with a session, and never for local files (they have no artist page)
         ...(signedIn ? [{ icon: (followed ? "check" : "plus") as IconName, label: followed ? t.unfollow : t.follow, run: () => void toggleFollow(track.user) }] : []),

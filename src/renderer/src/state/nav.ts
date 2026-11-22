@@ -19,10 +19,11 @@ export type Route =
   | { name: "workshop" }
   | { name: "settings" }
   | { name: "signin" }
-  | { name: "import" };
+  | { name: "import" }
+  | { name: "dj" };
 
 /** A sidebar entry: Home, Likes, Playlists, History, Search, or a saved profile ("profile:<id>"). */
-export type Section = "home" | "likes" | "feed" | "playlists" | "history" | "local" | "search" | "albums" | "stations" | "following" | "inbox" | "workshop" | "settings" | "signin" | `profile:${number}`;
+export type Section = "home" | "likes" | "feed" | "playlists" | "history" | "local" | "search" | "albums" | "stations" | "following" | "inbox" | "workshop" | "settings" | "signin" | "dj" | `profile:${number}`;
 
 interface Entry {
   route: Route;
