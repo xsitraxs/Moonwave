@@ -2,8 +2,11 @@ import { Fragment, useState, type KeyboardEvent } from "react";
 import type { Playlist, QueueSource, Track } from "@shared/types";
 import { artwork } from "@shared/types";
 import { queryClient } from "@/api/queries";
+import { DjStatusText, DjToggle, DjWhyLine } from "@/components/dj/bits";
 import { useT, dateLocale } from "@/i18n";
 import { duration } from "@/lib/format";
+import { dj, useDj } from "@/state/dj";
+import { useNav } from "@/state/nav";
 import { player, usePlayer } from "@/state/player";
 import { useRoom } from "@/state/room";
 import { useSettings } from "@/state/settings";
@@ -48,6 +51,7 @@ function Cover({ url, size }: { url: string | null; size: number }) {
 
 function Item({ track, index, alt, dragging, over, drag }: { track: Track; index: number; alt: boolean; dragging: boolean; over: boolean; drag: { start: () => void; over: () => void; drop: () => void; end: () => void } }) {
   const t = useT();
+  const djSuggested = useDj((s) => s.reasons[track.id] !== undefined);
   const onKey = (e: KeyboardEvent) => {
     if (e.target !== e.currentTarget) return;
     if (e.key === "Enter") player.jumpTo(index);
@@ -91,9 +95,10 @@ function Item({ track, index, alt, dragging, over, drag }: { track: Track; index
           {alt && <span className="s-tag shrink-0">ALT</span>}
         </span>
         <span className="s block">{track.artist}</span>
+        {djSuggested && <DjWhyLine trackId={track.id} className="text-[11px] text-[var(--s-dim)]" />}
       </span>
       <span className="d group-hover:hidden">{duration(track.durationMs)}</span>
-      <button type="button" aria-label={`${t.remove}: ${track.title}`} title={t.remove} onClick={() => player.removeAt(index)} className="ml-auto hidden h-6 w-6 place-items-center rounded-md text-[var(--s-dim)] hover:text-text group-focus-within:grid group-hover:grid">
+      <button type="button" aria-label={`${t.remove}: ${track.title}`} title={t.remove} onClick={() => (djSuggested ? dj.dismiss(track.id) : player.removeAt(index))} className="ml-auto hidden h-6 w-6 place-items-center rounded-md text-[var(--s-dim)] hover:text-text group-focus-within:grid group-hover:grid">
         <Icon name="close" size={12} />
       </button>
     </li>
@@ -107,6 +112,7 @@ export function QueueList({ showCurrent = true }: { showCurrent?: boolean } = {}
   const index = usePlayer((s) => s.index);
   const pending = usePlayer((s) => s.pending.length);
   const autoFrom = usePlayer((s) => s.autoFrom);
+  const reasons = useDj((s) => s.reasons);
   const substitute = useSettings((s) => s.prefs.substitute);
   const from = useSourceLabel();
   const [drag, setDrag] = useState<number | null>(null);
@@ -114,6 +120,8 @@ export function QueueList({ showCurrent = true }: { showCurrent?: boolean } = {}
   const current = queue[index];
   const upcoming = queue.slice(index + 1, index + 1 + SHOWN);
   const more = queue.length - (index + 1) + pending;
+  const firstDj = upcoming.findIndex((tr) => reasons[tr.id] !== undefined);
+  const djHead = firstDj < 0 ? -1 : index + 1 + firstDj;
 
   return (
     <>
@@ -137,6 +145,7 @@ export function QueueList({ showCurrent = true }: { showCurrent?: boolean } = {}
             const qi = index + 1 + i;
             return (
               <Fragment key={`${track.id}-${qi}`}>
+                {qi === djHead && <div className="s-lbl mx-1.5 mb-1 mt-3">{t.djSuggestions}</div>}
                 {qi === autoFrom && <div className="s-lbl mx-1.5 mb-1 mt-3">{t.autopilotHeading}</div>}
                 <Item
                   track={track}
@@ -199,6 +208,35 @@ function History() {
   );
 }
 
+/** The DJ session in the queue: state, stop/retry, a way to the page. Hidden while idle or after a clean stop. */
+function DjStrip() {
+  const t = useT();
+  const open = useNav((s) => s.open);
+  const active = useDj((s) => s.active);
+  const status = useDj((s) => s.status);
+  if (!active && status !== "error" && status !== "empty" && status !== "exhausted") return null;
+  return (
+    <div className="mx-1 mb-2 rounded-md bg-white/[0.05] px-2.5 py-2">
+      <div className="flex items-center gap-1.5">
+        <Icon name="sparkle" size={15} className="shrink-0 text-muted" />
+        <b className="text-[12.5px] font-semibold text-text">{t.dj}</b>
+        <button type="button" onClick={() => open("dj", { name: "dj" })} className="ml-auto text-[12px] text-[var(--s-dim)] hover:text-text">
+          {t.djOpenPage}
+        </button>
+      </div>
+      <DjStatusText className="mt-0.5 block text-[12px] text-[var(--s-dim)]" />
+      <div className="mt-1.5 flex gap-2">
+        <DjToggle className="!h-7 !px-2.5 !text-[12px]" />
+        {status === "error" && (
+          <button type="button" onClick={dj.retry} className="s-btn !h-7 !px-2.5 !text-[12px]">
+            {t.retry}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 /** Shared queue tabs, actions, scrollable track list, and Autopilot switch (sidebar & fullscreen). */
 export function QueuePanel({ showCurrent = true }: { showCurrent?: boolean }) {
   const t = useT();
@@ -242,6 +280,7 @@ export function QueuePanel({ showCurrent = true }: { showCurrent?: boolean }) {
           </button>
         </div>
       )}
+      {tab === "next" && <DjStrip />}
       <div className="min-h-0 flex-1 overflow-y-auto pr-1">{tab === "next" ? <QueueList showCurrent={showCurrent} /> : <History />}</div>
       <button type="button" role="switch" aria-checked={autopilot} onClick={() => setPref("autopilot", !autopilot)} className="s-row mt-2 w-full text-left">
         <Icon name="radio" size={17} className="text-muted" />

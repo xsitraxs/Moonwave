@@ -720,6 +720,24 @@ export const player = {
     set({ queue: q, autoFrom: autoFrom >= 0 ? autoFrom + 1 : -1 });
     if (q.length > index + 1) useUi.getState().openSideQueue();
   },
+  /**
+   * A batch of suggestions (the DJ's) into the queue: the same as calling addToQueue for each, in one update —
+   * before the autopilot's tail when there is one, kept across shuffles like hand-added tracks (the DJ's own
+   * labels come from its reasons map, not from here). Silent: background refills must not pop the queue open.
+   * Without a current track it appends nowhere (unlike addToQueue, it never starts playback on its own).
+   */
+  appendMany(tracks: Track[], opts?: { silent?: boolean }) {
+    if (remote || !tracks.length) return;
+    const { queue, index, autoFrom } = get();
+    if (index < 0) return;
+    const items = tracks.map((t) => ({ ...t }));
+    for (const t of items) manual.add(t);
+    const q = [...queue];
+    const at = autoFrom >= 0 ? autoFrom : q.length;
+    q.splice(at, 0, ...items);
+    set({ queue: q, autoFrom: autoFrom >= 0 ? autoFrom + items.length : -1 });
+    if (!opts?.silent && q.length > index + 1) useUi.getState().openSideQueue();
+  },
   removeAt(i: number) {
     const { queue, index, autoFrom } = get();
     if (remote || i === index || i < 0 || i >= queue.length) return;

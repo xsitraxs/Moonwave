@@ -899,6 +899,31 @@ export const en = {
   bgLiquidSaver: "Memory saver is on: the cover shows instead.",
   bgVideoSaver: "Video — only its first frame shows while Memory saver is on.",
   liteEffectsSaver: "Always on with Memory saver (Settings → App).",
+
+  // dj
+  dj: "DJ",
+  djStart: "Start DJ",
+  djStop: "Stop DJ",
+  djSeed: (title: string) => `From “${title}”`,
+  djWhySeed: (title: string) => `Related to “${title}”`,
+  djWhySeeds: (n: number) => `From ${n} sources`,
+  djWhyGeneric: "DJ pick",
+  djVoteMore: "More like this",
+  djVoteLess: "Less like this",
+  djDismiss: "Remove from session",
+  djLoading: "The DJ is picking…",
+  djEmpty: "Nothing to suggest",
+  djEmptyHint: "Try starting from another track.",
+  djError: "Couldn't load the suggestions",
+  djExhausted: "Out of suggestions",
+  djStopped: "DJ stopped",
+  djFeedback: "Use my ratings",
+  djFeedbackHint: "“More” and “less” steer the next picks, this session only.",
+  djClearVotes: "Forget ratings",
+  djSuggestions: "DJ suggestions",
+  djOpenPage: "Open DJ",
+  djHint: "A continuous mix from the current track.",
+  djNeedTrack: "Play any track first.",
 };
 
 export type Dict = typeof en;

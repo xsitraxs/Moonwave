@@ -24,6 +24,7 @@ import SendSheet from "@/components/social/SendSheet";
 import InviteFloat from "@/components/room/Invites";
 import RoomSheet from "@/components/room/RoomSheet";
 import SkipNotice from "@/components/player/SkipNotice";
+import Dj from "@/screens/Dj";
 import Feed from "@/screens/Feed";
 import Likes from "@/screens/Likes";
 import Playlist from "@/screens/Playlist";
@@ -79,6 +80,8 @@ function ScreenFor({ route }: { route: Route }) {
       return <Login />;
     case "import":
       return <Import />;
+    case "dj":
+      return <Dj />;
   }
 }
 

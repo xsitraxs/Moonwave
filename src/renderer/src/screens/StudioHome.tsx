@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { artwork, type Track } from "@shared/types";
 import { useFeed, usePlaylists, useRelated } from "@/api/queries";
+import { DjStatusText, DjToggle } from "@/components/dj/bits";
 import { HomeStart } from "@/components/home/HomeStart";
 import { Avatar, when } from "@/components/social/bits";
 import Icon from "@/components/ui/Icon";
@@ -12,6 +13,7 @@ import { dedupeRecentByAlbum } from "@/lib/homeHelpers";
 import { useVisibleTracks } from "@/lib/hidden";
 import { call } from "@/lib/sky";
 import { useAuth } from "@/state/auth";
+import { useDj } from "@/state/dj";
 import { useCanLike, useLiked, toggleLike } from "@/state/likes";
 import { useNav } from "@/state/nav";
 import { inRoom, useCurrentTrack, player, usePlayer, usePosition } from "@/state/player";
@@ -413,6 +415,28 @@ function RecentlyAddedLocal() {
   return <Row title={t.recentlyAddedLocal} action={t.showAll} onAction={() => open("local", { name: "local" })}><TrackCards tracks={tracks} /></Row>;
 }
 
+/** The DJ's card on Home: one line of state, start/stop, a way to the page. */
+function DjBanner() {
+  const t = useT();
+  const open = useNav((s) => s.open);
+  const active = useDj((s) => s.active);
+  const status = useDj((s) => s.status);
+  const live = active || status === "error" || status === "empty" || status === "exhausted";
+  return (
+    <section aria-label={t.dj} className="mb-7 flex items-center gap-3 rounded-[var(--r2)] bg-white/[0.04] px-4 py-3 ring-1 ring-inset ring-white/[0.06]">
+      <Icon name="sparkle" size={22} className="shrink-0 text-muted" />
+      <div className="min-w-0 flex-1">
+        <div className="text-[15px] font-semibold text-text">{t.dj}</div>
+        {live ? <DjStatusText className="block text-[13px] text-muted" /> : <div className="truncate text-[13px] text-muted">{t.djHint}</div>}
+      </div>
+      <DjToggle />
+      <button type="button" onClick={() => open("dj", { name: "dj" })} className="shrink-0 text-[13px] font-medium text-muted transition-colors motion-color hover:text-text">
+        {t.djOpenPage}
+      </button>
+    </section>
+  );
+}
+
 /** Studio home: compact hero on top, rows of carousels below — no filter chips, no dead space. */
 export default function StudioHome() {
   const t = useT();
@@ -436,6 +460,8 @@ export default function StudioHome() {
   return (
     <Screen label={t.home}>
       <HomeStart name={auth?.mode === "session" ? auth.user?.username : undefined} signedIn={signedIn} />
+
+      <DjBanner />
 
       {recent.length > 0 && (
         <Row title={t.jumpBackIn} action={t.showAll} onAction={() => open("history", { name: "history" })}>

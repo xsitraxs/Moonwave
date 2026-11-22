@@ -187,6 +187,9 @@ export default function StudioSidebar() {
       <Nav section="stations" route={{ name: "stations" }} icon="radio">
         {t.stations}
       </Nav>
+      <Nav section="dj" route={{ name: "dj" }} icon="sparkle">
+        {t.dj}
+      </Nav>
       {social && (
         <>
           <Nav section="inbox" route={{ name: "inbox" }} icon="inbox" badge={unread}>
