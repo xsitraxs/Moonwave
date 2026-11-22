@@ -5,9 +5,8 @@ import type { DjFeedback } from "./djRank";
  * the state/dj.ts session feeds them and acts on them; the async flight itself lives there too.
  *
  * - refill: fewer than DJ_REFILL_BELOW unplayed suggestions left — fetch the next round, chained from the last
- *   suggestion. The threshold sits above the player's own (AHEAD = 3), so a healthy DJ session always
- *   refills before the autopilot's guard even notices the queue draining; the autopilot stays a natural fallback
- *   for a dry or failed DJ, not a competitor.
+ *   suggestion. While a session runs it holds the autopilot's filler (and drops its old tail on start), so the
+ *   DJ's picks are the only tail; once the session ends the autopilot resumes as the natural fallback.
  * - stop/cleared: no unplayed suggestions left while the seed is still around — the person removed them
  *   (clearUpcoming, one-by-one), so the DJ gets out of the way instead of re-adding what was just thrown out.
  * - stop/context: the seed left the queue — another list started, or a listening room took over the player.

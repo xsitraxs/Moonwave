@@ -298,6 +298,8 @@ async function shuffleWholeList() {
 
 /** the fill in progress: a caller that needs its result (the next track at a list's end) waits for it */
 let topUpRun: Promise<void> | null = null;
+/** A DJ session holds this while it owns the tail: only the autopilot filler in fill() steps aside. */
+let autopilotSuspended = false;
 
 async function fetchPage(source: QueueSource): Promise<Page<Track> | null> {
   switch (source.kind) {
@@ -373,7 +375,8 @@ async function fill() {
         }
         break; // in order: advance() wraps around to the first track
       }
-      if (!useSettings.getState().prefs.autopilot) break;
+      // held by a DJ session: its own picks are the tail, the filler must not race them (list pages above keep flowing)
+      if (autopilotSuspended || !useSettings.getState().prefs.autopilot) break;
       const last = s.queue[s.queue.length - 1];
       if (!last) break;
       const related = await call("data:related", last.id);
@@ -737,6 +740,24 @@ export const player = {
     q.splice(at, 0, ...items);
     set({ queue: q, autoFrom: autoFrom >= 0 ? autoFrom + items.length : -1 });
     if (!opts?.silent && q.length > index + 1) useUi.getState().openSideQueue();
+  },
+  /**
+   * Drops the autopilot's tail (the DJ's takeover clears what the filler added). Only non-manual tracks from the
+   * tail's region on: hand-added ones stay even if a drag moved them there, and the current and past never move.
+   */
+  dropAutoTail() {
+    if (remote) return;
+    const { queue, index, autoFrom } = get();
+    if (autoFrom < 0) return;
+    const from = Math.max(autoFrom, index + 1);
+    set({ queue: [...queue.slice(0, from), ...queue.slice(from).filter((t) => manual.has(t))], autoFrom: -1 });
+  },
+  /**
+   * Holds the autopilot's filler while a DJ session owns the tail (list pagination is unaffected).
+   * The session sets it on start and clears it on every stop; a stuck flag would silence the filler for good.
+   */
+  setAutopilotSuspended(on: boolean) {
+    autopilotSuspended = on;
   },
   removeAt(i: number) {
     const { queue, index, autoFrom } = get();

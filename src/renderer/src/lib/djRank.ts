@@ -13,10 +13,12 @@ import type { Track } from "@shared/types";
  * - session feedback on the track's artist: +500 for "more", -500 for "less" (ignored while paused)
  * - ties: SoundCloud order first, then the smaller track id — the same input always gives the same output
  *
- * Filtering: seeds themselves, excluded ids (history, queue, dismissed), and anything SoundCloud won't stream
- * here (`blocked` / `drm`) are dropped. `preview` stays — the player's substitute system handles it at play time,
- * exactly like the autopilot. Local tracks never come from `data:related`; a local seed simply yields no candidates
- * and the controller reports "no data" instead of calling this with garbage.
+ * Filtering: seeds themselves and excluded ids (history, queue, dismissed). Playability is deliberately NOT
+ * filtered here — exactly like the autopilot and the stations: fresh `blocked` / `drm` tracks usually play
+ * through the substitute system, and their flag in a related response often just means "no stream data attached".
+ * The session controller applies the player's own `canPlay` before appending, so hidden and proven-dead tracks
+ * still stay out. Local tracks never come from `data:related`; a local seed simply yields no candidates and
+ * the controller reports "no data" instead of calling this with garbage.
  *
  * Reasons (`why`) only ever name seeds that really listed the track; anything else is the neutral `generic`.
  * `feedback` tells the UI when a session rating moved the track, so the interface can say so honestly.
@@ -112,7 +114,6 @@ export function rankDjCandidates(candidates: readonly DjCandidate[], options: Dj
   for (const { track, via, order } of merged.values()) {
     if (excluded.has(track.id)) continue;
     if (seedById.has(track.id)) continue;
-    if (track.playability !== "ok" && track.playability !== "preview") continue;
     const inMore = more.has(track.user.id);
     const inLess = less.has(track.user.id);
     const feedback = inMore && inLess ? null : inMore ? "more" : inLess ? "less" : null;

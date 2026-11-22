@@ -41,7 +41,7 @@ test("the seed itself is never recommended", () => {
   assert.deepEqual(picks.map((p) => p.track.id), [2]);
 });
 
-test("blocked and drm tracks are dropped, ok and preview stay", () => {
+test("playability is not filtered: blocked and drm rank like everything else", () => {
   const picks = rankDjCandidates(
     [
       cand(makeTrack(2, { playability: "blocked" }), [1], 0),
@@ -51,7 +51,8 @@ test("blocked and drm tracks are dropped, ok and preview stay", () => {
     ],
     base,
   );
-  assert.deepEqual(picks.map((p) => p.track.id), [4, 5]);
+  // SoundCloud order decides; the substitute system (not the ranker) handles protection at play time
+  assert.deepEqual(picks.map((p) => p.track.id), [2, 3, 4, 5]);
 });
 
 test("duplicates merge: one pick, union of seeds, best order", () => {

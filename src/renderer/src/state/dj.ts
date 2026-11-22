@@ -4,7 +4,7 @@ import { collectDjCandidates, DJ_COLLECT_DEFAULTS } from "@/lib/djCollect";
 import { DJ_RANK_DEFAULTS, rankDjCandidates, type DjPick, type DjSeed, type DjWhy } from "@/lib/djRank";
 import { buildDjExclude, chainSeedId, decideDjNext, DJ_DRY_ROUNDS_TO_STOP, feedbackArtists, type DjVote } from "@/lib/djRefill";
 import { call } from "@/lib/sky";
-import { currentTrack, inRoom, player, usePlayer } from "./player";
+import { canPlay, currentTrack, inRoom, player, usePlayer } from "./player";
 import { useSettings } from "./settings";
 
 /**
@@ -12,12 +12,12 @@ import { useSettings } from "./settings";
  * fetching, ranking, appending, refilling — while the player keeps owning playback, the manual queue, repeat,
  * shuffle and the autopilot. Nothing here rewrites what the person queued by hand.
  *
- * How the suggestions ride the queue: they are appended in bulk before the autopilot's tail (player.appendMany),
- * flagged like hand-added tracks so shuffles keep them. The honest boundary is not a queue index but the `reasons`
- * map (track id → why it was picked): manual tracks have no entry, DJ tracks do, whatever the order becomes.
- * Refills trigger above the autopilot's own threshold (see djRefill), so a healthy DJ always goes first and
- * the autopilot degrades into a fallback instead of a competitor; no writer races, because every queue update
- * reads and writes synchronously.
+ * How the suggestions ride the queue: on start the session holds the autopilot's filler and drops its old tail
+ * (player.setAutopilotSuspended/dropAutoTail), then appends its picks in bulk (player.appendMany), flagged like
+ * hand-added tracks so shuffles keep them. The honest boundary is not a queue index but the `reasons` map
+ * (track id → why it was picked): manual tracks have no entry, DJ tracks do, whatever the order becomes.
+ * When the session ends the autopilot resumes as the natural fallback; no writer races, because every queue
+ * update reads and writes synchronously.
  *
  * A session ends when the person stops it, removes every suggestion, starts another list (or a room takes the
  * player), or the chain runs dry twice. Ending never yanks queued tracks and never leaves a flight behind:
@@ -110,7 +110,8 @@ async function runRound(seedId: number, signal: AbortSignal): Promise<RoundOutco
   // a seed whose title can't be found anymore gets no name in the reasons — generic instead of a lie
   const title = trackTitle(seedId);
   const seeds = title === null ? [] : [{ id: seedId, title }];
-  const picks = rankDjCandidates(candidates, { seeds, exclude: excludeNow(), ...DJ_RANK_DEFAULTS, feedback: feedbackArtists(s.votes, artistOf), feedbackOn: s.feedbackOn });
+  // the player's own gate, same as the autopilot's append: hidden and proven-dead stay out, fresh drm stays in
+  const picks = rankDjCandidates(candidates, { seeds, exclude: excludeNow(), ...DJ_RANK_DEFAULTS, feedback: feedbackArtists(s.votes, artistOf), feedbackOn: s.feedbackOn }).filter((p) => canPlay(p.track));
   return { picks, failed: false };
 }
 
@@ -133,10 +134,13 @@ function appendPicks(picks: RoundOutcome["picks"]) {
 function applyOutcome(kind: "start" | "refill", outcome: RoundOutcome) {
   if (kind === "start") {
     if (outcome.failed) {
+      // no session to hold the suspension: the autopilot resumes
+      player.setAutopilotSuspended(false);
       set({ active: false, status: "error" });
       return;
     }
     if (!outcome.picks.length) {
+      player.setAutopilotSuspended(false);
       set({ active: false, status: "empty" });
       return;
     }
@@ -215,6 +219,7 @@ function stopInternal(reason: "user" | "cleared" | "context" | "exhausted") {
   gen++;
   resetMachinery();
   busy = false;
+  player.setAutopilotSuspended(false);
   // queued suggestions stay queued (never yanked); their reasons stay too, until the next session replaces them
   set({ active: false, status: reason === "exhausted" ? "exhausted" : "stopped", seed: null, refilling: false, votes: {} });
 }
@@ -235,6 +240,10 @@ export const dj = {
     }
     resetMachinery();
     busy = true;
+    // the takeover: hold the autopilot's filler and drop its old tail first — it prefetched the same related
+    // tracks, and leaving them would exclude every candidate (busy is already set, so the tick stays quiet)
+    player.setAutopilotSuspended(true);
+    player.dropAutoTail();
     const myGen = ++gen;
     set({ active: true, status: "loading", seed: { id: cur.id, title: cur.title }, refilling: false, reasons: {}, votes: {}, feedbackOn: true });
     void runFlight(cur.id, myGen, "start");
