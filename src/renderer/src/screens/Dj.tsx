@@ -84,6 +84,7 @@ export default function Dj() {
           </button>
         )}
         <DjStatusText className="w-full text-[13px] text-[var(--s-dim)]" />
+        {status === "empty" && <span className="w-full text-[13px] text-[var(--s-dim)]">{t.djEmptyHint}</span>}
       </section>
 
       {active && (

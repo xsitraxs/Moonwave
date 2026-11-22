@@ -724,6 +724,7 @@ export const player = {
    * A batch of suggestions (the DJ's) into the queue: the same as calling addToQueue for each, in one update —
    * before the autopilot's tail when there is one, kept across shuffles like hand-added tracks (the DJ's own
    * labels come from its reasons map, not from here). Silent: background refills must not pop the queue open.
+   * Without a current track it appends nowhere (unlike addToQueue, it never starts playback on its own).
    */
   appendMany(tracks: Track[], opts?: { silent?: boolean }) {
     if (remote || !tracks.length) return;

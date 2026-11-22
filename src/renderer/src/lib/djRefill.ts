@@ -4,8 +4,8 @@ import type { DjFeedback } from "./djRank";
  * Moonwave DJ: when the session refills, and when it steps aside. Pure decisions over a snapshot of the player —
  * the state/dj.ts session feeds them and acts on them; the async flight itself lives there too.
  *
- * - refill: fewer than DJ_REFILL_BELOW unplayed suggestions left — fetch the next round (from the pool, else chained
- *   from the last suggestion). The threshold sits above the player's own (AHEAD = 3), so a healthy DJ session always
+ * - refill: fewer than DJ_REFILL_BELOW unplayed suggestions left — fetch the next round, chained from the last
+ *   suggestion. The threshold sits above the player's own (AHEAD = 3), so a healthy DJ session always
  *   refills before the autopilot's guard even notices the queue draining; the autopilot stays a natural fallback
  *   for a dry or failed DJ, not a competitor.
  * - stop/cleared: no unplayed suggestions left while the seed is still around — the person removed them
@@ -37,7 +37,7 @@ export type DjDecision = { action: "wait" } | { action: "refill" } | { action: "
 
 /** Refill while this many unplayed suggestions are left — above the player's AHEAD (3), so the DJ goes first. */
 export const DJ_REFILL_BELOW = 5;
-/** After this many failed rounds in a row the DJ holds (no network hammering while offline) until a retry. */
+/** After this many errored rounds in a row the DJ holds (no network hammering while offline) until a retry. */
 export const DJ_MAX_REFILL_FAILURES = 2;
 /** After this many dry rounds in a row (the chain yields nothing) the session bows out instead of holding. */
 export const DJ_DRY_ROUNDS_TO_STOP = 2;
@@ -77,5 +77,5 @@ export function feedbackArtists(votes: Readonly<Record<number, DjVote>>, artistO
 
 /** The next round chains from the newest surviving suggestion (dismissed ones are already gone from the list). */
 export function chainSeedId(appendedIds: readonly number[], fallbackId: number): number {
-  return appendedIds.length ? (appendedIds[appendedIds.length - 1] as number) : fallbackId;
+  return appendedIds[appendedIds.length - 1] ?? fallbackId;
 }

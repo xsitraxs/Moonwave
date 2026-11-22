@@ -27,7 +27,7 @@ export interface DjSeed {
   title: string;
 }
 
-/** One related track as the collector saw it. Collector guarantees: one entry per track id is NOT required. */
+/** One related track as the collector saw it. Duplicates are fine: they are merged (union of seeds, best order). */
 export interface DjCandidate {
   track: Track;
   /** ids of the seeds whose `data:related` list contained this track */
