@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import type { QueueSource } from "@shared/types";
 import { useLikes } from "@/api/queries";
+import { DjStartLikesButton } from "@/components/dj/bits";
 import ListFilter, { useListFilter } from "@/components/tracks/ListFilter";
 import TrackList from "@/components/tracks/TrackList";
 import { PaperButton } from "@/components/ui/Buttons";
@@ -8,9 +9,11 @@ import { Screen, ScreenTitle } from "@/components/ui/Screen";
 import { EmptyState, ErrorState, Loading } from "@/components/ui/States";
 import { useT } from "@/i18n";
 import { useAuth } from "@/state/auth";
+import { useDj } from "@/state/dj";
 import { useLikes as useLikedSet } from "@/state/likes";
 import { useNav } from "@/state/nav";
 import { useSettings } from "@/state/settings";
+import { useUi } from "@/state/ui";
 import Login from "./Login";
 
 /** Likes of a user ("me" = the signed-in account), as a track list that pages in while scrolling. */
@@ -44,12 +47,27 @@ export default function Likes() {
   // likes kept on this computer: the page works signed out too
   const local = useSettings((s) => s.prefs.localLikes);
   const count = useLikedSet((s) => (s.ready ? s.ids.size : 0));
+  const showToast = useUi((s) => s.showToast);
   if (!status) return <Loading />;
   if (status.mode !== "session" && !local) return <Login />;
   const n = local ? count : status.user?.likesCount;
   return (
     <Screen label={t.likes}>
       <ScreenTitle meta={n ? t.tracks(n) : undefined}>{t.likes.toLowerCase()}</ScreenTitle>
+      <div className="mb-4">
+        <DjStartLikesButton
+          onDone={(ok) => {
+            if (ok) {
+              useNav.getState().open("dj", { name: "dj" });
+              return;
+            }
+            // the start failed here (not stopped elsewhere): say so where the person is
+            const st = useDj.getState().status;
+            if (st === "error") showToast(t.djError);
+            else if (st === "empty") showToast(t.djLikesEmpty);
+          }}
+        />
+      </div>
       {status.mode !== "session" && (
         // signed out, the page still works (likes on this computer): the way to the account stays in sight
         <div className="mb-4 flex items-center gap-3 font-type text-sm text-muted">

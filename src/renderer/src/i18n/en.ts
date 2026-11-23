@@ -934,6 +934,15 @@ export const en = {
   djStatPlayed: "Played",
   djStatVotes: "Ratings",
   djStartFrom: "Starting point",
+  djWhyLikes: (n: number) => `Similar to ${n} of your likes`,
+  djStartLikes: "From my likes",
+  djLikesShort: "Like at least two tracks first.",
+  djLikesEmpty: "The DJ needs at least two likes",
+  djLikesEmptyHint: "Like a couple of tracks — or start from the current one.",
+  djLikesUnavailable: "Likes are unavailable: sign in or turn on “Keep likes on this computer”.",
+  djFromLikes: "From your likes",
+  djLeadsLikes: (now: string | null) => (now ? `Leading the mix from your likes — now playing “${now}”` : `Leading the mix from your likes`),
+  djStartFromTrack: "Start DJ from this track",
 };
 
 export type Dict = typeof en;

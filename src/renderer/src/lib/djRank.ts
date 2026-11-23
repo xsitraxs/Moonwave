@@ -22,6 +22,7 @@ import type { Track } from "@shared/types";
  *
  * Reasons (`why`) only ever name titled seeds that really listed the track; anything else is the neutral `generic`.
  * An untitled seed (its title is unknown) still counts for co-occurrence — it just can never be named.
+ * When `groups` names the origin (likes), a candidate listed by that group is explained by the group first.
  * `feedback` tells the UI when a session rating moved the track, so the interface can say so honestly.
  */
 
@@ -46,8 +47,16 @@ export interface DjFeedback {
   lessArtists: readonly number[];
 }
 
+/** Seed groups a reason can name: a candidate listed by its origin group is explained by that group first. */
+export interface DjSeedGroups {
+  /** origin like-seed ids (stage 3 adds the artist/playlist groups the same way) */
+  likes?: readonly number[];
+}
+
 export interface DjRankOptions {
   seeds: readonly DjSeed[];
+  /** origin groups for the reasons; the count is the real overlap, shown only when it is not empty */
+  groups?: DjSeedGroups;
   /** history + queue + dismissed track ids: never recommended */
   exclude: readonly number[];
   /** max tracks per artist (`track.user.id`) in the output */
@@ -59,7 +68,7 @@ export interface DjRankOptions {
   feedbackOn?: boolean;
 }
 
-export type DjWhy = { kind: "seed"; seedId: number; seedTitle: string } | { kind: "seeds"; count: number } | { kind: "generic" };
+export type DjWhy = { kind: "seed"; seedId: number; seedTitle: string } | { kind: "seeds"; count: number } | { kind: "likes"; count: number } | { kind: "generic" };
 
 export interface DjPick {
   track: Track;
@@ -133,12 +142,19 @@ export function rankDjCandidates(candidates: readonly DjCandidate[], options: Dj
     const n = perArtist.get(s.track.user.id) ?? 0;
     if (n >= perArtistCap) continue;
     perArtist.set(s.track.user.id, n + 1);
-    picks.push({ track: s.track, score: s.score, why: whyFor(merged.get(s.track.id)!.via, seedById), feedback: s.feedback });
+    picks.push({ track: s.track, score: s.score, why: whyFor(merged.get(s.track.id)!.via, seedById, options.groups), feedback: s.feedback });
   }
   return picks;
 }
 
-function whyFor(via: Set<number>, seedById: Map<number, { id: number; title: string }>): DjWhy {
+function whyFor(via: Set<number>, seedById: Map<number, { id: number; title: string }>, groups?: DjSeedGroups): DjWhy {
+  // the origin group explains first — but only when it really listed the track
+  const likeIds = groups?.likes;
+  if (likeIds) {
+    let n = 0;
+    for (const id of via) if (likeIds.includes(id)) n++;
+    if (n > 0) return { kind: "likes", count: n };
+  }
   const known = [...via].filter((id) => seedById.has(id));
   if (known.length >= 2) return { kind: "seeds", count: known.length };
   const seed = seedById.get(known[0] ?? -1);

@@ -1,5 +1,5 @@
 import { artwork, type Track } from "@shared/types";
-import { DjStatusText, DjToggle, DjVotes, DjWhyLine } from "@/components/dj/bits";
+import { DjStartLikesButton, DjStatusText, DjToggle, DjVotes, DjWhyLine } from "@/components/dj/bits";
 import { IconButton } from "@/components/ui/Buttons";
 import Icon from "@/components/ui/Icon";
 import { Screen, ScreenTitle } from "@/components/ui/Screen";
@@ -75,7 +75,8 @@ function NowRow({ track }: { track: Track }) {
   const t = useT();
   const openMenu = useUi((s) => s.openMenu);
   const seed = useDj((s) => s.seeds[0] ?? null);
-  const isSeed = seed !== null && track.id === seed.id;
+  const origin = useDj((s) => s.origin);
+  const isSeed = origin?.kind === "track" && seed !== null && track.id === seed.id;
   return (
     <div className="s-qi s-qi-auto group">
       <span className="block h-10 w-10 shrink-0 overflow-hidden rounded-[4px] bg-white/[0.06]">
@@ -121,6 +122,7 @@ export default function Dj() {
   const queue = usePlayer((s) => s.queue);
   const index = usePlayer((s) => s.index);
   const current = useCurrentTrack();
+  const likesOrigin = useDj((s) => s.origin?.kind === "likes");
   const reasons = useDj((s) => s.reasons);
   const upcoming: { track: Track; at: number }[] = [];
   for (let at = index + 1; at < queue.length; at++) {
@@ -144,7 +146,7 @@ export default function Dj() {
           </button>
         )}
         <DjStatusText className="w-full text-[13px] text-[var(--s-dim)]" />
-        {status === "empty" && <span className="w-full text-[13px] text-[var(--s-dim)]">{t.djEmptyHint}</span>}
+        {status === "empty" && <span className="w-full text-[13px] text-[var(--s-dim)]">{likesOrigin ? t.djLikesEmptyHint : t.djEmptyHint}</span>}
       </section>
 
       {active && current && (
@@ -205,22 +207,27 @@ export default function Dj() {
       )}
 
       {!active && (
-        <section aria-label={t.djStartFrom}>
-          <h2 className="s-lbl mb-2">{t.djStartFrom}</h2>
-          {current ? (
-            <div className="s-qi s-qi-auto">
-              <span className="block h-10 w-10 shrink-0 overflow-hidden rounded-[4px] bg-white/[0.06]">
-                {current.artworkUrl && <img src={artwork(current.artworkUrl, "large") ?? undefined} alt="" loading="lazy" decoding="async" draggable={false} className="h-full w-full object-cover" />}
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="t block truncate">{current.title}</span>
-                <span className="s block truncate">{current.artist}</span>
-              </span>
-            </div>
-          ) : (
-            <p className="text-[13px] text-[var(--s-dim)]">{t.djNeedTrack}</p>
-          )}
-        </section>
+        <>
+          <section aria-label={t.djStartFrom}>
+            <h2 className="s-lbl mb-2">{t.djStartFrom}</h2>
+            {current ? (
+              <div className="s-qi s-qi-auto">
+                <span className="block h-10 w-10 shrink-0 overflow-hidden rounded-[4px] bg-white/[0.06]">
+                  {current.artworkUrl && <img src={artwork(current.artworkUrl, "large") ?? undefined} alt="" loading="lazy" decoding="async" draggable={false} className="h-full w-full object-cover" />}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="t block truncate">{current.title}</span>
+                  <span className="s block truncate">{current.artist}</span>
+                </span>
+              </div>
+            ) : (
+              <p className="text-[13px] text-[var(--s-dim)]">{t.djNeedTrack}</p>
+            )}
+          </section>
+          <section aria-label={t.djStartLikes} className="mt-6">
+            <DjStartLikesButton />
+          </section>
+        </>
       )}
     </Screen>
   );

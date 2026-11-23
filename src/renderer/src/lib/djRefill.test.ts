@@ -106,6 +106,18 @@ test("round seeds keep two thumbs-up and cap the pool, oldest origins drop first
   assert.deepEqual(buildRoundSeeds(big, [11, 12, 13], 9, titleOf).map((s) => s.id), [9, 11, 12, 1, 2, 3, 4, 5]);
 });
 
+test("a likes refill keeps the origin likes and adds the thumbs-up", () => {
+  const likes: DjSeed[] = [1, 2, 3, 4, 5, 6].map((id) => ({ id, title: null }));
+  const titles = new Map([
+    [9, "Chain"],
+    [11, "Voted"],
+  ]);
+  const seeds = buildRoundSeeds(likes, [11], 9, (id) => titles.get(id) ?? null);
+  assert.deepEqual(seeds.map((s) => s.id), [9, 11, 1, 2, 3, 4, 5, 6]);
+  assert.equal(seeds[0]!.title, "Chain");
+  assert.ok(seeds.slice(2).every((s) => s.title === null));
+});
+
 test("round seeds without a chain are just votes and origins", () => {
   assert.deepEqual(buildRoundSeeds([{ id: 1, title: "One" }], [11], null, () => null), [
     { id: 11, title: null },

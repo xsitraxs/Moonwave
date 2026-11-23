@@ -1,15 +1,16 @@
 import { create } from "zustand";
-import { isLocalTrack } from "@shared/types";
+import { isLocalTrack, type Track } from "@shared/types";
 import { collectDjCandidates, DJ_COLLECT_DEFAULTS } from "@/lib/djCollect";
 import { DJ_RANK_DEFAULTS, rankDjCandidates, type DjPick, type DjSeed, type DjWhy } from "@/lib/djRank";
 import { buildDjExclude, buildRoundSeeds, chainSeedId, decideDjNext, DJ_DRY_ROUNDS_TO_STOP, feedbackArtists, isRoundFailed, type DjVote } from "@/lib/djRefill";
+import { DJ_MIN_SEEDS, pickLikeSeeds } from "@/lib/djSources";
 import { call } from "@/lib/sky";
 import { canPlay, currentTrack, inRoom, player, queueGeneration, usePlayer } from "./player";
 import { useRoom } from "./room";
 import { useSettings } from "./settings";
 
 /**
- * Moonwave DJ: one explicit session at a time, grown from its origin seeds (the current track, for now). The
+ * Moonwave DJ: one explicit session at a time, grown from its origin seeds (a track, or recent likes). The
  * session owns the *suggestions* — fetching, ranking, appending, refilling — while the player keeps owning
  * playback, the manual queue, repeat, shuffle and the autopilot. Nothing here rewrites what the person queued
  * by hand.
@@ -33,12 +34,17 @@ import { useSettings } from "./settings";
 
 export type DjStatus = "idle" | "loading" | "ready" | "error" | "empty" | "exhausted" | "stopped";
 
+/** What the session grows from: one track, or the N recent likes that seeded it (stage 3 adds artist/playlist). */
+export type DjOrigin = { kind: "track"; seed: DjSeed } | { kind: "likes"; count: number };
+
 interface DjStore {
   /** a session runs: suggestions may still arrive */
   active: boolean;
   status: DjStatus;
   /** the session's origin seeds (what it started from); every refill round anchors back to these */
   seeds: DjSeed[];
+  /** what the session grows from — kept for the honest status words (and the retry's way back) */
+  origin: DjOrigin | null;
   /** a refill round is flying (the first round uses `loading` instead) */
   refilling: boolean;
   /** honest reasons, by suggested track id — kept after the session so queued tracks keep their labels */
@@ -49,7 +55,7 @@ interface DjStore {
   feedbackOn: boolean;
 }
 
-export const useDj = create<DjStore>(() => ({ active: false, status: "idle", seeds: [], refilling: false, reasons: {}, votes: {}, feedbackOn: true }));
+export const useDj = create<DjStore>(() => ({ active: false, status: "idle", seeds: [], origin: null, refilling: false, reasons: {}, votes: {}, feedbackOn: true }));
 
 /** One collect+rank round may take this long before it counts as failed (a slow network, not a dead one). */
 const DJ_FLIGHT_TIMEOUT_MS = 20_000;
@@ -125,16 +131,14 @@ async function runRound(roundSeeds: readonly DjSeed[], signal: AbortSignal): Pro
   // one seed's failure never sinks the rest: only all-failed is a failed round (a lone seed behaves as before)
   if (isRoundFailed(failedSeeds, roundSeeds.map((s) => s.id))) return { picks: [], failed: true };
   const s = get();
+  // a likes session explains by its origin group (the count is the real overlap, shown only when it hits)
+  const groups = s.origin?.kind === "likes" ? { likes: s.seeds.map((sd) => sd.id) } : undefined;
   // the player's own gate, same as the autopilot's append: hidden and proven-dead stay out, fresh drm stays in
-  const picks = rankDjCandidates(candidates, { seeds: roundSeeds, exclude: excludeNow(), ...DJ_RANK_DEFAULTS, feedback: feedbackArtists(s.votes, artistOf), feedbackOn: s.feedbackOn }).filter((p) => canPlay(p.track));
+  const picks = rankDjCandidates(candidates, { seeds: roundSeeds, groups, exclude: excludeNow(), ...DJ_RANK_DEFAULTS, feedback: feedbackArtists(s.votes, artistOf), feedbackOn: s.feedbackOn }).filter((p) => canPlay(p.track));
   return { picks, failed: false };
 }
 
-function appendPicks(picks: RoundOutcome["picks"]) {
-  player.appendMany(
-    picks.map((p) => p.track),
-    { silent: true },
-  );
+function recordPicks(picks: RoundOutcome["picks"]) {
   for (const p of picks) {
     appended.push(p.track.id);
     appendedSet.add(p.track.id);
@@ -144,6 +148,14 @@ function appendPicks(picks: RoundOutcome["picks"]) {
     for (const p of picks) reasons[p.track.id] = p.why;
     return { reasons };
   });
+}
+
+function appendPicks(picks: RoundOutcome["picks"]) {
+  player.appendMany(
+    picks.map((p) => p.track),
+    { silent: true },
+  );
+  recordPicks(picks);
 }
 
 function applyOutcome(kind: "start" | "refill", outcome: RoundOutcome) {
@@ -159,7 +171,20 @@ function applyOutcome(kind: "start" | "refill", outcome: RoundOutcome) {
       set({ active: false, status: "empty" });
       return;
     }
-    appendPicks(outcome.picks);
+    // an explicit start onto an empty player: the picks become the queue (appendMany drops them with no current)
+    const first = outcome.picks[0];
+    if (usePlayer.getState().index < 0 && first) {
+      player.playFrom(
+        outcome.picks.map((p) => p.track),
+        0,
+        { kind: "static" },
+      );
+      // the queue turned over under the flight (busy held the tick): this is the session's queue now
+      expectedQueueGen = queueGeneration();
+      recordPicks(outcome.picks);
+    } else {
+      appendPicks(outcome.picks);
+    }
     set({ status: "ready" });
     return;
   }
@@ -245,7 +270,31 @@ function stopInternal(reason: "user" | "cleared" | "context" | "exhausted") {
   busy = false;
   player.setAutopilotSuspended(false);
   // queued suggestions stay queued (never yanked); their reasons stay too, until the next session replaces them
-  set({ active: false, status: reason === "exhausted" ? "exhausted" : "stopped", seeds: [], refilling: false, votes: {} });
+  set({ active: false, status: reason === "exhausted" ? "exhausted" : "stopped", seeds: [], origin: null, refilling: false, votes: {} });
+}
+
+/** The track-source core every track start shares: one origin seed, same takeover, same flight. */
+function startFromSeed(seed: DjSeed) {
+  if (isLocalTrack(seed.id)) {
+    // a local file has no related list: "nothing to suggest" without burning a request that 404s
+    gen++;
+    resetMachinery();
+    busy = false;
+    // no session to hold the suspension (a restart drops the old hold here instead of leaking it)
+    player.setAutopilotSuspended(false);
+    set({ active: false, status: "empty", seeds: [], origin: { kind: "track", seed }, refilling: false, reasons: {}, votes: {}, feedbackOn: true });
+    return;
+  }
+  resetMachinery();
+  busy = true;
+  // the takeover: hold the autopilot's filler and drop its old tail first — it prefetched the same related
+  // tracks, and leaving them would exclude every candidate (busy is already set, so the tick stays quiet)
+  player.setAutopilotSuspended(true);
+  player.dropAutoTail();
+  expectedQueueGen = queueGeneration();
+  const myGen = ++gen;
+  set({ active: true, status: "loading", seeds: [seed], origin: { kind: "track", seed }, refilling: false, reasons: {}, votes: {}, feedbackOn: true });
+  void runFlight([seed], myGen, "start");
 }
 
 /** The DJ's actions for its button, panel and page. */
@@ -254,36 +303,69 @@ export const dj = {
   start() {
     const cur = currentTrack();
     if (!cur || inRoom()) return;
-    if (isLocalTrack(cur.id)) {
-      // a local file has no related list: "nothing to suggest" without burning a request that 404s
-      gen++;
-      resetMachinery();
-      busy = false;
-      set({ active: false, status: "empty", seeds: [], refilling: false, reasons: {}, votes: {}, feedbackOn: true });
-      return;
-    }
+    startFromSeed({ id: cur.id, title: cur.title });
+  },
+  /** Starts a session from any track (a menu's, not necessarily the current one). Quietly refuses in a room. */
+  startFromTrack(track: Track) {
+    if (inRoom()) return;
+    startFromSeed({ id: track.id, title: track.title });
+  },
+  /**
+   * Starts a session from recent likes (restarts a running one). Needs two seedable likes; this computer's
+   * likes work signed out. The autopilot hold waits until the seeds are real, so a failed lookup leaks nothing.
+   */
+  async startFromLikes() {
+    if (inRoom()) return;
+    const myGen = ++gen;
     resetMachinery();
     busy = true;
-    // the takeover: hold the autopilot's filler and drop its old tail first — it prefetched the same related
-    // tracks, and leaving them would exclude every candidate (busy is already set, so the tick stays quiet)
+    set({ active: true, status: "loading", seeds: [], origin: { kind: "likes", count: 0 }, refilling: false, reasons: {}, votes: {}, feedbackOn: true });
+    let ids: number[];
+    try {
+      // ordered newest-first, this computer's likes included: no sign-in needed
+      ids = await call("data:likedIds");
+    } catch {
+      if (myGen !== gen) return;
+      busy = false;
+      // the hold was never taken (a restart's old hold drops here instead of leaking)
+      player.setAutopilotSuspended(false);
+      set({ active: false, status: "error" });
+      return;
+    }
+    if (myGen !== gen) return;
+    const picked = pickLikeSeeds(ids, isLocalTrack);
+    if (picked.length < DJ_MIN_SEEDS) {
+      busy = false;
+      player.setAutopilotSuspended(false);
+      set({ active: false, status: "empty", origin: { kind: "likes", count: picked.length } });
+      return;
+    }
+    // the takeover, only now that the seeds are real (same hold-and-drop as the track start)
     player.setAutopilotSuspended(true);
     player.dropAutoTail();
     expectedQueueGen = queueGeneration();
-    const myGen = ++gen;
-    const seed = { id: cur.id, title: cur.title };
-    set({ active: true, status: "loading", seeds: [seed], refilling: false, reasons: {}, votes: {}, feedbackOn: true });
-    void runFlight([seed], myGen, "start");
+    const seeds: DjSeed[] = picked.map((id) => ({ id, title: null }));
+    set({ seeds, origin: { kind: "likes", count: picked.length } });
+    void runFlight(seeds, myGen, "start");
   },
   /** No more suggestions; queued ones stay, the flight (if any) is dropped. */
   stop() {
     if (get().active) stopInternal("user");
   },
-  /** After an error (or an empty start): clears the hold and tries again — now if the tail is short. */
+  /** After an error (or an empty start): back to the same source that failed — now if the tail is short. */
   retry() {
     const s = get();
     errStreak = 0;
     dryStreak = 0;
     if (!s.active) {
+      if (s.origin?.kind === "likes") {
+        void dj.startFromLikes();
+        return;
+      }
+      if (s.origin?.kind === "track") {
+        startFromSeed(s.origin.seed);
+        return;
+      }
       dj.start();
       return;
     }
