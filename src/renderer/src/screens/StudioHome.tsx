@@ -422,7 +422,7 @@ function DjBanner() {
   const active = useDj((s) => s.active);
   const status = useDj((s) => s.status);
   const seed = useDj((s) => s.seeds[0] ?? null);
-  const likesOrigin = useDj((s) => s.origin?.kind === "likes");
+  const origin = useDj((s) => s.origin);
   const current = useCurrentTrack();
   const live = active || status === "error" || status === "empty" || status === "exhausted";
   return (
@@ -430,8 +430,12 @@ function DjBanner() {
       <Icon name="dj" size={22} className={`shrink-0 ${active ? "text-[var(--accent)]" : "text-muted"}`} />
       <div className="min-w-0 flex-1">
         <div className="text-[15px] font-semibold text-text">{t.dj}</div>
-        {active && likesOrigin ? (
+        {active && origin?.kind === "likes" ? (
           <div className="truncate text-[13px] text-muted">{t.djLeadsLikes(current?.title ?? null)}</div>
+        ) : active && origin?.kind === "artist" ? (
+          <div className="truncate text-[13px] text-muted">{t.djLeadsArtist(origin.name, current?.title ?? null)}</div>
+        ) : active && origin?.kind === "playlist" ? (
+          <div className="truncate text-[13px] text-muted">{t.djLeadsPlaylist(origin.title, current?.title ?? null)}</div>
         ) : active && seed?.title ? (
           <div className="truncate text-[13px] text-muted">{t.djLeads(seed.title, current?.title ?? null)}</div>
         ) : live ? (

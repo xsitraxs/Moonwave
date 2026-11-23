@@ -2,6 +2,7 @@ import { artwork } from "@shared/types";
 import { useMemo } from "react";
 import type { QueueSource } from "@shared/types";
 import { useUser, useUserTracks } from "@/api/queries";
+import { DjStartArtistButton } from "@/components/dj/bits";
 import ListFilter, { useListFilter } from "@/components/tracks/ListFilter";
 import TrackList from "@/components/tracks/TrackList";
 import { PaperButton } from "@/components/ui/Buttons";
@@ -15,7 +16,10 @@ import { saveProfile, unsaveProfile } from "@/lib/links";
 import { call } from "@/lib/sky";
 import { toggleFollow, useFollowed } from "@/state/follows";
 import { useAuth } from "@/state/auth";
+import { useDj } from "@/state/dj";
+import { useNav } from "@/state/nav";
 import { useSettings } from "@/state/settings";
+import { useUi } from "@/state/ui";
 import { useViewState } from "@/state/viewState";
 import { LikesList } from "./Likes";
 import { PlaylistsView } from "./Playlists";
@@ -54,6 +58,7 @@ export default function Profile({ userId }: { userId: number }) {
   const followed = useFollowed(userId);
   const user = useUser(userId);
   const u = user.data;
+  const toast = useUi((s) => s.showToast);
   // artists open on their own tracks; listeners (no uploads) on their likes
   const [tab, setTab] = useViewState<Tab>("tab", u && !u.trackCount ? "likes" : "tracks");
 
@@ -93,6 +98,24 @@ export default function Profile({ userId }: { userId: number }) {
             )}
           </div>
         </header>
+      )}
+      {u && (
+        <div className="mb-4">
+          <DjStartArtistButton
+            userId={userId}
+            name={u.username}
+            onDone={(ok) => {
+              if (ok) {
+                useNav.getState().open("dj", { name: "dj" });
+                return;
+              }
+              // the start failed here (not stopped elsewhere): say so where the person is
+              const st = useDj.getState().status;
+              if (st === "error") toast(t.djError);
+              else if (st === "empty") toast(t.djArtistEmpty(u.username));
+            }}
+          />
+        </div>
       )}
       <Tabs
         options={[

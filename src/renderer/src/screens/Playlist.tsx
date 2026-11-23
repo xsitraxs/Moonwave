@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { artwork, type QueueSource } from "@shared/types";
 import { usePlaylist, usePlaylistTracks } from "@/api/queries";
+import { DjStartPlaylistButton } from "@/components/dj/bits";
 import PlaylistEditor from "@/components/playlists/PlaylistEditor";
 import ListFilter, { useListFilter } from "@/components/tracks/ListFilter";
 import TrackList from "@/components/tracks/TrackList";
@@ -10,6 +11,7 @@ import { Screen } from "@/components/ui/Screen";
 import { EmptyState, ErrorState, Loading } from "@/components/ui/States";
 import { useT } from "@/i18n";
 import { ask } from "@/state/dialog";
+import { useDj } from "@/state/dj";
 import { duration } from "@/lib/format";
 import { call } from "@/lib/sky";
 import { togglePin } from "@/lib/links";
@@ -168,6 +170,25 @@ export default function Playlist({ id }: { id: string }) {
             </div>
           </div>
         </header>
+      )}
+      {p && (
+        <div className="mb-4">
+          <DjStartPlaylistButton
+            id={id}
+            title={p.title}
+            trackCount={p.trackCount}
+            onDone={(ok) => {
+              if (ok) {
+                useNav.getState().open("dj", { name: "dj" });
+                return;
+              }
+              // the start failed here (not stopped elsewhere): say so where the person is
+              const st = useDj.getState().status;
+              if (st === "error") toast(t.djError);
+              else if (st === "empty") toast(t.djPlaylistEmpty(p.title));
+            }}
+          />
+        </div>
       )}
       {editing && p ? (
         <PlaylistEditor playlist={p} onDone={() => setEditing(false)} />

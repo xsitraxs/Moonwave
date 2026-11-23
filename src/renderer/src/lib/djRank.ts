@@ -22,7 +22,8 @@ import type { Track } from "@shared/types";
  *
  * Reasons (`why`) only ever name titled seeds that really listed the track; anything else is the neutral `generic`.
  * An untitled seed (its title is unknown) still counts for co-occurrence — it just can never be named.
- * When `groups` names the origin (likes), a candidate listed by that group is explained by the group first.
+ * When `groups` names the origin (likes, artist, playlist), a candidate listed by that group is explained
+ * by the group first.
  * `feedback` tells the UI when a session rating moved the track, so the interface can say so honestly.
  */
 
@@ -47,10 +48,17 @@ export interface DjFeedback {
   lessArtists: readonly number[];
 }
 
+/** What an artist session grows from: the artist's uploads, or (a listener's page) their public likes. */
+export type DjArtistVia = "tracks" | "likes";
+
 /** Seed groups a reason can name: a candidate listed by its origin group is explained by that group first. */
 export interface DjSeedGroups {
-  /** origin like-seed ids (stage 3 adds the artist/playlist groups the same way) */
+  /** origin like-seed ids (nameless: they are always "your" likes) */
   likes?: readonly number[];
+  /** origin artist-seed ids, with the name the reason speaks */
+  artist?: { ids: readonly number[]; name: string; via: DjArtistVia };
+  /** origin playlist-seed ids, with the title the reason speaks */
+  playlist?: { ids: readonly number[]; title: string };
 }
 
 export interface DjRankOptions {
@@ -68,7 +76,13 @@ export interface DjRankOptions {
   feedbackOn?: boolean;
 }
 
-export type DjWhy = { kind: "seed"; seedId: number; seedTitle: string } | { kind: "seeds"; count: number } | { kind: "likes"; count: number } | { kind: "generic" };
+export type DjWhy =
+  | { kind: "seed"; seedId: number; seedTitle: string }
+  | { kind: "seeds"; count: number }
+  | { kind: "likes"; count: number }
+  | { kind: "artist"; count: number; name: string; via: DjArtistVia }
+  | { kind: "playlist"; count: number; title: string }
+  | { kind: "generic" };
 
 export interface DjPick {
   track: Track;
@@ -148,12 +162,24 @@ export function rankDjCandidates(candidates: readonly DjCandidate[], options: Dj
 }
 
 function whyFor(via: Set<number>, seedById: Map<number, { id: number; title: string }>, groups?: DjSeedGroups): DjWhy {
-  // the origin group explains first — but only when it really listed the track
+  // the origin group explains first — but only when it really listed the track (one group per session)
   const likeIds = groups?.likes;
   if (likeIds) {
     let n = 0;
     for (const id of via) if (likeIds.includes(id)) n++;
     if (n > 0) return { kind: "likes", count: n };
+  }
+  const artist = groups?.artist;
+  if (artist) {
+    let n = 0;
+    for (const id of via) if (artist.ids.includes(id)) n++;
+    if (n > 0) return { kind: "artist", count: n, name: artist.name, via: artist.via };
+  }
+  const playlist = groups?.playlist;
+  if (playlist) {
+    let n = 0;
+    for (const id of via) if (playlist.ids.includes(id)) n++;
+    if (n > 0) return { kind: "playlist", count: n, title: playlist.title };
   }
   const known = [...via].filter((id) => seedById.has(id));
   if (known.length >= 2) return { kind: "seeds", count: known.length };

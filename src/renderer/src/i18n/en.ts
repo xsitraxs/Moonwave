@@ -943,6 +943,20 @@ export const en = {
   djFromLikes: "From your likes",
   djLeadsLikes: (now: string | null) => (now ? `Leading the mix from your likes — now playing “${now}”` : `Leading the mix from your likes`),
   djStartFromTrack: "Start DJ from this track",
+  djStartArtist: "From this artist",
+  djStartPlaylist: "From this playlist",
+  djWhyArtist: (n: number, name: string, via: "tracks" | "likes") =>
+    via === "tracks" ? `Similar to ${n} track${n === 1 ? "" : "s"} by ${name}` : `Similar to ${n} of ${name}’s likes`,
+  djWhyPlaylist: (n: number, title: string) => `Similar to ${n} track${n === 1 ? "" : "s"} from “${title}”`,
+  djFromArtist: (name: string) => `From ${name}`,
+  djFromPlaylist: (title: string) => `From “${title}”`,
+  djLeadsArtist: (name: string, now: string | null) => (now ? `Leading the mix from ${name} — now playing “${now}”` : `Leading the mix from ${name}`),
+  djLeadsPlaylist: (title: string, now: string | null) => (now ? `Leading the mix from “${title}” — now playing “${now}”` : `Leading the mix from “${title}”`),
+  djArtistEmpty: (name: string) => `Not enough material from ${name} for the DJ`,
+  djArtistEmptyHint: "Their uploads and likes weren’t enough — try another artist.",
+  djPlaylistShort: "The playlist needs at least two tracks.",
+  djPlaylistEmpty: (title: string) => `No seedable tracks in “${title}”`,
+  djPlaylistEmptyHint: "Add SoundCloud tracks — or start from your likes.",
 };
 
 export type Dict = typeof en;

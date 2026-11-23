@@ -195,6 +195,37 @@ test("a likes group explains by overlap, and only when it hits", () => {
   assert.deepEqual(miss[1]!.why, { kind: "generic" });
 });
 
+test("an artist group explains with its name, and only when it hits", () => {
+  const seeds: DjSeed[] = [
+    { id: 1, title: "One" },
+    { id: 2, title: "Two" },
+    { id: 3, title: "Seed Three" },
+  ];
+  const opts = { ...base, seeds, groups: { artist: { ids: [1, 2], name: "The Weeknd", via: "tracks" as const } } };
+  const hit = rankDjCandidates([cand(makeTrack(4), [1, 2], 3)], opts);
+  assert.deepEqual(hit[0]!.why, { kind: "artist", count: 2, name: "The Weeknd", via: "tracks" });
+  // a likes-grown artist page says so: the via rides along for the honest words
+  const viaLikes = { ...base, seeds, groups: { artist: { ids: [1], name: "Fan", via: "likes" as const } } };
+  const liked = rankDjCandidates([cand(makeTrack(5), [1], 1)], viaLikes);
+  assert.deepEqual(liked[0]!.why, { kind: "artist", count: 1, name: "Fan", via: "likes" });
+  // no group seed in the list: the old words still apply
+  const miss = rankDjCandidates([cand(makeTrack(6), [3], 0)], opts);
+  assert.deepEqual(miss[0]!.why, { kind: "seed", seedId: 3, seedTitle: "Seed Three" });
+});
+
+test("a playlist group explains with its title, and only when it hits", () => {
+  const seeds: DjSeed[] = [
+    { id: 1, title: "One" },
+    { id: 3, title: "Seed Three" },
+  ];
+  const opts = { ...base, seeds, groups: { playlist: { ids: [1], title: "Chill" } } };
+  const hit = rankDjCandidates([cand(makeTrack(4), [1], 2)], opts);
+  assert.deepEqual(hit[0]!.why, { kind: "playlist", count: 1, title: "Chill" });
+  const miss = rankDjCandidates([cand(makeTrack(6), [3], 0), cand(makeTrack(7), [999], 0)], opts);
+  assert.deepEqual(miss[0]!.why, { kind: "seed", seedId: 3, seedTitle: "Seed Three" });
+  assert.deepEqual(miss[1]!.why, { kind: "generic" });
+});
+
 test("deterministic: same input, same output, input untouched", () => {
   const pool = [cand(makeTrack(3), [1], 1), cand(makeTrack(2), [1], 1), cand(makeTrack(4), [1], 0)];
   const frozen = structuredClone(pool);

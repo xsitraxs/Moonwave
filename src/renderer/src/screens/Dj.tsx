@@ -122,7 +122,7 @@ export default function Dj() {
   const queue = usePlayer((s) => s.queue);
   const index = usePlayer((s) => s.index);
   const current = useCurrentTrack();
-  const likesOrigin = useDj((s) => s.origin?.kind === "likes");
+  const originKind = useDj((s) => s.origin?.kind);
   const reasons = useDj((s) => s.reasons);
   const upcoming: { track: Track; at: number }[] = [];
   for (let at = index + 1; at < queue.length; at++) {
@@ -146,7 +146,11 @@ export default function Dj() {
           </button>
         )}
         <DjStatusText className="w-full text-[13px] text-[var(--s-dim)]" />
-        {status === "empty" && <span className="w-full text-[13px] text-[var(--s-dim)]">{likesOrigin ? t.djLikesEmptyHint : t.djEmptyHint}</span>}
+        {status === "empty" && (
+          <span className="w-full text-[13px] text-[var(--s-dim)]">
+            {originKind === "likes" ? t.djLikesEmptyHint : originKind === "artist" ? t.djArtistEmptyHint : originKind === "playlist" ? t.djPlaylistEmptyHint : t.djEmptyHint}
+          </span>
+        )}
       </section>
 
       {active && current && (

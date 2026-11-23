@@ -967,4 +967,18 @@ export const ru: Dict = {
   djFromLikes: "От ваших лайков",
   djLeadsLikes: (now: string | null) => (now ? `Ведёт подборку от ваших лайков, сейчас играет «${now}»` : `Ведёт подборку от ваших лайков`),
   djStartFromTrack: "Запустить DJ от этого трека",
+  djStartArtist: "От этого исполнителя",
+  djStartPlaylist: "От этого плейлиста",
+  djWhyArtist: (n: number, name: string, via: "tracks" | "likes") =>
+    via === "tracks" ? `Похож на ${n} ${plural(n, "трек", "трека", "треков")} ${name}` : `Похож на ${n} ${plural(n, "лайк", "лайка", "лайков")} ${name}`,
+  djWhyPlaylist: (n: number, title: string) => `Похож на ${n} ${plural(n, "трек", "трека", "треков")} из «${title}»`,
+  djFromArtist: (name: string) => `От ${name}`,
+  djFromPlaylist: (title: string) => `Из «${title}»`,
+  djLeadsArtist: (name: string, now: string | null) => (now ? `Ведёт подборку от ${name}, сейчас играет «${now}»` : `Ведёт подборку от ${name}`),
+  djLeadsPlaylist: (title: string, now: string | null) => (now ? `Ведёт подборку из «${title}», сейчас играет «${now}»` : `Ведёт подборку из «${title}»`),
+  djArtistEmpty: (name: string) => `У ${name} мало материала для DJ`,
+  djArtistEmptyHint: "Загрузок и лайков не хватило — попробуйте другого исполнителя.",
+  djPlaylistShort: "В плейлисте нужно хотя бы два трека.",
+  djPlaylistEmpty: (title: string) => `В «${title}» нет подходящих треков для DJ`,
+  djPlaylistEmptyHint: "Добавьте треки с SoundCloud — или запустите от лайков.",
 };
