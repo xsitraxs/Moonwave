@@ -146,6 +146,8 @@ export default function TrackMenu() {
               { icon: "close" as IconName, label: t.djDismiss, run: () => dj.dismiss(track.id) },
             ]
           : []),
+        // any heard track can seed a session (rooms keep their own player)
+        ...(roomHost === null ? [{ icon: "dj" as IconName, label: t.djStartFromTrack, run: () => dj.startFromTrack(track) }] : []),
         ...(signedIn || localLikes ? [{ icon: "heart" as IconName, label: likes.has(track.id) ? t.unlike : t.like, run: () => void toggleLike(track) }] : []),
         // following goes to SoundCloud: only with a session, and never for local files (they have no artist page)
         ...(signedIn ? [{ icon: (followed ? "check" : "plus") as IconName, label: followed ? t.unfollow : t.follow, run: () => void toggleFollow(track.user) }] : []),

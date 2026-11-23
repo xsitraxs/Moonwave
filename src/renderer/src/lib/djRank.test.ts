@@ -174,6 +174,27 @@ test("the result doesn't depend on the seed order", () => {
   assert.deepEqual(ba, ab);
 });
 
+test("a likes group explains by overlap, and only when it hits", () => {
+  const seeds: DjSeed[] = [
+    { id: 1, title: null },
+    { id: 2, title: null },
+    { id: 3, title: "Seed Three" },
+  ];
+  const opts = { ...base, seeds, groups: { likes: [1, 2] } };
+  // the group wins over single-seed naming: the count is the real overlap
+  const hit = rankDjCandidates([cand(makeTrack(4), [1, 2], 3), cand(makeTrack(5), [2], 1)], opts);
+  assert.deepEqual(hit.map((p) => p.track.id), [4, 5]);
+  assert.deepEqual(hit[0]!.why, { kind: "likes", count: 2 });
+  assert.deepEqual(hit[1]!.why, { kind: "likes", count: 1 });
+  // mixed with an outsider: the group still explains, counting only its own
+  const mixed = rankDjCandidates([cand(makeTrack(8), [1, 3], 2)], opts);
+  assert.deepEqual(mixed[0]!.why, { kind: "likes", count: 1 });
+  // no group seed in the list: the old words still apply
+  const miss = rankDjCandidates([cand(makeTrack(6), [3], 0), cand(makeTrack(7), [999], 0)], opts);
+  assert.deepEqual(miss[0]!.why, { kind: "seed", seedId: 3, seedTitle: "Seed Three" });
+  assert.deepEqual(miss[1]!.why, { kind: "generic" });
+});
+
 test("deterministic: same input, same output, input untouched", () => {
   const pool = [cand(makeTrack(3), [1], 1), cand(makeTrack(2), [1], 1), cand(makeTrack(4), [1], 0)];
   const frozen = structuredClone(pool);

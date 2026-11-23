@@ -958,4 +958,13 @@ export const ru: Dict = {
   djStatPlayed: "Послушано",
   djStatVotes: "Оценки",
   djStartFrom: "Точка старта",
+  djWhyLikes: (n: number) => `Похож на ${n} ${plural(n, "ваш лайк", "ваших лайка", "ваших лайков")}`,
+  djStartLikes: "От моих лайков",
+  djLikesShort: "Сначала лайкните хотя бы два трека.",
+  djLikesEmpty: "Для DJ нужно хотя бы два лайка",
+  djLikesEmptyHint: "Лайкните пару треков — или запустите от текущего трека.",
+  djLikesUnavailable: "Лайки недоступны: войдите или включите «Хранить лайки на этом компьютере».",
+  djFromLikes: "От ваших лайков",
+  djLeadsLikes: (now: string | null) => (now ? `Ведёт подборку от ваших лайков, сейчас играет «${now}»` : `Ведёт подборку от ваших лайков`),
+  djStartFromTrack: "Запустить DJ от этого трека",
 };
