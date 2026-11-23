@@ -952,4 +952,10 @@ export const ru: Dict = {
   djAutopilotHeld: "На паузе — ведёт DJ",
   djLeads: (seed: string, now: string | null) => (now ? `Ведёт подборку от «${seed}», сейчас играет «${now}»` : `Ведёт подборку от «${seed}»`),
   altTip: "Другая загрузка той же записи",
+  djNowSeed: "Начало подборки",
+  djSession: "Сессия",
+  djStatSuggested: "Предложено",
+  djStatPlayed: "Послушано",
+  djStatVotes: "Оценки",
+  djStartFrom: "Точка старта",
 };
