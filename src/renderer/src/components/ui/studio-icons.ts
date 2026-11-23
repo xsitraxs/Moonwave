@@ -63,4 +63,6 @@ export const STUDIO_ICONS: Record<string, { fill?: string; stroke?: string }> = 
   image: { stroke: `${rect(3.5, 5, 17, 14, 1.5)}${circle(9, 10, 1.8)}M20.5 16l-5-5-8.5 8` },
   sparkle: { stroke: "M12 4v4M12 16v4M4 12h4M16 12h4" },
   more: { stroke: `${circle(5.5, 12, 1)}${circle(12, 12, 1)}${circle(18.5, 12, 1)}` },
+  // headphones: the DJ's own mark (disc is taken by the vinyl, sparkle by the popular/spectrum bits)
+  dj: { stroke: `M5 16v-4a7 7 0 0 1 14 0v4${rect(3.5, 15, 3, 5.5, 1)}${rect(17.5, 15, 3, 5.5, 1)}` },
 };

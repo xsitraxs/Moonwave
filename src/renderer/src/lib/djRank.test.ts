@@ -41,7 +41,7 @@ test("the seed itself is never recommended", () => {
   assert.deepEqual(picks.map((p) => p.track.id), [2]);
 });
 
-test("blocked and drm tracks are dropped, ok and preview stay", () => {
+test("playability is not filtered: blocked and drm rank like everything else", () => {
   const picks = rankDjCandidates(
     [
       cand(makeTrack(2, { playability: "blocked" }), [1], 0),
@@ -51,7 +51,8 @@ test("blocked and drm tracks are dropped, ok and preview stay", () => {
     ],
     base,
   );
-  assert.deepEqual(picks.map((p) => p.track.id), [4, 5]);
+  // SoundCloud order decides; the substitute system (not the ranker) handles protection at play time
+  assert.deepEqual(picks.map((p) => p.track.id), [2, 3, 4, 5]);
 });
 
 test("duplicates merge: one pick, union of seeds, best order", () => {
@@ -133,6 +134,44 @@ test("garbage numbers stay deterministic", () => {
   const sameArtist = (id: number) => cand(makeTrack(id, { user: { id: 42, username: "Same", permalinkUrl: "" } }), [1], 0);
   assert.equal(rankDjCandidates([sameArtist(2), sameArtist(3)], { ...base, perArtistCap: Number.NaN }).length, 1);
   assert.deepEqual(rankDjCandidates(pool, { ...base, limit: Number.NaN }), []);
+});
+
+test("untitled seeds count for co-occurrence but are never named", () => {
+  const seeds: DjSeed[] = [
+    { id: 1, title: "Seed One" },
+    { id: 7, title: null },
+  ];
+  // via the untitled seed alone: outranks a seedless track, but stays nameless
+  const picks = rankDjCandidates([cand(makeTrack(2), [7], 5), cand(makeTrack(3), [999], 0)], { ...base, seeds });
+  assert.deepEqual(picks.map((p) => p.track.id), [2, 3]);
+  assert.deepEqual(picks[0]!.why, { kind: "generic" });
+  // mixed with a titled seed: the titled one is named, the untitled one stays quiet
+  const mixed = rankDjCandidates([cand(makeTrack(4), [1, 7], 3)], { ...base, seeds });
+  assert.deepEqual(mixed[0]!.why, { kind: "seed", seedId: 1, seedTitle: "Seed One" });
+  assert.equal(mixed[0]!.score, 2 * 1000 - 3);
+  // ...and the untitled seed itself is never recommended either
+  const self = rankDjCandidates([cand(makeTrack(7), [1], 0), cand(makeTrack(8), [1], 1)], { ...base, seeds });
+  assert.deepEqual(self.map((p) => p.track.id), [8]);
+});
+
+test("one seed: an untitled lone seed ranks like a titled one", () => {
+  const pool = [cand(makeTrack(2), [1], 2), cand(makeTrack(3), [1], 0)];
+  const titled = rankDjCandidates(pool, base);
+  const untitled = rankDjCandidates(pool, { ...base, seeds: [{ id: 1, title: null }] });
+  assert.deepEqual(untitled.map((p) => p.track.id), titled.map((p) => p.track.id));
+  assert.deepEqual(untitled.map((p) => p.score), titled.map((p) => p.score));
+  assert.ok(untitled.every((p) => p.why.kind === "generic"));
+});
+
+test("the result doesn't depend on the seed order", () => {
+  const seeds: DjSeed[] = [
+    { id: 1, title: "Seed One" },
+    { id: 7, title: "Seed Seven" },
+  ];
+  const pool = [cand(makeTrack(2), [7, 1], 4), cand(makeTrack(3), [1], 0), cand(makeTrack(4), [7], 1)];
+  const ab = rankDjCandidates(pool, { ...base, seeds });
+  const ba = rankDjCandidates(pool, { ...base, seeds: [...seeds].reverse() });
+  assert.deepEqual(ba, ab);
 });
 
 test("deterministic: same input, same output, input untouched", () => {

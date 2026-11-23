@@ -2,6 +2,7 @@ import { animate, AnimatePresence, motion, useMotionValue, useReducedMotion } fr
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { artwork, isLocalTrack, type Lyrics, type Track } from "@shared/types";
 import { analyser, currentTime } from "@/audio/engine";
+import { DjVotes, DjWhyLine } from "@/components/dj/bits";
 import { useT } from "@/i18n";
 import { enter, exit, slowMove } from "@/lib/motion";
 import { usePlayingLoop } from "@/lib/playingLoop";
@@ -211,10 +212,12 @@ function Stage({ track, sound, studio = false }: { track: Track; sound: Track | 
           >
             {track.artist}
           </button>
+          <DjWhyLine trackId={track.id} className="mt-1 text-[13px] text-[var(--s-dim)]" />
         </div>
         {canSend && !studio && !isLocalTrack(track.id) && <IconButton icon="send" label={t.sendToFriends} onClick={() => openSend(track)} />}
         <LikeButton track={track} white={white} />
         <AddToPlaylistButton track={track} />
+        <DjVotes trackId={track.id} />
       </div>
       <div className="np-ui mt-3" style={{ width }}>
         {sound ? <Waveform key={sound.id} track={sound} height={34} white={white} /> : <div className="h-[34px]" />}

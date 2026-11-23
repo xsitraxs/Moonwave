@@ -923,7 +923,17 @@ export const en = {
   djSuggestions: "DJ suggestions",
   djOpenPage: "Open DJ",
   djHint: "A continuous mix from the current track.",
+  djTagline: "A continuous mix from the current track",
   djNeedTrack: "Play any track first.",
+  djAutopilotHeld: "Paused — the DJ leads",
+  djLeads: (seed: string, now: string | null) => (now ? `Leading the mix from “${seed}” — now playing “${now}”` : `Leading the mix from “${seed}”`),
+  altTip: "Another upload of the same recording",
+  djNowSeed: "Where the mix started",
+  djSession: "Session",
+  djStatSuggested: "Suggested",
+  djStatPlayed: "Played",
+  djStatVotes: "Ratings",
+  djStartFrom: "Starting point",
 };
 
 export type Dict = typeof en;

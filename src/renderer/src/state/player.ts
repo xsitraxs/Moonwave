@@ -236,8 +236,12 @@ function start(index: number, opts: { autoplay?: boolean; startAt?: number } = {
       void engine.load(track, { autoplay, startAt: opts.startAt });
     } else {
       set({ status: "error", error: "unavailable" });
-      // not a silent skip: it plays on SoundCloud itself
-      useUi.getState().noteSkipped(track);
+      // not a silent skip: it plays on SoundCloud itself (throttled while a DJ session owns playback)
+      const now = Date.now();
+      if (!autopilotSuspended || now - lastSkippedNoteAt >= SKIP_NOTICE_DJ_MS) {
+        lastSkippedNoteAt = now;
+        useUi.getState().noteSkipped(track);
+      }
       // in a room: quiet here until the room's next track
       if (!remote) skipSoon(600);
       return;
@@ -273,6 +277,11 @@ const cachedSourceIds = (source: QueueSource) => {
 /** bumped whenever the queue is rebuilt: a whole-list shuffle that arrives late for an older queue is dropped */
 let rebuild = 0;
 
+/** Bumped whenever a whole new list replaces the queue (playFrom, room load/leave) — appends and removals don't. */
+let queueGen = 0;
+/** The queue's generation, for the DJ's session context: a running session stops when this moves under it. */
+export const queueGeneration = () => queueGen;
+
 /**
  * A true shuffle: the rest of the WHOLE list (not just the loaded page) in one uniform random order. What has been
  * played stays, tracks added by hand stay next, everything else is replaced by the shuffled remainder.
@@ -298,6 +307,11 @@ async function shuffleWholeList() {
 
 /** the fill in progress: a caller that needs its result (the next track at a list's end) waits for it */
 let topUpRun: Promise<void> | null = null;
+/** A DJ session holds this while it owns the tail: only the autopilot filler in fill() steps aside. */
+let autopilotSuspended = false;
+/** SkipNotice throttle while a DJ session flips through a dry patch: one card a minute, not one per skip. */
+let lastSkippedNoteAt = 0;
+const SKIP_NOTICE_DJ_MS = 60_000;
 
 async function fetchPage(source: QueueSource): Promise<Page<Track> | null> {
   switch (source.kind) {
@@ -373,7 +387,8 @@ async function fill() {
         }
         break; // in order: advance() wraps around to the first track
       }
-      if (!useSettings.getState().prefs.autopilot) break;
+      // held by a DJ session: its own picks are the tail, the filler must not race them (list pages above keep flowing)
+      if (autopilotSuspended || !useSettings.getState().prefs.autopilot) break;
       const last = s.queue[s.queue.length - 1];
       if (!last) break;
       const related = await call("data:related", last.id);
@@ -571,6 +586,7 @@ export const player = {
     if (remote) return remote.playFrom(tracks, index, source);
     if (startAt !== undefined && (!Number.isFinite(startAt) || startAt < 0 || (target.durationMs > 0 && startAt >= target.durationMs / 1000))) startAt = undefined;
     rebuild++;
+    queueGen++; // a new list replaces the queue
     skipsInARow = 0;
     if (get().shuffle) {
       const rest = shuffled(tracks.filter((t, i) => i !== index && playable(t)));
@@ -738,6 +754,24 @@ export const player = {
     set({ queue: q, autoFrom: autoFrom >= 0 ? autoFrom + items.length : -1 });
     if (!opts?.silent && q.length > index + 1) useUi.getState().openSideQueue();
   },
+  /**
+   * Drops the autopilot's tail (the DJ's takeover clears what the filler added). Only non-manual tracks from the
+   * tail's region on: hand-added ones stay even if a drag moved them there, and the current and past never move.
+   */
+  dropAutoTail() {
+    if (remote) return;
+    const { queue, index, autoFrom } = get();
+    if (autoFrom < 0) return;
+    const from = Math.max(autoFrom, index + 1);
+    set({ queue: [...queue.slice(0, from), ...queue.slice(from).filter((t) => manual.has(t))], autoFrom: -1 });
+  },
+  /**
+   * Holds the autopilot's filler while a DJ session owns the tail (list pagination is unaffected).
+   * The session sets it on start and clears it on every stop; a stuck flag would silence the filler for good.
+   */
+  setAutopilotSuspended(on: boolean) {
+    autopilotSuspended = on;
+  },
   removeAt(i: number) {
     const { queue, index, autoFrom } = get();
     if (remote || i === index || i < 0 || i >= queue.length) return;
@@ -825,6 +859,7 @@ export const roomPlayer = {
     const b = beforeRoom;
     beforeRoom = null;
     rebuild++;
+    queueGen++; // back to what played before the room
     engine.pause();
     if (!b || b.index < 0) {
       set({ queue: [], index: -1, original: null, pending: [], source: { kind: "static" }, autoFrom: -1, status: "idle" });
@@ -837,6 +872,7 @@ export const roomPlayer = {
   /** The room's track, from `at` seconds, playing or waiting. */
   load(track: Track, at: number, playing: boolean) {
     rebuild++;
+    queueGen++; // the room's track replaces the queue
     set({ queue: [track], index: -1, original: null, pending: [], source: { kind: "static" }, autoFrom: -1 });
     start(0, { autoplay: playing, startAt: at });
   },

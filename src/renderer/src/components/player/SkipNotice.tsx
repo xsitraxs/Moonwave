@@ -33,7 +33,7 @@ export default function SkipNotice() {
               <span className="block truncate text-[13px] font-semibold text-text" title={track.title}>
                 {track.title}
               </span>
-              <span className="block truncate text-[11px] text-muted">{t.skippedHint}</span>
+              <span className="block truncate text-[11px] text-muted" title={t.skippedHint}>{t.skippedHint}</span>
             </span>
             <button
               type="button"

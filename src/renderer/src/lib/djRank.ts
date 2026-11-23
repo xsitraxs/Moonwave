@@ -13,18 +13,22 @@ import type { Track } from "@shared/types";
  * - session feedback on the track's artist: +500 for "more", -500 for "less" (ignored while paused)
  * - ties: SoundCloud order first, then the smaller track id — the same input always gives the same output
  *
- * Filtering: seeds themselves, excluded ids (history, queue, dismissed), and anything SoundCloud won't stream
- * here (`blocked` / `drm`) are dropped. `preview` stays — the player's substitute system handles it at play time,
- * exactly like the autopilot. Local tracks never come from `data:related`; a local seed simply yields no candidates
- * and the controller reports "no data" instead of calling this with garbage.
+ * Filtering: seeds themselves and excluded ids (history, queue, dismissed). Playability is deliberately NOT
+ * filtered here — exactly like the autopilot and the stations: fresh `blocked` / `drm` tracks usually play
+ * through the substitute system, and their flag in a related response often just means "no stream data attached".
+ * The session controller applies the player's own `canPlay` before appending, so hidden and proven-dead tracks
+ * still stay out. Local tracks never come from `data:related`; a local seed simply yields no candidates and
+ * the controller reports "no data" instead of calling this with garbage.
  *
- * Reasons (`why`) only ever name seeds that really listed the track; anything else is the neutral `generic`.
+ * Reasons (`why`) only ever name titled seeds that really listed the track; anything else is the neutral `generic`.
+ * An untitled seed (its title is unknown) still counts for co-occurrence — it just can never be named.
  * `feedback` tells the UI when a session rating moved the track, so the interface can say so honestly.
  */
 
 export interface DjSeed {
   id: number;
-  title: string;
+  /** null: counts for co-occurrence but is never named (its title is unknown) */
+  title: string | null;
 }
 
 /** One related track as the collector saw it. Duplicates are fine: they are merged (union of seeds, best order). */
@@ -82,7 +86,10 @@ function asOrder(value: number): number {
 export const DJ_RANK_DEFAULTS = { perArtistCap: 2, limit: 20 } as const;
 
 export function rankDjCandidates(candidates: readonly DjCandidate[], options: DjRankOptions): DjPick[] {
-  const seedById = new Map(options.seeds.map((s) => [s.id, s]));
+  // every round seed counts for co-occurrence, titled or not; only titled ones can be named in a reason
+  const counted = new Set(options.seeds.map((s) => s.id));
+  const seedById = new Map<number, { id: number; title: string }>();
+  for (const s of options.seeds) if (s.title !== null) seedById.set(s.id, { id: s.id, title: s.title });
   const excluded = new Set(options.exclude);
   const perArtistCap = asCount(options.perArtistCap, 1);
   const limit = asCount(options.limit, 0);
@@ -92,7 +99,7 @@ export function rankDjCandidates(candidates: readonly DjCandidate[], options: Dj
   const less = feedbackOn ? new Set(options.feedback?.lessArtists ?? []) : new Set<number>();
 
   // Duplicates merged: the union of the seeds that listed the track, SoundCloud's best position for it.
-  // Unknown seed ids are dropped — only real seeds count towards the score and the reason.
+  // Unknown seed ids are dropped — only round seeds count towards the score, and only titled ones towards the reason.
   // The first-seen track object wins when two snapshots of the same id disagree (deterministic).
   const merged = new Map<number, { track: Track; via: Set<number>; order: number }>();
   for (const c of candidates) {
@@ -100,10 +107,10 @@ export function rankDjCandidates(candidates: readonly DjCandidate[], options: Dj
     const prev = merged.get(c.track.id);
     if (!prev) {
       const via = new Set<number>();
-      for (const s of c.viaSeeds) if (seedById.has(s)) via.add(s);
+      for (const s of c.viaSeeds) if (counted.has(s)) via.add(s);
       merged.set(c.track.id, { track: c.track, via, order });
     } else {
-      for (const s of c.viaSeeds) if (seedById.has(s)) prev.via.add(s);
+      for (const s of c.viaSeeds) if (counted.has(s)) prev.via.add(s);
       if (order < prev.order) prev.order = order;
     }
   }
@@ -111,8 +118,7 @@ export function rankDjCandidates(candidates: readonly DjCandidate[], options: Dj
   const scored: { track: Track; via: number; order: number; score: number; feedback: "more" | "less" | null }[] = [];
   for (const { track, via, order } of merged.values()) {
     if (excluded.has(track.id)) continue;
-    if (seedById.has(track.id)) continue;
-    if (track.playability !== "ok" && track.playability !== "preview") continue;
+    if (counted.has(track.id)) continue;
     const inMore = more.has(track.user.id);
     const inLess = less.has(track.user.id);
     const feedback = inMore && inLess ? null : inMore ? "more" : inLess ? "less" : null;
@@ -132,7 +138,7 @@ export function rankDjCandidates(candidates: readonly DjCandidate[], options: Dj
   return picks;
 }
 
-function whyFor(via: Set<number>, seedById: Map<number, DjSeed>): DjWhy {
+function whyFor(via: Set<number>, seedById: Map<number, { id: number; title: string }>): DjWhy {
   const known = [...via].filter((id) => seedById.has(id));
   if (known.length >= 2) return { kind: "seeds", count: known.length };
   const seed = seedById.get(known[0] ?? -1);

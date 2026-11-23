@@ -10,14 +10,14 @@ import { useRoom } from "@/state/room";
 export function DjStatusText({ className = "" }: { className?: string }) {
   const t = useT();
   const status = useDj((s) => s.status);
-  const seed = useDj((s) => s.seed);
+  const seed = useDj((s) => s.seeds[0] ?? null);
   const refilling = useDj((s) => s.refilling);
   if (status === "idle") return null;
   const text =
     status === "loading"
       ? t.djLoading
       : status === "ready"
-        ? `${seed ? t.djSeed(seed.title) : t.dj}${refilling ? ` · ${t.loadingMore}` : ""}`
+        ? `${seed?.title ? t.djSeed(seed.title) : t.dj}${refilling ? ` · ${t.loadingMore}` : ""}`
         : status === "error"
           ? t.djError
           : status === "empty"
@@ -85,7 +85,7 @@ export function DjWhyLine({ trackId, className = "" }: { trackId: number; classN
   if (!why) return null;
   return (
     <span className={`flex min-w-0 items-center gap-1 ${className}`}>
-      <Icon name="sparkle" size={12} className="shrink-0" />
+      <Icon name="dj" size={12} className="shrink-0" />
       <span className="truncate">{djReasonText(why, { seed: t.djWhySeed, seeds: t.djWhySeeds, generic: t.djWhyGeneric })}</span>
     </span>
   );

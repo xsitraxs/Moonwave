@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { isLocalTrack, artwork, type Track } from "@shared/types";
+import { DjVotes, DjWhyLine } from "@/components/dj/bits";
 import { errorText, useT } from "@/i18n";
 import { duration } from "@/lib/format";
 import { setMiniPlayer } from "@/lib/miniPlayer";
@@ -286,10 +287,12 @@ export default function StudioPlayerBar() {
               <button type="button" onClick={() => go({ name: "profile", userId: displayTrack.user.id })} className="mt-0.5 block max-w-full truncate text-left text-[13px] font-normal text-muted hover:text-text hover:underline">
                 {displayTrack.artist}
               </button>
+              {track && <DjWhyLine trackId={track.id} className="mt-0.5 text-[11.5px] text-[var(--s-dim)]" />}
             </div>
             <div className={`flex shrink-0 items-center ${isIdleLast ? "opacity-75" : ""}`}>
               <Like track={displayTrack} />
               <AddTo track={displayTrack} />
+              {track && <DjVotes trackId={track.id} />}
             </div>
           </>
         ) : (
@@ -352,7 +355,7 @@ export default function StudioPlayerBar() {
             </>
           )}
           <div className="s-player-group">
-            <Btn icon="sparkle" label={!track ? t.djNeedTrack : djActive ? t.djStop : t.djStart} on={djActive} disabled={!track || inRoom} onClick={() => (djActive ? dj.stop() : dj.start())} />
+            <Btn icon="dj" label={!track ? t.djNeedTrack : djActive ? t.djStop : t.djStart} on={djActive} disabled={!track || inRoom} onClick={() => (djActive ? dj.stop() : dj.start())} />
             <Btn
               icon="lyrics"
               label={t.lyrics}

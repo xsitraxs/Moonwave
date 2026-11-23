@@ -421,13 +421,21 @@ function DjBanner() {
   const open = useNav((s) => s.open);
   const active = useDj((s) => s.active);
   const status = useDj((s) => s.status);
+  const seed = useDj((s) => s.seeds[0] ?? null);
+  const current = useCurrentTrack();
   const live = active || status === "error" || status === "empty" || status === "exhausted";
   return (
     <section aria-label={t.dj} className="mb-7 flex items-center gap-3 rounded-[var(--r2)] bg-white/[0.04] px-4 py-3 ring-1 ring-inset ring-white/[0.06]">
-      <Icon name="sparkle" size={22} className="shrink-0 text-muted" />
+      <Icon name="dj" size={22} className={`shrink-0 ${active ? "text-[var(--accent)]" : "text-muted"}`} />
       <div className="min-w-0 flex-1">
         <div className="text-[15px] font-semibold text-text">{t.dj}</div>
-        {live ? <DjStatusText className="block text-[13px] text-muted" /> : <div className="truncate text-[13px] text-muted">{t.djHint}</div>}
+        {active && seed?.title ? (
+          <div className="truncate text-[13px] text-muted">{t.djLeads(seed.title, current?.title ?? null)}</div>
+        ) : live ? (
+          <DjStatusText className="block text-[13px] text-muted" />
+        ) : (
+          <div className="truncate text-[13px] text-muted">{t.djHint}</div>
+        )}
       </div>
       <DjToggle />
       <button type="button" onClick={() => open("dj", { name: "dj" })} className="shrink-0 text-[13px] font-medium text-muted transition-colors motion-color hover:text-text">

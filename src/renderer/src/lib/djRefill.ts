@@ -1,16 +1,16 @@
-import type { DjFeedback } from "./djRank";
+import type { DjFeedback, DjSeed } from "./djRank";
 
 /**
  * Moonwave DJ: when the session refills, and when it steps aside. Pure decisions over a snapshot of the player —
  * the state/dj.ts session feeds them and acts on them; the async flight itself lives there too.
  *
- * - refill: fewer than DJ_REFILL_BELOW unplayed suggestions left — fetch the next round, chained from the last
- *   suggestion. The threshold sits above the player's own (AHEAD = 3), so a healthy DJ session always
- *   refills before the autopilot's guard even notices the queue draining; the autopilot stays a natural fallback
- *   for a dry or failed DJ, not a competitor.
- * - stop/cleared: no unplayed suggestions left while the seed is still around — the person removed them
- *   (clearUpcoming, one-by-one), so the DJ gets out of the way instead of re-adding what was just thrown out.
- * - stop/context: the seed left the queue — another list started, or a listening room took over the player.
+ * - refill: fewer than DJ_REFILL_BELOW unplayed suggestions left — fetch the next round from its anchors (the
+ *   chain tip, the session's thumbs-up, the origin seeds). While a session runs it holds the autopilot's filler
+ *   (and drops its old tail on start), so the DJ's picks are the only tail; once the session ends the autopilot
+ *   resumes as the natural fallback.
+ * - stop/cleared: no unplayed suggestions left on the session's queue — the person removed them (clearUpcoming,
+ *   one-by-one), so the DJ gets out of the way instead of re-adding what was just thrown out.
+ * - stop/context: the queue turned over — another list started, or a listening room took over the player.
  * - wait: busy, holding after repeated errored rounds (a retry button resets that), or plenty of suggestions left.
  *   Dry rounds don't hold: the session stops after two of them instead.
  *
@@ -21,10 +21,13 @@ import type { DjFeedback } from "./djRank";
 export interface DjQueueView {
   queueIds: number[];
   index: number;
+  /** the player's queue generation: bumped when a whole new list replaces the queue (not on appends/removals) */
+  queueGen: number;
 }
 
 export interface DjSessionView {
-  seedId: number;
+  /** the queue generation the session started on — a mismatch means another list (or a room) took the player */
+  expectedGen: number;
   /** every suggestion appended this session, in append order (dismissed ones removed) */
   appendedIds: readonly number[];
   /** a collect+rank flight is running */
@@ -41,10 +44,14 @@ export const DJ_REFILL_BELOW = 5;
 export const DJ_MAX_REFILL_FAILURES = 2;
 /** After this many dry rounds in a row (the chain yields nothing) the session bows out instead of holding. */
 export const DJ_DRY_ROUNDS_TO_STOP = 2;
+/** Seeds in one collect+rank round: two waves of the provider's 4 parallel requests. */
+export const DJ_ROUND_SEEDS = 8;
+/** Session thumbs-up anchoring a refill round (the freshest first); origin seeds fill the rest. */
+export const DJ_VOTE_ANCHORS = 2;
 
 export function decideDjNext(view: DjQueueView, session: DjSessionView): DjDecision {
   if (session.busy || session.failures >= DJ_MAX_REFILL_FAILURES) return { action: "wait" };
-  if (!view.queueIds.includes(session.seedId)) return { action: "stop", reason: "context" };
+  if (view.queueGen !== session.expectedGen) return { action: "stop", reason: "context" };
   const appended = new Set(session.appendedIds);
   let tail = 0;
   for (let i = view.index + 1; i < view.queueIds.length; i++) {
@@ -78,4 +85,44 @@ export function feedbackArtists(votes: Readonly<Record<number, DjVote>>, artistO
 /** The next round chains from the newest surviving suggestion (dismissed ones are already gone from the list). */
 export function chainSeedId(appendedIds: readonly number[], fallbackId: number): number {
   return appendedIds[appendedIds.length - 1] ?? fallbackId;
+}
+
+/**
+ * A round fails only when every seed failed (a lone failure among live seeds just shrinks the pool).
+ * No seeds at all is not a failure — there is simply nothing to rank.
+ */
+export function isRoundFailed(failedSeeds: readonly number[], seedIds: readonly number[]): boolean {
+  const seeds = new Set(seedIds);
+  if (seeds.size === 0) return false;
+  let failed = 0;
+  for (const id of new Set(failedSeeds)) if (seeds.has(id)) failed++;
+  return failed >= seeds.size;
+}
+
+/**
+ * The seeds of a refill round: the chain tip first (continuity), then the freshest session thumbs-up (explicit
+ * taste), then the session's origin seeds (the roots that keep the drift in check) — deduped and capped, so on
+ * overflow the oldest origin seed drops first. Titles resolve through `titleOf`; an unknown one stays null
+ * (counted for co-occurrence, never named in a reason).
+ */
+export function buildRoundSeeds(
+  origin: readonly DjSeed[],
+  moreIds: readonly number[],
+  chainId: number | null,
+  titleOf: (id: number) => string | null,
+  limit: number = DJ_ROUND_SEEDS,
+): DjSeed[] {
+  const ids: number[] = [];
+  const seen = new Set<number>();
+  const push = (id: number) => {
+    if (!seen.has(id)) {
+      seen.add(id);
+      ids.push(id);
+    }
+  };
+  if (chainId !== null) push(chainId);
+  for (const id of moreIds.slice(0, DJ_VOTE_ANCHORS)) push(id);
+  for (const s of origin) push(s.id);
+  const n = Number.isFinite(limit) ? Math.max(1, Math.floor(limit)) : DJ_ROUND_SEEDS;
+  return ids.slice(0, n).map((id) => ({ id, title: titleOf(id) }));
 }
