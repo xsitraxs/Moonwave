@@ -4,13 +4,26 @@ import { IconButton } from "@/components/ui/Buttons";
 import Icon from "@/components/ui/Icon";
 import { Screen, ScreenTitle } from "@/components/ui/Screen";
 import { useT } from "@/i18n";
+import type { DjSeed, DjWhy } from "@/lib/djRank";
 import { duration } from "@/lib/format";
 import { dj, useDj } from "@/state/dj";
 import { player, usePlayer } from "@/state/player";
 import { useUi } from "@/state/ui";
 
+/** When every upcoming suggestion names the same seed, its reason moves to one header line (rows stay clean). */
+function commonSeedOf(upcoming: readonly { track: Track }[], reasons: Record<number, DjWhy>): DjSeed | null {
+  let seed: DjSeed | null = null;
+  for (const { track } of upcoming) {
+    const w = reasons[track.id];
+    if (!w || w.kind !== "seed") return null;
+    if (!seed) seed = { id: w.seedId, title: w.seedTitle };
+    else if (seed.id !== w.seedId) return null;
+  }
+  return seed;
+}
+
 /** One upcoming suggestion: jumping plays it here in the queue (never restarts the session elsewhere). */
-function Suggestion({ track, at }: { track: Track; at: number }) {
+function Suggestion({ track, at, hideWhy }: { track: Track; at: number; hideWhy: boolean }) {
   const t = useT();
   const openMenu = useUi((s) => s.openMenu);
   const active = useDj((s) => s.active);
@@ -27,9 +40,9 @@ function Suggestion({ track, at }: { track: Track; at: number }) {
       <span className="min-w-0 flex-1">
         <span className="t block truncate">{track.title}</span>
         <span className="s block truncate">{track.artist}</span>
-        <DjWhyLine trackId={track.id} className="mt-0.5 text-[11.5px] text-[var(--s-dim)]" />
+        {!hideWhy && <DjWhyLine trackId={track.id} className="mt-0.5 text-[11.5px] text-[var(--s-dim)]" />}
       </span>
-      <span className="flex shrink-0 items-center opacity-0 transition-opacity motion-color group-focus-within:opacity-100 group-hover:opacity-100">
+      <span className="flex shrink-0 items-center">
         <DjVotes trackId={track.id} />
         {active && (
           <IconButton
@@ -71,6 +84,7 @@ export default function Dj() {
     const track = queue[at];
     if (track && reasons[track.id]) upcoming.push({ track, at });
   }
+  const commonSeed = commonSeedOf(upcoming, reasons);
 
   return (
     <Screen label={t.dj}>
@@ -108,9 +122,10 @@ export default function Dj() {
       {upcoming.length > 0 && (
         <section aria-label={t.djSuggestions}>
           <h2 className="s-lbl mb-2">{t.djSuggestions}</h2>
+          {commonSeed && <p className="mb-2 text-[12px] text-[var(--s-dim)]">{t.djWhySeed(commonSeed.title)}</p>}
           <ol>
             {upcoming.map(({ track, at }) => (
-              <Suggestion key={`${track.id}-${at}`} track={track} at={at} />
+              <Suggestion key={`${track.id}-${at}`} track={track} at={at} hideWhy={commonSeed !== null} />
             ))}
           </ol>
         </section>

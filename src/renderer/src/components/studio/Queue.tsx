@@ -92,7 +92,7 @@ function Item({ track, index, alt, dragging, over, drag }: { track: Track; index
       <span className="min-w-0 flex-1">
         <span className="t flex items-center">
           <span className="truncate">{track.title}</span>
-          {alt && <span className="s-tag shrink-0">ALT</span>}
+          {alt && <span className="s-tag shrink-0" title={t.altTip}>ALT</span>}
         </span>
         <span className="s block">{track.artist}</span>
         {djSuggested && <DjWhyLine trackId={track.id} className="text-[11px] text-[var(--s-dim)]" />}
@@ -243,6 +243,7 @@ export function QueuePanel({ showCurrent = true }: { showCurrent?: boolean }) {
   const [tab, setTab] = useState<"next" | "history">("next");
   const autopilot = useSettings((s) => s.prefs.autopilot);
   const setPref = useSettings((s) => s.setPref);
+  const djActive = useDj((s) => s.active);
   const hasUpcoming = usePlayer((s) => s.queue.length > s.index + 1);
   const toast = useUi((s) => s.showToast);
   // what plays now and what comes after it, as a playlist of your own
@@ -286,7 +287,7 @@ export function QueuePanel({ showCurrent = true }: { showCurrent?: boolean }) {
         <Icon name="radio" size={17} className="text-muted" />
         <span>
           <span className="t block">{t.autopilot}</span>
-          <span className="s block">{t.autopilotShort}</span>
+          <span className="s block">{djActive && autopilot ? t.djAutopilotHeld : t.autopilotShort}</span>
         </span>
         <span className={`s-sw ${autopilot ? "on" : ""}`} />
       </button>

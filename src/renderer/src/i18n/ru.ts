@@ -949,4 +949,7 @@ export const ru: Dict = {
   djHint: "Непрерывная подборка от текущего трека.",
   djTagline: "Непрерывная подборка от текущего трека",
   djNeedTrack: "Сначала включите любой трек.",
+  djAutopilotHeld: "На паузе — ведёт DJ",
+  djLeads: (seed: string, now: string | null) => (now ? `Ведёт подборку от «${seed}», сейчас играет «${now}»` : `Ведёт подборку от «${seed}»`),
+  altTip: "Другая загрузка той же записи",
 };

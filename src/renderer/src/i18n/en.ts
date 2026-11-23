@@ -925,6 +925,9 @@ export const en = {
   djHint: "A continuous mix from the current track.",
   djTagline: "A continuous mix from the current track",
   djNeedTrack: "Play any track first.",
+  djAutopilotHeld: "Paused — the DJ leads",
+  djLeads: (seed: string, now: string | null) => (now ? `Leading the mix from “${seed}” — now playing “${now}”` : `Leading the mix from “${seed}”`),
+  altTip: "Another upload of the same recording",
 };
 
 export type Dict = typeof en;
