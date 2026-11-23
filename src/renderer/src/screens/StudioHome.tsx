@@ -430,7 +430,9 @@ function DjBanner() {
       <Icon name="dj" size={22} className={`shrink-0 ${active ? "text-[var(--accent)]" : "text-muted"}`} />
       <div className="min-w-0 flex-1">
         <div className="text-[15px] font-semibold text-text">{t.dj}</div>
-        {active && origin?.kind === "likes" ? (
+        {active && status === "loading" ? (
+          <div className="truncate text-[13px] text-muted">{t.djLoading}</div>
+        ) : active && origin?.kind === "likes" ? (
           <div className="truncate text-[13px] text-muted">{t.djLeadsLikes(current?.title ?? null)}</div>
         ) : active && origin?.kind === "artist" ? (
           <div className="truncate text-[13px] text-muted">{t.djLeadsArtist(origin.name, current?.title ?? null)}</div>
