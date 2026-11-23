@@ -129,7 +129,7 @@ export default function Dj() {
   const nextUp = upcoming.slice(0, 3);
   const commonSeed = commonSeedOf(nextUp, reasons);
   const suggested = Object.keys(reasons).length;
-  const played = queue.slice(0, index + 1).filter((tr) => reasons[tr.id]).length;
+  const played = queue.filter((tr, i) => i < index && reasons[tr.id]).length;
 
   return (
     <Screen label={t.dj}>
@@ -156,7 +156,12 @@ export default function Dj() {
       {active && nextUp.length > 0 && (
         <section aria-label={t.upNext} className="mb-6">
           <h2 className="s-lbl mb-2">{t.upNext}</h2>
-          {commonSeed && <p className="mb-2 text-[12px] text-[var(--s-dim)]">{t.djWhySeed(commonSeed.title)}</p>}
+          {commonSeed && (
+            <p className="mb-2 flex min-w-0 items-center gap-1 text-[12px] text-[var(--s-dim)]">
+              <Icon name="sparkle" size={12} className="shrink-0" />
+              <span className="truncate">{t.djWhySeed(commonSeed.title)}</span>
+            </p>
+          )}
           <ol>
             {nextUp.map(({ track, at }) => (
               <Suggestion key={`${track.id}-${at}`} track={track} at={at} hideWhy={commonSeed !== null} />
@@ -202,7 +207,7 @@ export default function Dj() {
         <section aria-label={t.djStartFrom}>
           <h2 className="s-lbl mb-2">{t.djStartFrom}</h2>
           {current ? (
-            <div className="s-qi s-qi-auto max-w-xl">
+            <div className="s-qi s-qi-auto">
               <span className="block h-10 w-10 shrink-0 overflow-hidden rounded-[4px] bg-white/[0.06]">
                 {current.artworkUrl && <img src={artwork(current.artworkUrl, "large") ?? undefined} alt="" loading="lazy" decoding="async" draggable={false} className="h-full w-full object-cover" />}
               </span>
