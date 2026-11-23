@@ -593,6 +593,13 @@ html[data-activity="blurred"] .s-eq i {
   border-radius: var(--r2);
   text-align: left;
 }
+/* rows with a third line (the DJ's reason): grow with the content, never overlap the neighbour */
+.s-qi-auto {
+  height: auto;
+  min-height: 40px;
+  padding-top: 3px;
+  padding-bottom: 3px;
+}
 .s-qi:hover {
   background: var(--s-hover);
 }

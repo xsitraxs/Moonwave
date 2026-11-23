@@ -80,7 +80,7 @@ function Item({ track, index, alt, dragging, over, drag }: { track: Track; index
       onDragEnd={drag.end}
       onDoubleClick={() => player.jumpTo(index)}
       onKeyDown={onKey}
-      className={`s-qi group relative cursor-default ${dragging ? "opacity-40" : ""}`}
+      className={`s-qi group relative cursor-default ${djSuggested ? "s-qi-auto" : ""} ${dragging ? "opacity-40" : ""}`}
     >
       {over && <span aria-hidden="true" className="absolute inset-x-2 -top-px h-0.5 rounded bg-[var(--accent)]" />}
       <button type="button" tabIndex={-1} aria-label={`${t.play}: ${track.title}`} onClick={() => player.jumpTo(index)} className="relative shrink-0 overflow-hidden rounded-[4px]">

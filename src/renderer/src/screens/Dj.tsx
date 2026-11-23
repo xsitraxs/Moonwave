@@ -15,7 +15,7 @@ function Suggestion({ track, at }: { track: Track; at: number }) {
   const openMenu = useUi((s) => s.openMenu);
   const active = useDj((s) => s.active);
   return (
-    <li className="s-qi group">
+    <li className="s-qi s-qi-auto group">
       <button type="button" tabIndex={-1} aria-label={`${t.play}: ${track.title}`} onClick={() => player.jumpTo(at)} className="relative shrink-0 overflow-hidden rounded-[4px]">
         <span className="block h-10 w-10 overflow-hidden bg-white/[0.06]">
           {track.artworkUrl && <img src={artwork(track.artworkUrl, "large") ?? undefined} alt="" loading="lazy" decoding="async" draggable={false} className="h-full w-full object-cover" />}
@@ -74,7 +74,7 @@ export default function Dj() {
 
   return (
     <Screen label={t.dj}>
-      <ScreenTitle meta={t.djHint}>{t.dj.toLowerCase()}</ScreenTitle>
+      <ScreenTitle meta={t.djTagline}>{t.dj}</ScreenTitle>
 
       <section aria-label={t.dj} className="mb-6 flex flex-wrap items-center gap-x-4 gap-y-3">
         <DjToggle primary />

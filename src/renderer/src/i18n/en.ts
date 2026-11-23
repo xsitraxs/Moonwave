@@ -923,6 +923,7 @@ export const en = {
   djSuggestions: "DJ suggestions",
   djOpenPage: "Open DJ",
   djHint: "A continuous mix from the current track.",
+  djTagline: "A continuous mix from the current track",
   djNeedTrack: "Play any track first.",
 };
 

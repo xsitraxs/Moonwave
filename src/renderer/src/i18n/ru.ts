@@ -947,5 +947,6 @@ export const ru: Dict = {
   djSuggestions: "Предложения DJ",
   djOpenPage: "Открыть DJ",
   djHint: "Непрерывная подборка от текущего трека.",
+  djTagline: "Непрерывная подборка от текущего трека",
   djNeedTrack: "Сначала включите любой трек.",
 };
