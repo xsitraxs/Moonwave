@@ -85,7 +85,7 @@ export function DjWhyLine({ trackId, className = "" }: { trackId: number; classN
   if (!why) return null;
   return (
     <span className={`flex min-w-0 items-center gap-1 ${className}`}>
-      <Icon name="sparkle" size={12} className="shrink-0" />
+      <Icon name="dj" size={12} className="shrink-0" />
       <span className="truncate">{djReasonText(why, { seed: t.djWhySeed, seeds: t.djWhySeeds, generic: t.djWhyGeneric })}</span>
     </span>
   );

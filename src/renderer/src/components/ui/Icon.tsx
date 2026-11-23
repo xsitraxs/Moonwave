@@ -47,7 +47,7 @@ const ICONS = {
 } satisfies Record<string, { fill?: string; stroke?: string }>;
 
 /** icons only the studio screens use */
-type StudioOnly = "forward" | "list" | "users" | "bell" | "disc" | "radio" | "device" | "wave" | "image" | "sparkle" | "more" | "crown" | "playlistAdd";
+type StudioOnly = "forward" | "list" | "users" | "bell" | "disc" | "radio" | "device" | "wave" | "image" | "sparkle" | "more" | "crown" | "playlistAdd" | "dj";
 export type IconName = keyof typeof ICONS | StudioOnly;
 
 export default function Icon({ name, size = 20, filled = false, className = "" }: { name: IconName; size?: number; filled?: boolean; className?: string }) {

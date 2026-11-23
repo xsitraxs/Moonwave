@@ -85,7 +85,7 @@ function NowRow({ track }: { track: Track }) {
         <span className="s block truncate">{track.artist}</span>
         {isSeed ? (
           <span className="mt-0.5 flex min-w-0 items-center gap-1 text-[11.5px] text-[var(--s-dim)]">
-            <Icon name="sparkle" size={12} className="shrink-0" />
+            <Icon name="dj" size={12} className="shrink-0" />
             <span className="truncate">{t.djNowSeed}</span>
           </span>
         ) : (
@@ -158,7 +158,7 @@ export default function Dj() {
           <h2 className="s-lbl mb-2">{t.upNext}</h2>
           {commonSeed && (
             <p className="mb-2 flex min-w-0 items-center gap-1 text-[12px] text-[var(--s-dim)]">
-              <Icon name="sparkle" size={12} className="shrink-0" />
+              <Icon name="dj" size={12} className="shrink-0" />
               <span className="truncate">{t.djWhySeed(commonSeed.title)}</span>
             </p>
           )}
@@ -188,7 +188,7 @@ export default function Dj() {
             </span>
           </div>
           <button type="button" role="switch" aria-checked={feedbackOn} onClick={() => dj.setFeedbackOn(!feedbackOn)} className="s-row mb-2 w-full max-w-xl text-left">
-            <Icon name="sparkle" size={17} className="text-muted" />
+            <Icon name="dj" size={17} className="text-muted" />
             <span>
               <span className="t block">{t.djFeedback}</span>
               <span className="s block">{t.djFeedbackHint}</span>

@@ -355,7 +355,7 @@ export default function StudioPlayerBar() {
             </>
           )}
           <div className="s-player-group">
-            <Btn icon="sparkle" label={!track ? t.djNeedTrack : djActive ? t.djStop : t.djStart} on={djActive} disabled={!track || inRoom} onClick={() => (djActive ? dj.stop() : dj.start())} />
+            <Btn icon="dj" label={!track ? t.djNeedTrack : djActive ? t.djStop : t.djStart} on={djActive} disabled={!track || inRoom} onClick={() => (djActive ? dj.stop() : dj.start())} />
             <Btn
               icon="lyrics"
               label={t.lyrics}

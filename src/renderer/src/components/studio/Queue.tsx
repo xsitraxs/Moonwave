@@ -218,7 +218,7 @@ function DjStrip() {
   return (
     <div className="mx-1 mb-2 rounded-md bg-white/[0.05] px-2.5 py-2">
       <div className="flex items-center gap-1.5">
-        <Icon name="sparkle" size={15} className="shrink-0 text-muted" />
+        <Icon name="dj" size={15} className="shrink-0 text-muted" />
         <b className="text-[12.5px] font-semibold text-text">{t.dj}</b>
         <button type="button" onClick={() => open("dj", { name: "dj" })} className="ml-auto text-[12px] text-[var(--s-dim)] hover:text-text">
           {t.djOpenPage}

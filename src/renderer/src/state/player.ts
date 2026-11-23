@@ -236,8 +236,12 @@ function start(index: number, opts: { autoplay?: boolean; startAt?: number } = {
       void engine.load(track, { autoplay, startAt: opts.startAt });
     } else {
       set({ status: "error", error: "unavailable" });
-      // not a silent skip: it plays on SoundCloud itself
-      useUi.getState().noteSkipped(track);
+      // not a silent skip: it plays on SoundCloud itself (throttled while a DJ session owns playback)
+      const now = Date.now();
+      if (!autopilotSuspended || now - lastSkippedNoteAt >= SKIP_NOTICE_DJ_MS) {
+        lastSkippedNoteAt = now;
+        useUi.getState().noteSkipped(track);
+      }
       // in a room: quiet here until the room's next track
       if (!remote) skipSoon(600);
       return;
@@ -300,6 +304,9 @@ async function shuffleWholeList() {
 let topUpRun: Promise<void> | null = null;
 /** A DJ session holds this while it owns the tail: only the autopilot filler in fill() steps aside. */
 let autopilotSuspended = false;
+/** SkipNotice throttle while a DJ session flips through a dry patch: one card a minute, not one per skip. */
+let lastSkippedNoteAt = 0;
+const SKIP_NOTICE_DJ_MS = 60_000;
 
 async function fetchPage(source: QueueSource): Promise<Page<Track> | null> {
   switch (source.kind) {

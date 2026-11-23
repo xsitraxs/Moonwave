@@ -426,7 +426,7 @@ function DjBanner() {
   const live = active || status === "error" || status === "empty" || status === "exhausted";
   return (
     <section aria-label={t.dj} className="mb-7 flex items-center gap-3 rounded-[var(--r2)] bg-white/[0.04] px-4 py-3 ring-1 ring-inset ring-white/[0.06]">
-      <Icon name="sparkle" size={22} className={`shrink-0 ${active ? "text-[var(--accent)]" : "text-muted"}`} />
+      <Icon name="dj" size={22} className={`shrink-0 ${active ? "text-[var(--accent)]" : "text-muted"}`} />
       <div className="min-w-0 flex-1">
         <div className="text-[15px] font-semibold text-text">{t.dj}</div>
         {active && seed ? (
