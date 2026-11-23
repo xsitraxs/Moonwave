@@ -324,6 +324,8 @@ export const dj = {
     try {
       // ordered newest-first, this computer's likes included: no sign-in needed
       ids = await call("data:likedIds");
+      // typed number[], but the wire can lie (a main-process bug): fail loud instead of stuck-loading
+      if (!Array.isArray(ids)) throw new TypeError("data:likedIds must be an array");
     } catch {
       if (myGen !== gen) return;
       busy = false;
