@@ -2,7 +2,7 @@ import { Fragment, useState, type KeyboardEvent } from "react";
 import type { Playlist, QueueSource, Track } from "@shared/types";
 import { artwork } from "@shared/types";
 import { queryClient } from "@/api/queries";
-import { DjStatusText, DjToggle, DjWhyLine } from "@/components/dj/bits";
+import { DjStartArtistButton, DjStartLikesButton, DjStartPlaylistButton, DjStatusText, DjToggle, DjWhyLine } from "@/components/dj/bits";
 import { useT, dateLocale } from "@/i18n";
 import { duration } from "@/lib/format";
 import { dj, useDj } from "@/state/dj";
@@ -214,7 +214,18 @@ function DjStrip() {
   const open = useNav((s) => s.open);
   const active = useDj((s) => s.active);
   const status = useDj((s) => s.status);
+  const origin = useDj((s) => s.origin);
   if (!active && status !== "error" && status !== "empty" && status !== "exhausted") return null;
+  // an empty start keeps its way back: the origin carries the source, so the strip can offer it (a track
+  // origin has no button — the toggle restarts from the current track when there is one)
+  const wayBack =
+    status === "empty" && origin?.kind === "likes" ? (
+      <DjStartLikesButton className="!h-7 !px-2.5 !text-[12px]" />
+    ) : status === "empty" && origin?.kind === "artist" ? (
+      <DjStartArtistButton userId={origin.userId} name={origin.name} className="!h-7 !px-2.5 !text-[12px]" />
+    ) : status === "empty" && origin?.kind === "playlist" ? (
+      <DjStartPlaylistButton id={origin.id} title={origin.title} className="!h-7 !px-2.5 !text-[12px]" />
+    ) : null;
   return (
     <div className="mx-1 mb-2 rounded-md bg-white/[0.05] px-2.5 py-2">
       <div className="flex items-center gap-1.5">
@@ -232,6 +243,7 @@ function DjStrip() {
             {t.retry}
           </button>
         )}
+        {wayBack}
       </div>
     </div>
   );

@@ -114,10 +114,10 @@ export function DjStartArtistButton({ userId, name, className = "", onDone }: { 
   return <DjSourceButton label={t.djStartArtist} start={() => dj.startFromArtist(userId, name)} onDone={onDone} className={className} />;
 }
 
-/** Starts a session from a playlist's tracks in order. Short ones say so before burning a request. */
-export function DjStartPlaylistButton({ id, title, trackCount, className = "", onDone }: { id: string; title: string; trackCount: number; className?: string; onDone?: (active: boolean) => void }) {
+/** Starts a session from a playlist's tracks in order. Short ones say so before burning a request (unless the count is unknown — then the controller judges). */
+export function DjStartPlaylistButton({ id, title, trackCount, className = "", onDone }: { id: string; title: string; trackCount?: number; className?: string; onDone?: (active: boolean) => void }) {
   const t = useT();
-  const reason = trackCount < DJ_MIN_SEEDS ? t.djPlaylistShort : undefined;
+  const reason = trackCount !== undefined && trackCount < DJ_MIN_SEEDS ? t.djPlaylistShort : undefined;
   return <DjSourceButton label={t.djStartPlaylist} reason={reason} start={() => dj.startFromPlaylist(id, title)} onDone={onDone} className={className} />;
 }
 
