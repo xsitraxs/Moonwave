@@ -277,6 +277,11 @@ const cachedSourceIds = (source: QueueSource) => {
 /** bumped whenever the queue is rebuilt: a whole-list shuffle that arrives late for an older queue is dropped */
 let rebuild = 0;
 
+/** Bumped whenever a whole new list replaces the queue (playFrom, room load/leave) — appends and removals don't. */
+let queueGen = 0;
+/** The queue's generation, for the DJ's session context: a running session stops when this moves under it. */
+export const queueGeneration = () => queueGen;
+
 /**
  * A true shuffle: the rest of the WHOLE list (not just the loaded page) in one uniform random order. What has been
  * played stays, tracks added by hand stay next, everything else is replaced by the shuffled remainder.
@@ -581,6 +586,7 @@ export const player = {
     if (remote) return remote.playFrom(tracks, index, source);
     if (startAt !== undefined && (!Number.isFinite(startAt) || startAt < 0 || (target.durationMs > 0 && startAt >= target.durationMs / 1000))) startAt = undefined;
     rebuild++;
+    queueGen++; // a new list replaces the queue
     skipsInARow = 0;
     if (get().shuffle) {
       const rest = shuffled(tracks.filter((t, i) => i !== index && playable(t)));
@@ -853,6 +859,7 @@ export const roomPlayer = {
     const b = beforeRoom;
     beforeRoom = null;
     rebuild++;
+    queueGen++; // back to what played before the room
     engine.pause();
     if (!b || b.index < 0) {
       set({ queue: [], index: -1, original: null, pending: [], source: { kind: "static" }, autoFrom: -1, status: "idle" });
@@ -865,6 +872,7 @@ export const roomPlayer = {
   /** The room's track, from `at` seconds, playing or waiting. */
   load(track: Track, at: number, playing: boolean) {
     rebuild++;
+    queueGen++; // the room's track replaces the queue
     set({ queue: [track], index: -1, original: null, pending: [], source: { kind: "static" }, autoFrom: -1 });
     start(0, { autoplay: playing, startAt: at });
   },

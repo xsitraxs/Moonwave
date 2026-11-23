@@ -2,15 +2,17 @@ import { create } from "zustand";
 import { isLocalTrack } from "@shared/types";
 import { collectDjCandidates, DJ_COLLECT_DEFAULTS } from "@/lib/djCollect";
 import { DJ_RANK_DEFAULTS, rankDjCandidates, type DjPick, type DjSeed, type DjWhy } from "@/lib/djRank";
-import { buildDjExclude, chainSeedId, decideDjNext, DJ_DRY_ROUNDS_TO_STOP, feedbackArtists, type DjVote } from "@/lib/djRefill";
+import { buildDjExclude, buildRoundSeeds, chainSeedId, decideDjNext, DJ_DRY_ROUNDS_TO_STOP, feedbackArtists, isRoundFailed, type DjVote } from "@/lib/djRefill";
 import { call } from "@/lib/sky";
-import { canPlay, currentTrack, inRoom, player, usePlayer } from "./player";
+import { canPlay, currentTrack, inRoom, player, queueGeneration, usePlayer } from "./player";
+import { useRoom } from "./room";
 import { useSettings } from "./settings";
 
 /**
- * Moonwave DJ: one explicit session at a time, seeded by the current track. The session owns the *suggestions* —
- * fetching, ranking, appending, refilling — while the player keeps owning playback, the manual queue, repeat,
- * shuffle and the autopilot. Nothing here rewrites what the person queued by hand.
+ * Moonwave DJ: one explicit session at a time, grown from its origin seeds (the current track, for now). The
+ * session owns the *suggestions* — fetching, ranking, appending, refilling — while the player keeps owning
+ * playback, the manual queue, repeat, shuffle and the autopilot. Nothing here rewrites what the person queued
+ * by hand.
  *
  * How the suggestions ride the queue: on start the session holds the autopilot's filler and drops its old tail
  * (player.setAutopilotSuspended/dropAutoTail), then appends its picks in bulk (player.appendMany), flagged like
@@ -18,6 +20,11 @@ import { useSettings } from "./settings";
  * (track id → why it was picked): manual tracks have no entry, DJ tracks do, whatever the order becomes.
  * When the session ends the autopilot resumes as the natural fallback; no writer races, because every queue
  * update reads and writes synchronously.
+ *
+ * Every round ranks from several seeds at once (co-occurrence needs them): the first round from the origin
+ * seeds, refills from the chain tip, the session's thumbs-up and the origins — the roots that keep the drift
+ * in check. The session watches the queue's generation, not the seeds' presence: it refills a thinning tail
+ * and steps aside when another list (or a room) turns the queue over.
  *
  * A session ends when the person stops it, removes every suggestion, starts another list (or a room takes the
  * player), or the chain runs dry twice. Ending never yanks queued tracks and never leaves a flight behind:
@@ -30,7 +37,8 @@ interface DjStore {
   /** a session runs: suggestions may still arrive */
   active: boolean;
   status: DjStatus;
-  seed: DjSeed | null;
+  /** the session's origin seeds (what it started from); every refill round anchors back to these */
+  seeds: DjSeed[];
   /** a refill round is flying (the first round uses `loading` instead) */
   refilling: boolean;
   /** honest reasons, by suggested track id — kept after the session so queued tracks keep their labels */
@@ -41,10 +49,14 @@ interface DjStore {
   feedbackOn: boolean;
 }
 
-export const useDj = create<DjStore>(() => ({ active: false, status: "idle", seed: null, refilling: false, reasons: {}, votes: {}, feedbackOn: true }));
+export const useDj = create<DjStore>(() => ({ active: false, status: "idle", seeds: [], refilling: false, reasons: {}, votes: {}, feedbackOn: true }));
 
 /** One collect+rank round may take this long before it counts as failed (a slow network, not a dead one). */
 const DJ_FLIGHT_TIMEOUT_MS = 20_000;
+/** ...a little more per extra seed (two waves of parallel requests), up to the ceiling below. */
+const DJ_FLIGHT_TIMEOUT_PER_SEED_MS = 2_000;
+const DJ_FLIGHT_TIMEOUT_MAX_MS = 35_000;
+const flightTimeoutMs = (seeds: number) => Math.min(DJ_FLIGHT_TIMEOUT_MS + DJ_FLIGHT_TIMEOUT_PER_SEED_MS * Math.max(0, seeds - 1), DJ_FLIGHT_TIMEOUT_MAX_MS);
 
 // ---- session machinery (not UI state: no re-renders, reset on every start/stop) ----------------------------------
 
@@ -61,6 +73,10 @@ let gen = 0;
 let busy = false;
 let flight: AbortController | null = null;
 let timer = 0;
+/** the queue generation the running session started on (the tick stops the session when it moves) */
+let expectedQueueGen = 0;
+/** session thumbs-up track ids, freshest first — the newest ones anchor the next refill round */
+let voteOrder: number[] = [];
 
 const set = useDj.setState;
 const get = useDj.getState;
@@ -71,6 +87,8 @@ function resetMachinery() {
   dismissed = new Set();
   errStreak = 0;
   dryStreak = 0;
+  expectedQueueGen = queueGeneration();
+  voteOrder = [];
   if (flight) {
     flight.abort();
     flight = null;
@@ -102,16 +120,13 @@ interface RoundOutcome {
   failed: boolean;
 }
 
-async function runRound(seedId: number, signal: AbortSignal): Promise<RoundOutcome> {
-  const { candidates, failedSeeds } = await collectDjCandidates([{ id: seedId, title: "" }], (id) => call("data:related", id), { signal, ...DJ_COLLECT_DEFAULTS });
-  // one seed per round: its failure is the round's failure
-  if (failedSeeds.length > 0) return { picks: [], failed: true };
+async function runRound(roundSeeds: readonly DjSeed[], signal: AbortSignal): Promise<RoundOutcome> {
+  const { candidates, failedSeeds } = await collectDjCandidates(roundSeeds, (id) => call("data:related", id), { signal, ...DJ_COLLECT_DEFAULTS });
+  // one seed's failure never sinks the rest: only all-failed is a failed round (a lone seed behaves as before)
+  if (isRoundFailed(failedSeeds, roundSeeds.map((s) => s.id))) return { picks: [], failed: true };
   const s = get();
-  // a seed whose title can't be found anymore gets no name in the reasons — generic instead of a lie
-  const title = trackTitle(seedId);
-  const seeds = title === null ? [] : [{ id: seedId, title }];
   // the player's own gate, same as the autopilot's append: hidden and proven-dead stay out, fresh drm stays in
-  const picks = rankDjCandidates(candidates, { seeds, exclude: excludeNow(), ...DJ_RANK_DEFAULTS, feedback: feedbackArtists(s.votes, artistOf), feedbackOn: s.feedbackOn }).filter((p) => canPlay(p.track));
+  const picks = rankDjCandidates(candidates, { seeds: roundSeeds, exclude: excludeNow(), ...DJ_RANK_DEFAULTS, feedback: feedbackArtists(s.votes, artistOf), feedbackOn: s.feedbackOn }).filter((p) => canPlay(p.track));
   return { picks, failed: false };
 }
 
@@ -167,18 +182,23 @@ function applyOutcome(kind: "start" | "refill", outcome: RoundOutcome) {
   set({ status: "ready" });
 }
 
-async function runFlight(seedId: number, myGen: number, kind: "start" | "refill") {
+async function runFlight(roundSeeds: readonly DjSeed[], myGen: number, kind: "start" | "refill") {
   const controller = new AbortController();
   flight = controller;
   let timedOut = false;
   const timerId = window.setTimeout(() => {
     timedOut = true;
     controller.abort();
-  }, DJ_FLIGHT_TIMEOUT_MS);
+  }, flightTimeoutMs(roundSeeds.length));
   timer = timerId;
   try {
-    const outcome = await runRound(seedId, controller.signal);
+    const outcome = await runRound(roundSeeds, controller.signal);
     if (myGen !== gen) return;
+    // the queue turned over mid-flight while busy held the tick: step aside instead of appending elsewhere
+    if (queueGeneration() !== expectedQueueGen) {
+      stopInternal("context");
+      return;
+    }
     applyOutcome(kind, outcome);
   } catch {
     if (myGen !== gen) return;
@@ -198,19 +218,23 @@ async function runFlight(seedId: number, myGen: number, kind: "start" | "refill"
 
 function refill() {
   const s = get();
-  if (!s.active || busy || !s.seed) return;
+  const origin = s.seeds[0];
+  if (!s.active || busy || !origin) return;
   busy = true;
   set({ refilling: true });
   const myGen = ++gen;
-  void runFlight(chainSeedId(appended, s.seed.id), myGen, "refill");
+  void runFlight(buildRoundSeeds(s.seeds, voteOrder, chainSeedId(appended, origin.id), trackTitle), myGen, "refill");
 }
 
 /** Every player change passes the session through the decide function: refill, step aside, or idle. */
 function tick() {
   const s = get();
-  if (!s.active || !s.seed) return;
+  if (!s.active || !s.seeds.length) return;
   const p = usePlayer.getState();
-  const decision = decideDjNext({ queueIds: p.queue.map((t) => t.id), index: p.index }, { seedId: s.seed.id, appendedIds: appended, busy, failures: errStreak });
+  const decision = decideDjNext(
+    { queueIds: p.queue.map((t) => t.id), index: p.index, queueGen: queueGeneration() },
+    { expectedGen: expectedQueueGen, appendedIds: appended, busy, failures: errStreak },
+  );
   if (decision.action === "refill") refill();
   else if (decision.action === "stop") stopInternal(decision.reason);
 }
@@ -221,7 +245,7 @@ function stopInternal(reason: "user" | "cleared" | "context" | "exhausted") {
   busy = false;
   player.setAutopilotSuspended(false);
   // queued suggestions stay queued (never yanked); their reasons stay too, until the next session replaces them
-  set({ active: false, status: reason === "exhausted" ? "exhausted" : "stopped", seed: null, refilling: false, votes: {} });
+  set({ active: false, status: reason === "exhausted" ? "exhausted" : "stopped", seeds: [], refilling: false, votes: {} });
 }
 
 /** The DJ's actions for its button, panel and page. */
@@ -235,7 +259,7 @@ export const dj = {
       gen++;
       resetMachinery();
       busy = false;
-      set({ active: false, status: "empty", seed: { id: cur.id, title: cur.title }, refilling: false, reasons: {}, votes: {}, feedbackOn: true });
+      set({ active: false, status: "empty", seeds: [], refilling: false, reasons: {}, votes: {}, feedbackOn: true });
       return;
     }
     resetMachinery();
@@ -244,9 +268,11 @@ export const dj = {
     // tracks, and leaving them would exclude every candidate (busy is already set, so the tick stays quiet)
     player.setAutopilotSuspended(true);
     player.dropAutoTail();
+    expectedQueueGen = queueGeneration();
     const myGen = ++gen;
-    set({ active: true, status: "loading", seed: { id: cur.id, title: cur.title }, refilling: false, reasons: {}, votes: {}, feedbackOn: true });
-    void runFlight(cur.id, myGen, "start");
+    const seed = { id: cur.id, title: cur.title };
+    set({ active: true, status: "loading", seeds: [seed], refilling: false, reasons: {}, votes: {}, feedbackOn: true });
+    void runFlight([seed], myGen, "start");
   },
   /** No more suggestions; queued ones stay, the flight (if any) is dropped. */
   stop() {
@@ -266,6 +292,8 @@ export const dj = {
   },
   /** Thumbs up / down for the session only (null takes the vote back); the next round ranks with it. */
   vote(trackId: number, vote: DjVote | null) {
+    // the freshest thumbs-up anchor the next round (a "less" or a taken-back vote leaves the anchors)
+    voteOrder = vote === "more" ? [trackId, ...voteOrder.filter((id) => id !== trackId)] : voteOrder.filter((id) => id !== trackId);
     set((s) => {
       const votes = { ...s.votes };
       if (vote) votes[trackId] = vote;
@@ -279,6 +307,7 @@ export const dj = {
   },
   /** Forgets the session's ratings. */
   clearVotes() {
+    voteOrder = [];
     set({ votes: {} });
   },
   /** Takes a track out of the session: never suggested again, removed from the upcoming queue (skipped if playing). */
@@ -286,6 +315,7 @@ export const dj = {
     dismissed.add(trackId);
     appendedSet.delete(trackId);
     appended = appended.filter((id) => id !== trackId);
+    voteOrder = voteOrder.filter((id) => id !== trackId);
     set((s) => {
       const votes = { ...s.votes };
       delete votes[trackId];
@@ -309,4 +339,8 @@ export function initDj() {
   if (inited) return;
   inited = true;
   usePlayer.subscribe(tick);
+  // a room takes the player: the session steps aside at once, before the queue turns over
+  useRoom.subscribe((s) => {
+    if (s.room && get().active) stopInternal("context");
+  });
 }

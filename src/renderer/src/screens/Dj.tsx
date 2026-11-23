@@ -4,15 +4,16 @@ import { IconButton } from "@/components/ui/Buttons";
 import Icon from "@/components/ui/Icon";
 import { Screen, ScreenTitle } from "@/components/ui/Screen";
 import { useT } from "@/i18n";
-import type { DjSeed, DjWhy } from "@/lib/djRank";
+import type { DjWhy } from "@/lib/djRank";
 import { duration } from "@/lib/format";
 import { dj, useDj } from "@/state/dj";
 import { player, useCurrentTrack, usePlayer } from "@/state/player";
 import { useUi } from "@/state/ui";
 
 /** When every shown suggestion names the same seed, its reason moves to one header line (rows stay clean). */
-function commonSeedOf(upcoming: readonly { track: Track }[], reasons: Record<number, DjWhy>): DjSeed | null {
-  let seed: DjSeed | null = null;
+function commonSeedOf(upcoming: readonly { track: Track }[], reasons: Record<number, DjWhy>): { id: number; title: string } | null {
+  // reasons only ever name titled seeds, so the common one always has a string title
+  let seed: { id: number; title: string } | null = null;
   for (const { track } of upcoming) {
     const w = reasons[track.id];
     if (!w || w.kind !== "seed") return null;
@@ -73,7 +74,7 @@ function Suggestion({ track, at, hideWhy }: { track: Track; at: number; hideWhy:
 function NowRow({ track }: { track: Track }) {
   const t = useT();
   const openMenu = useUi((s) => s.openMenu);
-  const seed = useDj((s) => s.seed);
+  const seed = useDj((s) => s.seeds[0] ?? null);
   const isSeed = seed !== null && track.id === seed.id;
   return (
     <div className="s-qi s-qi-auto group">
