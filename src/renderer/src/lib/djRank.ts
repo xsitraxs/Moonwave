@@ -22,8 +22,8 @@ import type { Track } from "@shared/types";
  *
  * Reasons (`why`) only ever name titled seeds that really listed the track; anything else is the neutral `generic`.
  * An untitled seed (its title is unknown) still counts for co-occurrence — it just can never be named.
- * When `groups` names the origin (likes, artist, playlist), a candidate listed by that group is explained
- * by the group first.
+ * When `groups` names the origin (likes, artist, playlist, genre, mood), a candidate listed by that group
+ * is explained by the group first.
  * `feedback` tells the UI when a session rating moved the track, so the interface can say so honestly.
  */
 
@@ -59,6 +59,10 @@ export interface DjSeedGroups {
   artist?: { ids: readonly number[]; name: string; via: DjArtistVia };
   /** origin playlist-seed ids, with the title the reason speaks */
   playlist?: { ids: readonly number[]; title: string };
+  /** origin genre-seed ids, with the genre name the reason speaks */
+  genre?: { ids: readonly number[]; name: string };
+  /** origin mood-seed ids, with the mood name the reason speaks */
+  mood?: { ids: readonly number[]; name: string };
 }
 
 export interface DjRankOptions {
@@ -82,6 +86,8 @@ export type DjWhy =
   | { kind: "likes"; count: number }
   | { kind: "artist"; count: number; name: string; via: DjArtistVia }
   | { kind: "playlist"; count: number; title: string }
+  | { kind: "genre"; count: number; name: string }
+  | { kind: "mood"; count: number; name: string }
   | { kind: "generic" };
 
 export interface DjPick {
@@ -180,6 +186,18 @@ function whyFor(via: Set<number>, seedById: Map<number, { id: number; title: str
     let n = 0;
     for (const id of via) if (playlist.ids.includes(id)) n++;
     if (n > 0) return { kind: "playlist", count: n, title: playlist.title };
+  }
+  const genre = groups?.genre;
+  if (genre) {
+    let n = 0;
+    for (const id of via) if (genre.ids.includes(id)) n++;
+    if (n > 0) return { kind: "genre", count: n, name: genre.name };
+  }
+  const mood = groups?.mood;
+  if (mood) {
+    let n = 0;
+    for (const id of via) if (mood.ids.includes(id)) n++;
+    if (n > 0) return { kind: "mood", count: n, name: mood.name };
   }
   const known = [...via].filter((id) => seedById.has(id));
   if (known.length >= 2) return { kind: "seeds", count: known.length };

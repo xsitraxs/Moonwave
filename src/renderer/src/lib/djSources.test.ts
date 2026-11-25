@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { isLocalTrack as isLocal, LOCAL_TRACK_BASE, type Track } from "../../../shared/types.ts";
-import { DJ_SOURCE_SEEDS, pickLikeSeeds, pickTrackSeeds } from "./djSources.ts";
+import { DJ_GENRES, DJ_MOODS, DJ_SOURCE_SEEDS, pickLikeSeeds, pickTrackSeeds } from "./djSources.ts";
 
 const LOCAL_BASE = LOCAL_TRACK_BASE;
 
@@ -67,4 +67,13 @@ test("track seeds default to six and survive a garbage count", () => {
   assert.equal(pickTrackSeeds(tracks, isLocal).length, DJ_SOURCE_SEEDS);
   assert.equal(pickTrackSeeds(tracks, isLocal, NaN).length, DJ_SOURCE_SEEDS);
   assert.deepEqual(pickTrackSeeds(tracks, isLocal, 0), []);
+});
+
+test("genre and mood waves are unique, non-empty search queries", () => {
+  assert.equal(DJ_GENRES.length, 12);
+  assert.equal(new Set(DJ_GENRES).size, DJ_GENRES.length);
+  for (const g of DJ_GENRES) assert.ok(g.trim().length > 0);
+  assert.equal(DJ_MOODS.length, 6);
+  assert.equal(new Set(DJ_MOODS.map((m) => m.id)).size, DJ_MOODS.length);
+  for (const m of DJ_MOODS) assert.ok(m.query.trim().length > 0);
 });

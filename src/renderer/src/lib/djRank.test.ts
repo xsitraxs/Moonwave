@@ -226,6 +226,32 @@ test("a playlist group explains with its title, and only when it hits", () => {
   assert.deepEqual(miss[1]!.why, { kind: "generic" });
 });
 
+test("a genre group explains with its name, and only when it hits", () => {
+  const seeds: DjSeed[] = [
+    { id: 1, title: "One" },
+    { id: 3, title: "Seed Three" },
+  ];
+  const opts = { ...base, seeds, groups: { genre: { ids: [1], name: "Phonk" } } };
+  const hit = rankDjCandidates([cand(makeTrack(4), [1], 2)], opts);
+  assert.deepEqual(hit[0]!.why, { kind: "genre", count: 1, name: "Phonk" });
+  const miss = rankDjCandidates([cand(makeTrack(6), [3], 0), cand(makeTrack(7), [999], 0)], opts);
+  assert.deepEqual(miss[0]!.why, { kind: "seed", seedId: 3, seedTitle: "Seed Three" });
+  assert.deepEqual(miss[1]!.why, { kind: "generic" });
+});
+
+test("a mood group explains with its name, and only when it hits", () => {
+  const seeds: DjSeed[] = [
+    { id: 1, title: "One" },
+    { id: 3, title: "Seed Three" },
+  ];
+  const opts = { ...base, seeds, groups: { mood: { ids: [1], name: "Night" } } };
+  const hit = rankDjCandidates([cand(makeTrack(4), [1], 2)], opts);
+  assert.deepEqual(hit[0]!.why, { kind: "mood", count: 1, name: "Night" });
+  const miss = rankDjCandidates([cand(makeTrack(6), [3], 0), cand(makeTrack(7), [999], 0)], opts);
+  assert.deepEqual(miss[0]!.why, { kind: "seed", seedId: 3, seedTitle: "Seed Three" });
+  assert.deepEqual(miss[1]!.why, { kind: "generic" });
+});
+
 test("deterministic: same input, same output, input untouched", () => {
   const pool = [cand(makeTrack(3), [1], 1), cand(makeTrack(2), [1], 1), cand(makeTrack(4), [1], 0)];
   const frozen = structuredClone(pool);

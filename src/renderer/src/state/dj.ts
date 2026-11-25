@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { isLocalTrack, type Track } from "@shared/types";
+import { isLocalTrack, type Page, type Track } from "@shared/types";
 import { collectDjCandidates, DJ_COLLECT_DEFAULTS } from "@/lib/djCollect";
 import { DJ_RANK_DEFAULTS, rankDjCandidates, type DjArtistVia, type DjPick, type DjSeed, type DjWhy } from "@/lib/djRank";
 import { buildDjExclude, buildRoundSeeds, chainSeedId, decideDjNext, DJ_DRY_ROUNDS_TO_STOP, feedbackArtists, isRoundFailed, type DjVote } from "@/lib/djRefill";
@@ -10,7 +10,7 @@ import { useRoom } from "./room";
 import { useSettings } from "./settings";
 
 /**
- * Moonwave DJ: one explicit session at a time, grown from its origin seeds (a track, likes, an artist, a playlist). The
+ * Moonwave DJ: one explicit session at a time, grown from its origin seeds (a track, likes, an artist, a playlist, a genre or mood wave). The
  * session owns the *suggestions* — fetching, ranking, appending, refilling — while the player keeps owning
  * playback, the manual queue, repeat, shuffle and the autopilot. Nothing here rewrites what the person queued
  * by hand.
@@ -34,12 +34,17 @@ import { useSettings } from "./settings";
 
 export type DjStatus = "idle" | "loading" | "ready" | "error" | "empty" | "exhausted" | "stopped";
 
-/** What the session grows from: one track, recent likes, an artist's uploads (or a listener's likes), a playlist. */
+/**
+ * What the session grows from: one track, recent likes, an artist's uploads (or a listener's likes),
+ * a playlist, a genre wave (search results for the query), a mood wave (search results, a localized name).
+ */
 export type DjOrigin =
   | { kind: "track"; seed: DjSeed }
   | { kind: "likes" }
   | { kind: "artist"; userId: number; name: string; via: DjArtistVia }
-  | { kind: "playlist"; id: string; title: string };
+  | { kind: "playlist"; id: string; title: string }
+  | { kind: "genre"; query: string; name: string }
+  | { kind: "mood"; query: string; name: string };
 
 interface DjStore {
   /** a session runs: suggestions may still arrive */
@@ -144,7 +149,11 @@ async function runRound(roundSeeds: readonly DjSeed[], signal: AbortSignal): Pro
         ? { artist: { ids: seedIds, name: s.origin.name, via: s.origin.via } }
         : s.origin?.kind === "playlist"
           ? { playlist: { ids: seedIds, title: s.origin.title } }
-          : undefined;
+          : s.origin?.kind === "genre"
+            ? { genre: { ids: seedIds, name: s.origin.name } }
+            : s.origin?.kind === "mood"
+              ? { mood: { ids: seedIds, name: s.origin.name } }
+              : undefined;
   // the player's own gate, same as the autopilot's append: hidden and proven-dead stay out, fresh drm stays in
   const picks = rankDjCandidates(candidates, { seeds: roundSeeds, groups, exclude: excludeNow(), ...DJ_RANK_DEFAULTS, feedback: feedbackArtists(s.votes, artistOf), feedbackOn: s.feedbackOn }).filter((p) => canPlay(p.track));
   return { picks, failed: false };
@@ -248,7 +257,12 @@ async function runFlight(roundSeeds: readonly DjSeed[], myGen: number, kind: "st
     if (flight === controller) flight = null;
     if (myGen === gen) {
       busy = false;
-      if (kind === "refill") set({ refilling: false });
+      if (kind === "refill") {
+        set({ refilling: false });
+        // the queue may have turned over under the flight (busy held every tick): re-evaluate now, so an
+        // emptied tail stops the session instead of stranding it with zero suggestions (a healthy tail waits)
+        tick();
+      }
     }
   }
 }
@@ -307,6 +321,47 @@ function startFromSeed(seed: DjSeed) {
   const myGen = ++gen;
   set({ active: true, status: "loading", seeds: [seed], origin: { kind: "track", seed }, refilling: false, reasons: {}, votes: {}, feedbackOn: true });
   void runFlight([seed], myGen, "start");
+}
+
+/**
+ * Starts a session from a search wave (restarts a running one): the first page of tracks for the query
+ * seeds it, in the service's order. Too few seedable tracks — an honest empty, same as a short playlist.
+ * Quietly refuses in a room. Genre and mood waves share it; only the origin kind and the spoken name differ.
+ */
+async function startFromSearch(kind: "genre" | "mood", query: string, name: string) {
+  if (inRoom()) return;
+  const myGen = ++gen;
+  resetMachinery();
+  busy = true;
+  const origin: DjOrigin = kind === "genre" ? { kind: "genre", query, name } : { kind: "mood", query, name };
+  set({ active: true, status: "loading", seeds: [], origin, refilling: false, reasons: {}, votes: {}, feedbackOn: true });
+  let picked: DjSeed[];
+  try {
+    // the service's order, first page: the only "by genre" list the provider has (no charts call)
+    const page = await call("data:search", query, "tracks", null);
+    if (!page || !Array.isArray((page as Page<Track>).items)) throw new TypeError("data:search must be a page");
+    picked = pickTrackSeeds((page as Page<Track>).items, isLocalTrack);
+  } catch {
+    if (myGen !== gen) return;
+    busy = false;
+    // the hold was never taken (a restart's old hold drops here instead of leaking)
+    player.setAutopilotSuspended(false);
+    set({ active: false, status: "error" });
+    return;
+  }
+  if (myGen !== gen) return;
+  if (picked.length < DJ_MIN_SEEDS) {
+    busy = false;
+    player.setAutopilotSuspended(false);
+    set({ active: false, status: "empty", origin });
+    return;
+  }
+  // the takeover, only now that the seeds are real (same hold-and-drop as the other starts)
+  player.setAutopilotSuspended(true);
+  player.dropAutoTail();
+  expectedQueueGen = queueGeneration();
+  set({ seeds: picked, origin });
+  void runFlight(picked, myGen, "start");
 }
 
 /** The DJ's actions for its button, panel and page. */
@@ -454,6 +509,20 @@ export const dj = {
     set({ seeds: picked, origin: { kind: "playlist", id, title } });
     void runFlight(picked, myGen, "start");
   },
+  /**
+   * Starts a session from a genre wave: the top search results for the genre seed it (the query is the
+   * name — SoundCloud's catalog is English-tagged). Restarts a running one.
+   */
+  startFromGenre(query: string, name: string) {
+    return startFromSearch("genre", query, name);
+  },
+  /**
+   * Starts a session from a mood wave: the top search results for the mood's query seed it, the mood's
+   * localized name is what the session speaks. Restarts a running one.
+   */
+  startFromMood(query: string, name: string) {
+    return startFromSearch("mood", query, name);
+  },
   /** No more suggestions; queued ones stay, the flight (if any) is dropped. */
   stop() {
     if (get().active) stopInternal("user");
@@ -474,6 +543,14 @@ export const dj = {
       }
       if (s.origin?.kind === "playlist") {
         void dj.startFromPlaylist(s.origin.id, s.origin.title);
+        return;
+      }
+      if (s.origin?.kind === "genre") {
+        void dj.startFromGenre(s.origin.query, s.origin.name);
+        return;
+      }
+      if (s.origin?.kind === "mood") {
+        void dj.startFromMood(s.origin.query, s.origin.name);
         return;
       }
       if (s.origin?.kind === "track") {

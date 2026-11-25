@@ -438,6 +438,10 @@ function DjBanner() {
           <div className="truncate text-[13px] text-muted">{t.djLeadsArtist(origin.name, current?.title ?? null)}</div>
         ) : active && origin?.kind === "playlist" ? (
           <div className="truncate text-[13px] text-muted">{t.djLeadsPlaylist(origin.title, current?.title ?? null)}</div>
+        ) : active && origin?.kind === "genre" ? (
+          <div className="truncate text-[13px] text-muted">{t.djLeadsGenre(origin.name, current?.title ?? null)}</div>
+        ) : active && origin?.kind === "mood" ? (
+          <div className="truncate text-[13px] text-muted">{t.djLeadsMood(origin.name, current?.title ?? null)}</div>
         ) : active && seed?.title ? (
           <div className="truncate text-[13px] text-muted">{t.djLeads(seed.title, current?.title ?? null)}</div>
         ) : live ? (
