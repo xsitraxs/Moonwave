@@ -25,9 +25,13 @@ export function DjStatusText({ className = "" }: { className?: string }) {
         ? t.djFromArtist(origin.name)
         : origin?.kind === "playlist"
           ? t.djFromPlaylist(origin.title)
-          : seed?.title
-            ? t.djSeed(seed.title)
-            : t.dj;
+          : origin?.kind === "genre"
+            ? t.djFromGenre(origin.name)
+            : origin?.kind === "mood"
+              ? t.djFromMood(origin.name)
+              : seed?.title
+                ? t.djSeed(seed.title)
+                : t.dj;
   const emptyWords =
     origin?.kind === "likes"
       ? t.djLikesEmpty
@@ -35,7 +39,11 @@ export function DjStatusText({ className = "" }: { className?: string }) {
         ? t.djArtistEmpty(origin.name)
         : origin?.kind === "playlist"
           ? t.djPlaylistEmpty(origin.title)
-          : t.djEmpty;
+          : origin?.kind === "genre"
+            ? t.djGenreEmpty(origin.name)
+            : origin?.kind === "mood"
+              ? t.djMoodEmpty(origin.name)
+              : t.djEmpty;
   const text =
     status === "loading"
       ? t.djLoading
@@ -72,7 +80,7 @@ export function DjToggle({ primary = false, className = "" }: { primary?: boolea
 }
 
 /** Starts a session from a named source (likes, an artist, a playlist). Gated with a spoken reason when it can't seed one. */
-export function DjSourceButton({ label, reason, start, onDone, className = "" }: { label: string; reason?: string; start: () => Promise<unknown>; onDone?: (active: boolean) => void; className?: string }) {
+export function DjSourceButton({ label, reason, title, start, onDone, className = "" }: { label: string; reason?: string; title?: string; start: () => Promise<unknown>; onDone?: (active: boolean) => void; className?: string }) {
   const active = useDj((s) => s.active);
   const room = useRoom((s) => !!s.room);
   const showToast = useUi((s) => s.showToast);
@@ -81,8 +89,8 @@ export function DjSourceButton({ label, reason, start, onDone, className = "" }:
       type="button"
       disabled={room || active}
       aria-disabled={reason !== undefined || undefined}
-      title={reason}
-      aria-label={reason ? `${label}. ${reason}` : label}
+      title={reason ?? title}
+      aria-label={reason ? `${label}. ${reason}` : (title ?? label)}
       onClick={() => {
         if (room || active) return;
         // gated but focusable: a tap says why instead of doing nothing
@@ -119,6 +127,19 @@ export function DjStartPlaylistButton({ id, title, trackCount, className = "", o
   const t = useT();
   const reason = trackCount !== undefined && trackCount < DJ_MIN_SEEDS ? t.djPlaylistShort : undefined;
   return <DjSourceButton label={t.djStartPlaylist} reason={reason} start={() => dj.startFromPlaylist(id, title)} onDone={onDone} className={className} />;
+}
+
+/**
+ * Starts a session from a genre wave (the query is the name). The seed count is unknown until the search
+ * answers, so there is no pre-gate — the controller judges. A short `label` (spoken by `title`) fits tight rows.
+ */
+export function DjStartGenreButton({ query, name, label, title, className = "", onDone }: { query: string; name: string; label?: string; title?: string; className?: string; onDone?: (active: boolean) => void }) {
+  return <DjSourceButton label={label ?? name} title={title} start={() => dj.startFromGenre(query, name)} onDone={onDone} className={className} />;
+}
+
+/** Starts a session from a mood wave: the mood's query seeds it, the mood's name is what it speaks. */
+export function DjStartMoodButton({ query, name, className = "", onDone }: { query: string; name: string; className?: string; onDone?: (active: boolean) => void }) {
+  return <DjSourceButton label={name} start={() => dj.startFromMood(query, name)} onDone={onDone} className={className} />;
 }
 
 /** Session-only thumbs up / down for one suggestion; hidden while no session runs. */
@@ -160,7 +181,7 @@ export function DjWhyLine({ trackId, className = "" }: { trackId: number; classN
     <span className={`flex min-w-0 items-center gap-1 ${className}`}>
       <Icon name="dj" size={12} className="shrink-0" />
       <span className="truncate">
-        {djReasonText(why, { seed: t.djWhySeed, seeds: t.djWhySeeds, likes: t.djWhyLikes, artist: t.djWhyArtist, playlist: t.djWhyPlaylist, generic: t.djWhyGeneric })}
+        {djReasonText(why, { seed: t.djWhySeed, seeds: t.djWhySeeds, likes: t.djWhyLikes, artist: t.djWhyArtist, playlist: t.djWhyPlaylist, genre: t.djWhyGenre, mood: t.djWhyMood, generic: t.djWhyGeneric })}
       </span>
     </span>
   );

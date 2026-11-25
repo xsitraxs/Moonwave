@@ -1,10 +1,11 @@
 import { artwork, type Track } from "@shared/types";
-import { DjStartLikesButton, DjStatusText, DjToggle, DjVotes, DjWhyLine } from "@/components/dj/bits";
+import { DjStartGenreButton, DjStartLikesButton, DjStartMoodButton, DjStatusText, DjToggle, DjVotes, DjWhyLine } from "@/components/dj/bits";
 import { IconButton } from "@/components/ui/Buttons";
 import Icon from "@/components/ui/Icon";
 import { Screen, ScreenTitle } from "@/components/ui/Screen";
 import { useT } from "@/i18n";
 import type { DjWhy } from "@/lib/djRank";
+import { DJ_GENRES, DJ_MOODS, type DjMoodPreset } from "@/lib/djSources";
 import { duration } from "@/lib/format";
 import { dj, useDj } from "@/state/dj";
 import { player, useCurrentTrack, usePlayer } from "@/state/player";
@@ -133,6 +134,7 @@ export default function Dj() {
   const commonSeed = commonSeedOf(nextUp, reasons);
   const suggested = Object.keys(reasons).length;
   const played = queue.filter((tr, i) => i < index && reasons[tr.id]).length;
+  const moodNames: Record<DjMoodPreset["id"], string> = { night: t.djMoodNight, focus: t.djMoodFocus, party: t.djMoodParty, chill: t.djMoodChill, workout: t.djMoodWorkout, road: t.djMoodRoad };
 
   return (
     <Screen label={t.dj}>
@@ -148,7 +150,7 @@ export default function Dj() {
         <DjStatusText className="w-full text-[13px] text-[var(--s-dim)]" />
         {status === "empty" && (
           <span className="w-full text-[13px] text-[var(--s-dim)]">
-            {originKind === "likes" ? t.djLikesEmptyHint : originKind === "artist" ? t.djArtistEmptyHint : originKind === "playlist" ? t.djPlaylistEmptyHint : t.djEmptyHint}
+            {originKind === "likes" ? t.djLikesEmptyHint : originKind === "artist" ? t.djArtistEmptyHint : originKind === "playlist" ? t.djPlaylistEmptyHint : originKind === "genre" ? t.djGenreEmptyHint : originKind === "mood" ? t.djMoodEmptyHint : t.djEmptyHint}
           </span>
         )}
       </section>
@@ -230,6 +232,22 @@ export default function Dj() {
           </section>
           <section aria-label={t.djStartLikes} className="mt-6">
             <DjStartLikesButton />
+          </section>
+          <section aria-label={t.djGenres} className="mt-6">
+            <h2 className="s-lbl mb-2">{t.djGenres}</h2>
+            <div className="flex flex-wrap gap-2">
+              {DJ_GENRES.map((genre) => (
+                <DjStartGenreButton key={genre} query={genre} name={genre} />
+              ))}
+            </div>
+          </section>
+          <section aria-label={t.djMoods} className="mt-6">
+            <h2 className="s-lbl mb-2">{t.djMoods}</h2>
+            <div className="flex flex-wrap gap-2">
+              {DJ_MOODS.map((mood) => (
+                <DjStartMoodButton key={mood.id} query={mood.query} name={moodNames[mood.id]} />
+              ))}
+            </div>
           </section>
         </>
       )}

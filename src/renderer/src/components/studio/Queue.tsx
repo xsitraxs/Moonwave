@@ -2,7 +2,7 @@ import { Fragment, useState, type KeyboardEvent } from "react";
 import type { Playlist, QueueSource, Track } from "@shared/types";
 import { artwork } from "@shared/types";
 import { queryClient } from "@/api/queries";
-import { DjStartArtistButton, DjStartLikesButton, DjStartPlaylistButton, DjStatusText, DjToggle, DjWhyLine } from "@/components/dj/bits";
+import { DjStartArtistButton, DjStartGenreButton, DjStartLikesButton, DjStartMoodButton, DjStartPlaylistButton, DjStatusText, DjToggle, DjWhyLine } from "@/components/dj/bits";
 import { useT, dateLocale } from "@/i18n";
 import { duration } from "@/lib/format";
 import { dj, useDj } from "@/state/dj";
@@ -225,6 +225,10 @@ function DjStrip() {
       <DjStartArtistButton userId={origin.userId} name={origin.name} className="!h-7 !px-2.5 !text-[12px]" />
     ) : status === "empty" && origin?.kind === "playlist" ? (
       <DjStartPlaylistButton id={origin.id} title={origin.title} className="!h-7 !px-2.5 !text-[12px]" />
+    ) : status === "empty" && origin?.kind === "genre" ? (
+      <DjStartGenreButton query={origin.query} name={origin.name} className="!h-7 !px-2.5 !text-[12px]" />
+    ) : status === "empty" && origin?.kind === "mood" ? (
+      <DjStartMoodButton query={origin.query} name={origin.name} className="!h-7 !px-2.5 !text-[12px]" />
     ) : null;
   return (
     <div className="mx-1 mb-2 rounded-md bg-white/[0.05] px-2.5 py-2">

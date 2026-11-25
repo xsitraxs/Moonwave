@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { artwork, type Playlist, type QueueSource, type User } from "@shared/types";
 import { useSearchPlaylists, useSearchSuggestions, useSearchTracks, useSearchUsers } from "@/api/queries";
+import { DjStartGenreButton } from "@/components/dj/bits";
 import TrackList from "@/components/tracks/TrackList";
 import Icon from "@/components/ui/Icon";
 import { Screen, ScreenTitle } from "@/components/ui/Screen";
@@ -10,9 +11,11 @@ import { useVisibleTracks } from "@/lib/hidden";
 import { looksLikeLink, openLink } from "@/lib/links";
 import { removeFromSearchHistory } from "@/lib/searchHistory";
 import { errorCode } from "@/lib/sky";
+import { useDj } from "@/state/dj";
 import { useNav } from "@/state/nav";
 import { player, usePlayer } from "@/state/player";
 import { useSettings } from "@/state/settings";
+import { useUi } from "@/state/ui";
 import { useViewState } from "@/state/viewState";
 
 type SearchTab = "all" | "tracks" | "playlists" | "users";
@@ -98,6 +101,7 @@ export default function Search() {
   const t = useT();
   const go = useNav((s) => s.go);
   const open = useNav((s) => s.open);
+  const toast = useUi((s) => s.showToast);
   const [text, setText] = useViewState("text", "");
   const [query, setQuery] = useViewState("query", "");
   const [tab, setTab] = useViewState<SearchTab>("tab", "all");
@@ -295,14 +299,32 @@ export default function Search() {
               <SectionHead title={t.searchQuickGenres} />
               <div className="flex flex-wrap gap-2">
                 {QUICK_GENRES.map((genre) => (
-                  <button
-                    key={genre}
-                    type="button"
-                    onClick={() => commit(genre)}
-                    className="rounded-full border border-[var(--s-line)] bg-white/[0.03] px-3.5 py-1.5 text-[12.5px] font-medium text-muted transition-colors motion-color hover:border-[var(--s-line2)] hover:bg-white/[0.08] hover:text-text"
-                  >
-                    {genre}
-                  </button>
+                  <span key={genre} className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => commit(genre)}
+                      className="rounded-full border border-[var(--s-line)] bg-white/[0.03] px-3.5 py-1.5 text-[12.5px] font-medium text-muted transition-colors motion-color hover:border-[var(--s-line2)] hover:bg-white/[0.08] hover:text-text"
+                    >
+                      {genre}
+                    </button>
+                    <DjStartGenreButton
+                      query={genre}
+                      name={genre}
+                      label={t.dj}
+                      title={t.djPlayGenre(genre)}
+                      onDone={(ok) => {
+                        if (ok) {
+                          open("dj", { name: "dj" });
+                          return;
+                        }
+                        // the start failed here (not stopped elsewhere): say so where the person is
+                        const st = useDj.getState().status;
+                        if (st === "error") toast(t.djError);
+                        else if (st === "empty") toast(t.djGenreEmpty(genre));
+                      }}
+                      className="!h-7 !px-2.5 !text-[12px]"
+                    />
+                  </span>
                 ))}
               </div>
             </section>

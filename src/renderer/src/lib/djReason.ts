@@ -9,6 +9,8 @@ export function djReasonText(
     likes: (count: number) => string;
     artist: (count: number, name: string, via: DjArtistVia) => string;
     playlist: (count: number, title: string) => string;
+    genre: (count: number, name: string) => string;
+    mood: (count: number, name: string) => string;
     generic: string;
   },
 ): string {
@@ -23,6 +25,10 @@ export function djReasonText(
       return fmt.artist(why.count, why.name, why.via);
     case "playlist":
       return fmt.playlist(why.count, why.title);
+    case "genre":
+      return fmt.genre(why.count, why.name);
+    case "mood":
+      return fmt.mood(why.count, why.name);
     case "generic":
       return fmt.generic;
   }
