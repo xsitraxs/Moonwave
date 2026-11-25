@@ -11,7 +11,7 @@
 <br/>
 
 <a href="https://github.com/xsitraxs/Moonwave/releases/latest"><img src=".github/assets/badges/download.svg" alt="Скачать Moonwave" height="28" /></a>
-<a href="https://github.com/xsitraxs/Moonwave/releases/tag/v2.5.12"><img src=".github/assets/badges/version.svg" alt="Версия 2.5.12" /></a>
+<a href="https://github.com/xsitraxs/Moonwave/releases/tag/v2.6.0"><img src=".github/assets/badges/version.svg" alt="Версия 2.6.0" /></a>
 
 <img src=".github/assets/badges/windows.svg" alt="Windows 10 / 11" />
 <img src=".github/assets/badges/macos.svg" alt="macOS 13+" />
