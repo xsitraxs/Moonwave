@@ -92,7 +92,8 @@ export function DjSourceButton({ label, reason, title, start, onDone, className 
       title={reason ?? title}
       aria-label={reason ? `${label}. ${reason}` : (title ?? label)}
       onClick={() => {
-        if (room || active) return;
+        // fresh state, not the render's: a second click in the same frame (before `disabled` lands) must not start twice
+        if (useRoom.getState().room || useDj.getState().active) return;
         // gated but focusable: a tap says why instead of doing nothing
         if (reason) {
           showToast(reason);
