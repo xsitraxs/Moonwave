@@ -257,7 +257,12 @@ async function runFlight(roundSeeds: readonly DjSeed[], myGen: number, kind: "st
     if (flight === controller) flight = null;
     if (myGen === gen) {
       busy = false;
-      if (kind === "refill") set({ refilling: false });
+      if (kind === "refill") {
+        set({ refilling: false });
+        // the queue may have turned over under the flight (busy held every tick): re-evaluate now, so an
+        // emptied tail stops the session instead of stranding it with zero suggestions (a healthy tail waits)
+        tick();
+      }
     }
   }
 }
