@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import { app } from "electron";
 import { RENDERER_DEFAULTS, withPrefDefaults, type Prefs, type RendererState } from "@shared/ipc";
+import { log } from "../system/log";
 import { JsonFile } from "./json-file";
 
 export interface MainState {
@@ -21,7 +22,7 @@ let file: JsonFile<MainState> | null = null;
 
 /** settings.json in userData. Created lazily: the path is only known once the app is ready. */
 export function store() {
-  file ??= new JsonFile<MainState>(join(app.getPath("userData"), "settings.json"), { clientId: null, renderer: RENDERER_DEFAULTS });
+  file ??= new JsonFile<MainState>(join(app.getPath("userData"), "settings.json"), { clientId: null, renderer: RENDERER_DEFAULTS }, 400, (m) => log("main", m));
   return file;
 }
 
