@@ -1,7 +1,9 @@
 // Scans the built output (out/, and dist/ when present) for secrets that must never ship:
 //   private keys and well-known token formats — high signal, no guesswork about what a bundle "means";
 //   and aborts if any build picked up the local-only files (proxy.local.json, server.local.json, .env*, secrets.bin, *.pem …).
-// Exits 1 on any finding; findings print the file and the rule, never the value.
+// Exits 1 on any finding; findings print the file and the rule, never the value. A build that carries the built-in
+// proxy (proxy.local.json was present at build time, its settings inlined into the main bundle) is only a warning: the
+// scanner says so, without the host or the credentials, and does not fail — but such a build is not an official one.
 //
 // Note: the built-in proxy's credentials ARE embedded in the main bundle when the build has proxy.local.json — that is
 // this project's deliberate design (a shared proxy account for installed copies, see server/README.md), so they are
@@ -43,7 +45,18 @@ const PATTERNS = [
 ];
 
 const findings = [];
+const warnings = [];
 const scanned = { files: 0, bytes: 0 };
+
+/** The built-in proxy's host, when this build was made with proxy.local.json: a bundle carrying it is worth a note. */
+const proxyHost = (() => {
+  try {
+    const c = JSON.parse(readFileSync("proxy.local.json", "utf8"));
+    return typeof c.host === "string" && c.host.length > 2 ? c.host : null;
+  } catch {
+    return null; // no local proxy settings, or not readable: an official build carries nothing to look for
+  }
+})();
 
 function* walk(dir) {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -74,6 +87,8 @@ function scanFile(file, rel, maxBytes) {
   for (const [re, name] of PATTERNS) {
     if (re.test(text)) findings.push(`${rel}: ${name}`);
   }
+  // 2b. the project's own proxy: embedded on purpose in a custom build, never in an official one
+  if (proxyHost && text.includes(proxyHost) && !warnings.some((w) => w.file === rel)) warnings.push({ file: rel });
 }
 
 /** app.asar is a zip-like archive: unpack it and scan the files inside as if they were at `label` paths. */
@@ -110,9 +125,15 @@ try {
   console.log("scan: git not available — tracked-files check skipped");
 }
 
+if (warnings.length) {
+  console.warn(`scan: ${warnings.length} warning(s)`);
+  for (const w of warnings) console.warn(`  ! ${w.file}: built with the project's proxy (proxy.local.json at build time)`);
+  console.warn("scan: this build carries the built-in proxy — fine for a private build, not for an official release (SECURITY.md)");
+}
+
 if (findings.length) {
   console.error(`scan: ${findings.length} problem(s) found`);
   for (const f of findings) console.error(`  ✗ ${f}`);
   process.exit(1);
 }
-console.log(`scan: ok — ${scanned.files} text files (${(scanned.bytes / 1024 / 1024).toFixed(1)} MB) under ${targets.join(", ")}, no secrets found`);
+console.log(`scan: ok — ${scanned.files} text files (${(scanned.bytes / 1024 / 1024).toFixed(1)} MB) under ${targets.join(", ")}, no secrets found${warnings.length ? `, ${warnings.length} warning(s)` : ""}`);
