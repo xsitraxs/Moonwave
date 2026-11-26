@@ -80,6 +80,11 @@ export function buildDjExclude(parts: readonly (readonly number[])[]): number[] 
   return [...new Set(parts.flat())];
 }
 
+/** A start replaces the unplayed tail, so its old suggestions can be picked again; a refill keeps them. */
+export function excludeDjRound(kind: "start" | "refill", queue: readonly number[], index: number, history: readonly number[], dismissed: readonly number[]): number[] {
+  return buildDjExclude([kind === "start" ? queue.slice(0, index + 1) : queue, history, dismissed]);
+}
+
 export type DjVote = "more" | "less";
 
 /** Session votes (by track) into artist ratings for the ranker; votes whose artist can't be found are dropped. */

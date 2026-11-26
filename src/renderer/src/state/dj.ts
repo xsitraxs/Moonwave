@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { isLocalTrack, type Page, type Track } from "@shared/types";
 import { collectDjCandidates, DJ_COLLECT_DEFAULTS } from "@/lib/djCollect";
 import { DJ_RANK_DEFAULTS, rankDjCandidates, type DjArtistVia, type DjPick, type DjSeed, type DjWhy } from "@/lib/djRank";
-import { buildDjExclude, buildRoundSeeds, chainSeedId, decideDjNext, DJ_DRY_ROUNDS_TO_STOP, feedbackArtists, isRoundFailed, needsRefillAfterStart, type DjVote } from "@/lib/djRefill";
+import { buildRoundSeeds, chainSeedId, decideDjNext, DJ_DRY_ROUNDS_TO_STOP, excludeDjRound, feedbackArtists, isRoundFailed, needsRefillAfterStart, type DjVote } from "@/lib/djRefill";
 import { DJ_MIN_SEEDS, pickLikeSeeds, pickTrackSeeds } from "@/lib/djSources";
 import { call } from "@/lib/sky";
 import { canPlay, currentTrack, inRoom, player, queueGeneration, usePlayer } from "./player";
@@ -129,11 +129,11 @@ function trackTitle(trackId: number): string | null {
   return queue.find((t) => t.id === trackId)?.title ?? useSettings.getState().history.find((t) => t.id === trackId)?.title ?? null;
 }
 
-/** What the next round must not recommend: queue + history + dismissed. */
-function excludeNow(): number[] {
-  const { queue } = usePlayer.getState();
+/** A first round replaces the queue's tail; later rounds append behind it. */
+function excludeNow(kind: "start" | "refill"): number[] {
+  const { queue, index } = usePlayer.getState();
   const { history } = useSettings.getState();
-  return buildDjExclude([queue.map((t) => t.id), history.map((t) => t.id), [...dismissed]]);
+  return excludeDjRound(kind, queue.map((t) => t.id), index, history.map((t) => t.id), [...dismissed]);
 }
 
 interface RoundOutcome {
@@ -141,7 +141,7 @@ interface RoundOutcome {
   failed: boolean;
 }
 
-async function runRound(roundSeeds: readonly DjSeed[], signal: AbortSignal): Promise<RoundOutcome> {
+async function runRound(roundSeeds: readonly DjSeed[], signal: AbortSignal, kind: "start" | "refill"): Promise<RoundOutcome> {
   const { candidates, failedSeeds } = await collectDjCandidates(roundSeeds, (id) => call("data:related", id), { signal, ...DJ_COLLECT_DEFAULTS });
   // one seed's failure never sinks the rest: only all-failed is a failed round (a lone seed behaves as before)
   if (isRoundFailed(failedSeeds, roundSeeds.map((s) => s.id))) return { picks: [], failed: true };
@@ -161,7 +161,7 @@ async function runRound(roundSeeds: readonly DjSeed[], signal: AbortSignal): Pro
               ? { mood: { ids: seedIds, name: s.origin.name } }
               : undefined;
   // the player's own gate, same as the autopilot's append: hidden and proven-dead stay out, fresh drm stays in
-  const picks = rankDjCandidates(candidates, { seeds: roundSeeds, groups, exclude: excludeNow(), ...DJ_RANK_DEFAULTS, feedback: feedbackArtists(s.votes, artistOf), feedbackOn: s.feedbackOn }).filter((p) => canPlay(p.track));
+  const picks = rankDjCandidates(candidates, { seeds: roundSeeds, groups, exclude: excludeNow(kind), ...DJ_RANK_DEFAULTS, feedback: feedbackArtists(s.votes, artistOf), feedbackOn: s.feedbackOn }).filter((p) => canPlay(p.track));
   return { picks, failed: false };
 }
 
@@ -258,7 +258,7 @@ async function runFlight(roundSeeds: readonly DjSeed[], myGen: number, kind: "st
   }, flightTimeoutMs(roundSeeds.length));
   timer = timerId;
   try {
-    const outcome = await runRound(roundSeeds, controller.signal);
+    const outcome = await runRound(roundSeeds, controller.signal, kind);
     if (myGen !== gen) return;
     // the queue turned over mid-flight while busy held the tick: step aside instead of appending elsewhere
     if (queueGeneration() !== expectedQueueGen) {
@@ -336,8 +336,8 @@ function startFromSeed(seed: DjSeed) {
   }
   resetMachinery();
   busy = true;
-  // the takeover: hold the autopilot's filler and drop its old tail first — it prefetched the same related
-  // tracks, and leaving them would exclude every candidate (busy is already set, so the tick stays quiet)
+  // the takeover: hold the autopilot's filler and drop its old tail first; the first round will replace the
+  // remaining unplayed tail, so only the current/played tracks and history are excluded (busy holds the tick quiet)
   player.setAutopilotSuspended(true);
   player.dropAutoTail();
   expectedQueueGen = queueGeneration();
