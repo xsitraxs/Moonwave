@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { isLocalTrack, type Page, type Track } from "@shared/types";
 import { collectDjCandidates, DJ_COLLECT_DEFAULTS } from "@/lib/djCollect";
 import { DJ_RANK_DEFAULTS, rankDjCandidates, type DjArtistVia, type DjPick, type DjSeed, type DjWhy } from "@/lib/djRank";
-import { buildDjExclude, buildRoundSeeds, chainSeedId, decideDjNext, DJ_DRY_ROUNDS_TO_STOP, feedbackArtists, isRoundFailed, type DjVote } from "@/lib/djRefill";
+import { buildDjExclude, buildRoundSeeds, chainSeedId, decideDjNext, DJ_DRY_ROUNDS_TO_STOP, feedbackArtists, isRoundFailed, needsRefillAfterStart, type DjVote } from "@/lib/djRefill";
 import { DJ_MIN_SEEDS, pickLikeSeeds, pickTrackSeeds } from "@/lib/djSources";
 import { call } from "@/lib/sky";
 import { canPlay, currentTrack, inRoom, player, queueGeneration, usePlayer } from "./player";
@@ -86,6 +86,8 @@ let dryStreak = 0;
 let gen = 0;
 /** a collect+rank flight is running (start or refill) */
 let busy = false;
+/** a flight's outcome is being written into the queue (the session's own turn-over, not another list's) */
+let applying = false;
 let flight: AbortController | null = null;
 let timer = 0;
 /** the queue generation the running session started on (the tick stops the session when it moves) */
@@ -104,6 +106,7 @@ function resetMachinery() {
   dryStreak = 0;
   expectedQueueGen = queueGeneration();
   voteOrder = [];
+  applying = false;
   if (flight) {
     flight.abort();
     flight = null;
@@ -180,6 +183,16 @@ function appendPicks(picks: RoundOutcome["picks"]) {
 }
 
 function applyOutcome(kind: "start" | "refill", outcome: RoundOutcome) {
+  // the session's own turn-over (a start onto an empty player) must not read as another list taking the queue
+  applying = true;
+  try {
+    writeOutcome(kind, outcome);
+  } finally {
+    applying = false;
+  }
+}
+
+function writeOutcome(kind: "start" | "refill", outcome: RoundOutcome) {
   if (kind === "start") {
     if (outcome.failed) {
       // no session to hold the suspension: the autopilot resumes
@@ -257,10 +270,12 @@ async function runFlight(roundSeeds: readonly DjSeed[], myGen: number, kind: "st
     if (flight === controller) flight = null;
     if (myGen === gen) {
       busy = false;
-      if (kind === "refill") {
-        set({ refilling: false });
-        // the queue may have turned over under the flight (busy held every tick): re-evaluate now, so an
-        // emptied tail stops the session instead of stranding it with zero suggestions (a healthy tail waits)
+      if (kind === "refill") set({ refilling: false });
+      // re-evaluate now that the flight is over (busy held every tick): a short start, an emptied tail or a
+      // queue that turned over is handled at once instead of waiting for the next player change
+      if (kind === "start" && get().active && needsRefillAfterStart(appended.length)) {
+        refill();
+      } else {
         tick();
       }
     }
@@ -280,7 +295,8 @@ function refill() {
 /** Every player change passes the session through the decide function: refill, step aside, or idle. */
 function tick() {
   const s = get();
-  if (!s.active || !s.seeds.length) return;
+  // applying: the player is changing because of this session's own outcome, not under it
+  if (!s.active || !s.seeds.length || applying) return;
   const p = usePlayer.getState();
   const decision = decideDjNext(
     { queueIds: p.queue.map((t) => t.id), index: p.index, queueGen: queueGeneration() },
@@ -583,6 +599,13 @@ export const dj = {
     voteOrder = [];
     set({ votes: {} });
   },
+  /** Dismisses a finished status (error, empty, exhausted) without a session: the strip and the page go quiet. */
+  clear() {
+    if (get().active) return;
+    // the reasons stay: queued suggestions keep their labels (they just have no session behind them anymore)
+    set({ status: "idle", seeds: [], origin: null, refilling: false, votes: {} });
+    voteOrder = [];
+  },
   /** Takes a track out of the session: never suggested again, removed from the upcoming queue (skipped if playing). */
   dismiss(trackId: number) {
     dismissed.add(trackId);
@@ -607,11 +630,23 @@ export const dj = {
 };
 
 let inited = false;
+/** The player snapshot the session last looked at: volume, mute and the like never move it. */
+let seenQueue: readonly Track[] | null = null;
+let seenIndex = -1;
 /** Follows the player: refills a thinning tail, steps aside when the session's thread is gone. */
 export function initDj() {
   if (inited) return;
   inited = true;
-  usePlayer.subscribe(tick);
+  const start = usePlayer.getState();
+  seenQueue = start.queue;
+  seenIndex = start.index;
+  usePlayer.subscribe((next) => {
+    // only the queue or the current track can change a decision (stops, refills, takeovers)
+    if (next.queue === seenQueue && next.index === seenIndex) return;
+    seenQueue = next.queue;
+    seenIndex = next.index;
+    tick();
+  });
   // a room takes the player: the session steps aside at once, before the queue turns over
   useRoom.subscribe((s) => {
     if (s.room && get().active) stopInternal("context");

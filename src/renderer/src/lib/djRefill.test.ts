@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { DjSeed } from "./djRank.ts";
-import { buildDjExclude, buildRoundSeeds, chainSeedId, decideDjNext, feedbackArtists, isRoundFailed, type DjQueueView, type DjSessionView } from "./djRefill.ts";
+import { buildDjExclude, buildRoundSeeds, chainSeedId, decideDjNext, DJ_REFILL_BELOW, feedbackArtists, isRoundFailed, needsRefillAfterStart, type DjQueueView, type DjSessionView } from "./djRefill.ts";
 
 // queue: [manual, seed, dj×6, manual-tail]; index points at the seed; the session started on generation 7
 const SEED = 100;
@@ -123,4 +123,19 @@ test("round seeds without a chain are just votes and origins", () => {
     { id: 11, title: null },
     { id: 1, title: null },
   ]);
+});
+
+test("a list started while a flight is in the air stops the session at once", () => {
+  // the context check wins over the busy hold: the answer in the air belongs to the replaced queue
+  assert.deepEqual(decideDjNext(view({ queueIds: [1, 2, 3], index: 0, queueGen: GEN + 1 }), session({ busy: true })), { action: "stop", reason: "context" });
+  // ...also while holding after repeated failures
+  assert.deepEqual(decideDjNext(view({ queueGen: GEN + 1 }), session({ failures: 2 })), { action: "stop", reason: "context" });
+});
+
+test("a start round below the refill line refills at once", () => {
+  // one pick is a zero tail once it plays — a short start must never wait (nor read as the person clearing)
+  assert.equal(needsRefillAfterStart(1), true);
+  assert.equal(needsRefillAfterStart(DJ_REFILL_BELOW - 1), true);
+  assert.equal(needsRefillAfterStart(DJ_REFILL_BELOW), false);
+  assert.equal(needsRefillAfterStart(DJ_REFILL_BELOW + 3), false);
 });

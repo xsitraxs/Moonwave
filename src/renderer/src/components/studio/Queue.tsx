@@ -55,7 +55,12 @@ function Item({ track, index, alt, dragging, over, drag }: { track: Track; index
   const onKey = (e: KeyboardEvent) => {
     if (e.target !== e.currentTarget) return;
     if (e.key === "Enter") player.jumpTo(index);
-    else if (e.key === "Delete") player.removeAt(index);
+    // the same way out as the × button: a dismissed suggestion is never suggested again (a plain removal would
+    // leave it in the session's reasons and could chain the next round from a track that is gone)
+    else if (e.key === "Delete") {
+      if (djSuggested) dj.dismiss(track.id);
+      else player.removeAt(index);
+    }
     else if (e.altKey && (e.key === "ArrowUp" || e.key === "ArrowDown")) {
       e.preventDefault();
       player.move(index, index + (e.key === "ArrowUp" ? -1 : 1));
@@ -238,6 +243,12 @@ function DjStrip() {
         <button type="button" onClick={() => open("dj", { name: "dj" })} className="ml-auto text-[12px] text-[var(--s-dim)] hover:text-text">
           {t.djOpenPage}
         </button>
+        {/* error / empty / exhausted have no session to stop: this is the way out of a finished status */}
+        {!active && (
+          <button type="button" aria-label={t.close} title={t.close} onClick={dj.clear} className="grid h-6 w-6 shrink-0 place-items-center rounded-md text-[var(--s-dim)] hover:text-text">
+            <Icon name="close" size={12} />
+          </button>
+        )}
       </div>
       <DjStatusText className="mt-0.5 block text-[12px] text-[var(--s-dim)]" />
       <div className="mt-1.5 flex gap-2">

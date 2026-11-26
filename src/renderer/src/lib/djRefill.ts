@@ -10,7 +10,8 @@ import type { DjFeedback, DjSeed } from "./djRank";
  *   resumes as the natural fallback.
  * - stop/cleared: no unplayed suggestions left on the session's queue — the person removed them (clearUpcoming,
  *   one-by-one), so the DJ gets out of the way instead of re-adding what was just thrown out.
- * - stop/context: the queue turned over — another list started, or a listening room took over the player.
+ * - stop/context: the queue turned over — another list started, or a listening room took over the player. This is
+ *   checked first: a flight in progress never outlives the context it was started in.
  * - wait: busy, holding after repeated errored rounds (a retry button resets that), or plenty of suggestions left.
  *   Dry rounds don't hold: the session stops after two of them instead.
  *
@@ -50,8 +51,10 @@ export const DJ_ROUND_SEEDS = 8;
 export const DJ_VOTE_ANCHORS = 2;
 
 export function decideDjNext(view: DjQueueView, session: DjSessionView): DjDecision {
-  if (session.busy || session.failures >= DJ_MAX_REFILL_FAILURES) return { action: "wait" };
+  // the context check comes before the busy hold: a list started (or a room took the player) while a flight was
+  // in the air must end the session, not wait for an answer that belongs to the queue it replaced
   if (view.queueGen !== session.expectedGen) return { action: "stop", reason: "context" };
+  if (session.busy || session.failures >= DJ_MAX_REFILL_FAILURES) return { action: "wait" };
   const appended = new Set(session.appendedIds);
   let tail = 0;
   for (let i = view.index + 1; i < view.queueIds.length; i++) {
@@ -61,6 +64,15 @@ export function decideDjNext(view: DjQueueView, session: DjSessionView): DjDecis
   if (tail === 0) return { action: "stop", reason: "cleared" };
   if (tail < DJ_REFILL_BELOW) return { action: "refill" };
   return { action: "wait" };
+}
+
+/**
+ * A start round that delivered fewer than DJ_REFILL_BELOW suggestions leaves a thin tail (one pick is even a zero
+ * tail once it plays): such a session refills at once instead of waiting for the next player change — and a short
+ * start is never mistaken for the person clearing the queue.
+ */
+export function needsRefillAfterStart(appendedCount: number): boolean {
+  return appendedCount < DJ_REFILL_BELOW;
 }
 
 /** History + queue + dismissed ids, deduped: what the next round must not recommend. */
