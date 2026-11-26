@@ -198,6 +198,10 @@ html[data-design="studio"] .marker-fill svg {
 html[data-design="studio"] .paper-fill {
   background: rgba(255, 255, 255, 0.06);
 }
+/* A toast floats over controls (including bright switches): unlike cards, its backing must be opaque. */
+html[data-design="studio"] .toast-notice {
+  background: var(--surface-3);
+}
 /* the settings switches: the same pill as the queue's (.s-sw), off and on alike — no outline (rounded-full turned it
    into an ellipse when off, and the knob had a ring) */
 html[data-design="studio"] button[role="switch"].sketch {

@@ -14,7 +14,7 @@ export default function Toast() {
             initial={{ opacity: 0, y: 4, rotate: 0 }}
             animate={{ opacity: 1, y: 0, rotate: -1, transition: enter() }}
             exit={{ opacity: 0, y: 4, transition: exit() }}
-            className="paper-fill sketch sketch-thin rounded-md px-4 py-2 font-type text-sm text-text shadow-[3px_5px_0_rgba(0,0,0,0.45)]"
+            className="toast-notice paper-fill sketch sketch-thin rounded-md px-4 py-2 font-type text-sm text-text shadow-[3px_5px_0_rgba(0,0,0,0.45)]"
           >
             <span className="mr-2 text-glow">✦</span>
             {toast.text}
