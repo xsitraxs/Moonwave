@@ -3,6 +3,7 @@ import { IconButton } from "@/components/ui/Buttons";
 import { useT } from "@/i18n";
 import { djReasonText } from "@/lib/djReason";
 import { DJ_MIN_SEEDS } from "@/lib/djSources";
+import { rateDjTrack } from "@/lib/djVoteAction";
 import { dj, useDj } from "@/state/dj";
 import { useCanLike, useLikes } from "@/state/likes";
 import { useCurrentTrack } from "@/state/player";
@@ -157,8 +158,8 @@ export function DjVotes({ trackId }: { trackId: number }) {
         on={vote === "more"}
         aria-pressed={vote === "more"}
         size={16}
-        className="!h-8 !w-8"
-        onClick={() => dj.vote(trackId, vote === "more" ? null : "more")}
+        className="dj-vote !h-8 !w-8"
+        onClick={() => rateDjTrack(trackId, "more", t)}
       />
       <IconButton
         icon="minimize"
@@ -166,8 +167,8 @@ export function DjVotes({ trackId }: { trackId: number }) {
         on={vote === "less"}
         aria-pressed={vote === "less"}
         size={16}
-        className="!h-8 !w-8"
-        onClick={() => dj.vote(trackId, vote === "less" ? null : "less")}
+        className="dj-vote !h-8 !w-8"
+        onClick={() => rateDjTrack(trackId, "less", t)}
       />
     </>
   );

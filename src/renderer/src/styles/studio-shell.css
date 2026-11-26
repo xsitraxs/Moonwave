@@ -798,6 +798,11 @@ html[data-activity="blurred"] .s-eq i {
 .s-tip {
   position: relative;
 }
+/* Both DJ votes stay visibly selected until the person changes or clears the rating. */
+.dj-vote[aria-pressed="true"] {
+  background: var(--glow);
+  color: var(--on-glow);
+}
 .s-tip[data-tip]:hover::after,
 .s-tip[data-tip]:focus-visible::after {
   content: attr(data-tip);
