@@ -19,28 +19,34 @@ export function send(res: ServerResponse, status: number, body: unknown, headers
     "content-type": "application/json; charset=utf-8",
     "cache-control": "no-store",
     "x-content-type-options": "nosniff",
+    // a 413 always means the request body was refused: the connection is not reused for another request
+    ...(status === 413 ? { connection: "close" } : {}),
     ...headers,
   });
   res.end(text);
 }
 
-/** The whole request body, refused past `limit` bytes. */
+/**
+ * The whole request body, refused past `limit` bytes. A body that is too large — whether its Content-Length says so up
+ * front or it grows past the limit while arriving — is read off the wire and dropped instead of being left half-sent,
+ * so the caller can still answer 413 (and send() closes the connection with it).
+ */
 export function readBody(req: IncomingMessage, limit: number): Promise<Buffer> {
   return new Promise((resolve, reject) => {
-    const declared = Number(req.headers["content-length"] ?? 0);
-    if (declared > limit) return reject(new HttpError(413, "too large"));
     const parts: Buffer[] = [];
     let size = 0;
+    let tooLarge = Number(req.headers["content-length"] ?? 0) > limit;
     req.on("data", (chunk: Buffer) => {
+      if (tooLarge) return; // drained: nobody buffers it
       size += chunk.length;
       if (size > limit) {
-        reject(new HttpError(413, "too large"));
-        req.destroy();
+        tooLarge = true;
+        parts.length = 0;
         return;
       }
       parts.push(chunk);
     });
-    req.on("end", () => resolve(Buffer.concat(parts)));
+    req.on("end", () => (tooLarge ? reject(new HttpError(413, "too large")) : resolve(Buffer.concat(parts))));
     req.on("error", reject);
   });
 }
