@@ -8,6 +8,7 @@ import { queryClient } from "@/api/queries";
 import { getActivity, subscribeActivity } from "@/lib/activity";
 import { isHidden } from "@/lib/hidden";
 import { call } from "@/lib/sky";
+import { needsTopUp, nextPlayableIndex, shuffled } from "./queue";
 import { useSettings } from "./settings";
 import { useUi } from "./ui";
 
@@ -139,15 +140,6 @@ export const useCurrentTrack = () => usePlayer((s) => s.queue[s.index] ?? null);
 
 const set = usePlayer.setState;
 const get = usePlayer.getState;
-
-function shuffled<T>(list: T[]): T[] {
-  const a = [...list];
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j]!, a[i]!];
-  }
-  return a;
-}
 
 /** Tracks added by hand ("play next", "add to queue"): they stay put when the queue is rebuilt. */
 const manual = new WeakSet<Track>();
@@ -347,7 +339,7 @@ function topUp(force = false): Promise<void> {
   // a forced call (nothing left to play) waits for the fill already running — returning at once used to end the queue
   // right while the autopilot's next tracks were on their way — and fills again only if that brought nothing
   if (topUpRun) return force ? topUpRun.then(() => (nextIndex(get().index, false) < 0 ? topUp(true) : undefined)) : topUpRun;
-  if (!force && get().queue.length - get().index > AHEAD) return Promise.resolve();
+  if (!force && !needsTopUp(get().queue.length, get().index, AHEAD)) return Promise.resolve();
   topUpRun = fill().finally(() => {
     topUpRun = null;
   });
@@ -357,7 +349,7 @@ function topUp(force = false): Promise<void> {
 async function fill() {
   const gen = rebuild;
   try {
-    for (let guard = 0; guard < 6 && get().queue.length - get().index <= AHEAD; guard++) {
+    for (let guard = 0; guard < 6 && needsTopUp(get().queue.length, get().index, AHEAD); guard++) {
       const s = get();
       if (s.pending.length) {
         const take = s.pending.slice(0, FILL);
@@ -404,12 +396,7 @@ async function fill() {
 }
 
 /** Next playable index after `from` (wrapping when allowed), or -1. */
-function nextIndex(from: number, wrap: boolean) {
-  const { queue } = get();
-  for (let i = from + 1; i < queue.length; i++) if (playable(queue[i])) return i;
-  if (wrap) for (let i = 0; i <= from && i < queue.length; i++) if (playable(queue[i])) return i;
-  return -1;
-}
+const nextIndex = (from: number, wrap: boolean) => nextPlayableIndex(get().queue, from, wrap, playable);
 
 // ---- engine → store -----------------------------------------------------------------------------------------------
 
