@@ -83,6 +83,47 @@ jobs:
       - name: Tests (server)
         run: npm run test:server
 
+      # test/smoke.ts and test/rooms-live.ts are end-to-end, not *.test.ts, so `npm run test:server` never runs them.
+      # The smoke test talks to a real server on a throwaway DATA_DIR (started here, stopped in the next step whatever
+      # happens); rooms-live starts and stops its own on a free port.
+      - name: End-to-end API (smoke) against a real server
+        shell: bash
+        env:
+          # a throwaway moderator token, long enough for isAdmin(): this also covers the admin-only routes
+          ADMIN_TOKEN: dev-admin-token-0123456789
+        run: |
+          set -euo pipefail
+          DATA_DIR="$(mktemp -d)"
+          echo "$DATA_DIR" > server-smoke.data
+          DATA_DIR="$DATA_DIR" PORT=8080 node server/api/src/main.ts > server-smoke.log 2>&1 &
+          echo $! > server-smoke.pid
+          for _ in $(seq 1 100); do
+            if grep -q "api on" server-smoke.log; then break; fi
+            sleep 0.2
+          done
+          if ! grep -q "api on" server-smoke.log; then
+            echo "the server did not start:"
+            cat server-smoke.log
+            exit 1
+          fi
+          node server/api/test/smoke.ts http://127.0.0.1:8080
+
+      - name: Stop the smoke server
+        if: always()
+        shell: bash
+        run: |
+          if [ -f server-smoke.pid ]; then
+            kill "$(cat server-smoke.pid)" 2>/dev/null || true
+            rm -f server-smoke.pid
+          fi
+          if [ -f server-smoke.data ]; then
+            rm -rf "$(cat server-smoke.data)" server-smoke.data
+          fi
+
+      - name: End-to-end API (listening rooms)
+        working-directory: server/api
+        run: node test/rooms-live.ts
+
       - name: Lint
         run: npm run lint
 
