@@ -12,7 +12,9 @@ import { after, test } from "node:test";
 import { HttpError, send } from "../src/http.ts";
 
 // db.ts reads DATA_DIR when it is first imported: set it before routing is loaded
-process.env.DATA_DIR = mkdtempSync(join(tmpdir(), "moonwave-routes-"));
+const testDataDir = mkdtempSync(join(tmpdir(), "moonwave-routes-"));
+process.env.DATA_DIR = testDataDir;
+const { db } = await import("../src/db.ts");
 const { route } = await import("../src/routes.ts");
 
 const server = createServer(async (req, res) => {
@@ -28,10 +30,13 @@ const server = createServer(async (req, res) => {
 await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
 const BASE = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
 
-after(() => {
-  server.closeAllConnections();
-  server.close();
-  rmSync(process.env.DATA_DIR!, { recursive: true, force: true });
+after(async () => {
+  await new Promise<void>((resolve, reject) => {
+    server.close((err) => (err ? reject(err) : resolve()));
+    server.closeAllConnections();
+  });
+  db.close(); // Windows cannot remove the SQLite file while the connection is open
+  rmSync(testDataDir, { recursive: true, force: true });
 });
 
 let n = 0;

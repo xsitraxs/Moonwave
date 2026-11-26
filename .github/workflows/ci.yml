@@ -413,3 +413,6 @@ jobs:
             node -e 'const s=require("node:fs").readFileSync("tests.log","utf8");const lines=s.split(/\r?\n/);let out=[];for(let i=0;i<lines.length;i++)if(/^\s*not ok\b/.test(lines[i]))out.push(lines.slice(i,i+30).join("\n"));const text=(out.join("\n\n")||lines.slice(-60).join("\n")).slice(0,12000);console.log("::error title=Windows unit test failures::"+text.replace(/%/g,"%25").replace(/\r/g,"%0D").replace(/\n/g,"%0A"))'
             exit "$code"
           fi
+      # Path handling and SQLite file locks differ on Windows; test the API here too.
+      - name: Run server tests
+        run: npm run test:server
