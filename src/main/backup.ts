@@ -32,8 +32,10 @@ interface Payload {
 }
 
 function payload(): Payload {
-  return { app: "Moonwave", kind: "backup", version: 1, at: Date.now(), // files from this computer get other ids elsewhere: their likes stay here
-    likes: { ...likesData(), liked: likesData().liked.filter((l) => !isLocalTrack(l.id)) }, playlists: exportLocal().text, ownLyrics: ownLyricsData(), friend: friendSecret() };
+  // files from this computer get other ids elsewhere: their likes stay here
+  const likes = likesData();
+  return { app: "Moonwave", kind: "backup", version: 1, at: Date.now(),
+    likes: { ...likes, liked: likes.liked.filter((l) => !isLocalTrack(l.id)) }, playlists: exportLocal().text, ownLyrics: ownLyricsData(), friend: friendSecret() };
 }
 /** what the copy holds, without its time: unchanged since the last upload means nothing goes */
 const fingerprint = (p: Payload) => createHash("sha256").update(JSON.stringify({ ...p, at: 0 })).digest("hex");
