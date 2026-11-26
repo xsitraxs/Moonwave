@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { needsTopUp, nextPlayableIndex, shuffled } from "./queue.ts";
+import { handOverTail, needsTopUp, nextPlayableIndex, shuffled } from "./queue.ts";
 
 /** A queue of ids, with the ones that can't play listed: the player's `playable` predicate in miniature. */
 const queueOf = (...ids: number[]) => ids;
@@ -56,4 +56,19 @@ test("the queue is filled while fewer than `ahead` tracks are left after the cur
   assert.equal(needsTopUp(4, 1, 3), true, "two left: fill");
   assert.equal(needsTopUp(1, 0, 3), true, "the last track: fill");
   assert.equal(needsTopUp(10, 9, 3), true, "at the end");
+});
+
+test("the DJ takes over the tail: what already played stays, what was queued after the current track goes", () => {
+  const queue = ["played", "now", "mine 1", "mine 2", "mine 3"];
+  assert.deepEqual(handOverTail(queue, 1, ["dj 1", "dj 2"]), ["played", "now", "dj 1", "dj 2"]);
+  // the last track playing: the picks are simply what comes next
+  assert.deepEqual(handOverTail(queue, 4, ["dj 1"]), ["played", "now", "mine 1", "mine 2", "mine 3", "dj 1"]);
+});
+
+test("nothing is taken over without a current track or without picks", () => {
+  const queue = ["a", "b"];
+  assert.deepEqual(handOverTail(queue, -1, ["dj"]), queue);
+  assert.deepEqual(handOverTail(queue, 0, []), queue);
+  assert.notEqual(handOverTail(queue, -1, []), queue, "a copy, never the same array");
+  assert.deepEqual(queue, ["a", "b"], "the queue passed in is untouched");
 });

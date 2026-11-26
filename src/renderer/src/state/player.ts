@@ -8,7 +8,7 @@ import { queryClient } from "@/api/queries";
 import { getActivity, subscribeActivity } from "@/lib/activity";
 import { isHidden } from "@/lib/hidden";
 import { call } from "@/lib/sky";
-import { needsTopUp, nextPlayableIndex, shuffled } from "./queue";
+import { handOverTail, needsTopUp, nextPlayableIndex, shuffled } from "./queue";
 import { useSettings } from "./settings";
 import { useUi } from "./ui";
 
@@ -740,6 +740,22 @@ export const player = {
     q.splice(at, 0, ...items);
     set({ queue: q, autoFrom: autoFrom >= 0 ? autoFrom + items.length : -1 });
     if (!opts?.silent && q.length > index + 1) useUi.getState().openSideQueue();
+  },
+  /**
+   * The DJ's turn-over: everything after the current track becomes `tracks`, so the session is heard at once instead
+   * of after whatever was queued there. The hand-queued tail and the autopilot's go; the current track and what
+   * already played stay. The queue is nobody else's any more: the list it came from is forgotten (`source` static,
+   * nothing `pending`), or its next page would grow the tail behind the session's back. Refills append as usual.
+   */
+  takeOverUpcoming(tracks: Track[]) {
+    if (remote || !tracks.length) return;
+    const { queue, index } = get();
+    if (index < 0) return;
+    const items = tracks.map((t) => ({ ...t }));
+    for (const t of items) manual.add(t);
+    rebuild++; // a whole-list shuffle still on its way must not land on the session's tail
+    queueGen++; // the queue turned over: the session's own expectation is updated by its caller
+    set({ queue: handOverTail(queue, index, items), original: null, pending: [], source: { kind: "static" }, autoFrom: -1 });
   },
   /**
    * Drops the autopilot's tail (the DJ's takeover clears what the filler added). Only non-manual tracks from the

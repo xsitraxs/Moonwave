@@ -12,13 +12,16 @@ import { useSettings } from "./settings";
 /**
  * Moonwave DJ: one explicit session at a time, grown from its origin seeds (a track, likes, an artist, a playlist, a genre or mood wave). The
  * session owns the *suggestions* — fetching, ranking, appending, refilling — while the player keeps owning
- * playback, the manual queue, repeat, shuffle and the autopilot. Nothing here rewrites what the person queued
- * by hand.
+ * playback, the queue, repeat, shuffle and the autopilot. The session never rewrites the queue behind the person's
+ * back: the one hand-over is the start they asked for, and after it the session only appends.
  *
- * How the suggestions ride the queue: on start the session holds the autopilot's filler and drops its old tail
- * (player.setAutopilotSuspended/dropAutoTail), then appends its picks in bulk (player.appendMany), flagged like
- * hand-added tracks so shuffles keep them. The honest boundary is not a queue index but the `reasons` map
- * (track id → why it was picked): manual tracks have no entry, DJ tracks do, whatever the order becomes.
+ * How the suggestions ride the queue: on start the session holds the autopilot's filler, drops its old tail
+ * (player.setAutopilotSuspended/dropAutoTail) and — once the first round is in — takes over what came after the
+ * current track (player.takeOverUpcoming): that is the hand-over the person asked for, so the DJ is heard at once
+ * instead of after a queue they had built. The current track and what already played stay; later rounds only append
+ * (player.appendMany), and the picks are flagged like hand-added tracks so shuffles keep them. The honest boundary is
+ * not a queue index but the `reasons` map (track id → why it was picked): manual tracks have no entry, DJ tracks do,
+ * whatever the order becomes.
  * When the session ends the autopilot resumes as the natural fallback; no writer races, because every queue
  * update reads and writes synchronously.
  *
@@ -217,7 +220,11 @@ function writeOutcome(kind: "start" | "refill", outcome: RoundOutcome) {
       expectedQueueGen = queueGeneration();
       recordPicks(outcome.picks);
     } else {
-      appendPicks(outcome.picks);
+      // the person asked for the DJ: the queue after the current track is the session's from now on, so it is heard
+      // at once and not after everything that happened to be queued there
+      player.takeOverUpcoming(outcome.picks.map((p) => p.track));
+      expectedQueueGen = queueGeneration();
+      recordPicks(outcome.picks);
     }
     set({ status: "ready" });
     return;

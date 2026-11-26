@@ -1,7 +1,7 @@
 /**
  * The queue's decisions, kept out of the store: which index comes next (skipping what can't play, wrapping when the
- * list repeats), what a shuffle does, and when the queue needs filling. Nothing here touches React, the engine or
- * SoundCloud, so queue.test.ts can check it on its own.
+ * list repeats), what a shuffle does, when the queue needs filling, and what handing it over to the DJ leaves of it.
+ * Nothing here touches React, the engine or SoundCloud, so queue.test.ts can check it on its own.
  */
 
 /**
@@ -22,6 +22,16 @@ export function shuffled<T>(list: readonly T[], random: () => number = Math.rand
     [a[i], a[j]] = [a[j]!, a[i]!];
   }
   return a;
+}
+
+/**
+ * Handing the queue over to the DJ: what stands after the current track becomes `picks` (the tail the person queued
+ * gives way), while the current track and everything already played stay. Nothing is taken over without a current
+ * track or without picks — the queue comes back as it was.
+ */
+export function handOverTail<T>(queue: readonly T[], index: number, picks: readonly T[]): T[] {
+  if (index < 0 || !picks.length) return [...queue];
+  return [...queue.slice(0, index + 1), ...picks];
 }
 
 /** Is there less than `ahead` tracks left after the current one, i.e. is it time to fill the queue? */
