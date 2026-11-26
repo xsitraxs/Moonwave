@@ -1,8 +1,9 @@
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { dataDir } from "./data-dir.ts";
 
-export const DATA = process.env.DATA_DIR ?? "./data";
+export const DATA = dataDir(process.env.DATA_DIR, import.meta.dirname);
 mkdirSync(join(DATA, "themes"), { recursive: true });
 
 // the file keeps the name it had when the app was called sc player: renaming it would leave a running server with an empty one
