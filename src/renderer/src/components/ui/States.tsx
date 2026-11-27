@@ -35,3 +35,12 @@ export function Loading() {
   const t = useT();
   return <p className="py-10 text-center font-type text-sm text-muted">{t.loadingMore}</p>;
 }
+
+/** Subtle fallback while a lazy-loaded screen chunk resolves (local disk is usually instant). */
+export function ScreenFallback() {
+  return (
+    <div className="flex h-full items-center justify-center" aria-busy="true">
+      <div className="h-5 w-5 animate-spin rounded-full border-2 border-[var(--s-line2)] border-t-[var(--accent)] opacity-70" />
+    </div>
+  );
+}
