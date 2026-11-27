@@ -157,6 +157,9 @@ export default function CommandPalette() {
     if (!open) return;
     setQuery("");
     setActive(0);
+    if (!queryClient.getQueryData(["local-tracks"])) {
+      void queryClient.prefetchQuery({ queryKey: ["local-tracks"], queryFn: () => call("local:list") });
+    }
     const id = requestAnimationFrame(() => inputRef.current?.focus());
     return () => cancelAnimationFrame(id);
   }, [open]);

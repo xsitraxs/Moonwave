@@ -168,14 +168,10 @@ function SyncedLines({ lines }: { lines: NonNullable<Lyrics["synced"]> }) {
   }, [lines]);
 
   const [scrolledAway, setScrolledAway] = useState(false);
-  const scrollTimer = useRef(0);
   const t = useT();
-
-  useEffect(() => () => window.clearTimeout(scrollTimer.current), []);
 
   const jumpToCurrent = () => {
     userScroll.current = 0;
-    window.clearTimeout(scrollTimer.current);
     setScrolledAway(false);
     if (at < 0) return;
     const row = box.current?.children[at] as HTMLElement | undefined;
@@ -184,6 +180,7 @@ function SyncedLines({ lines }: { lines: NonNullable<Lyrics["synced"]> }) {
 
   useEffect(() => {
     if (at < 0 || Date.now() - userScroll.current < 4000) return;
+    setScrolledAway(false);
     const row = box.current?.children[at] as HTMLElement | undefined;
     row?.scrollIntoView({ block: "center", behavior: fast || still ? "instant" : "smooth" });
   }, [at, fast, still]);
@@ -195,8 +192,6 @@ function SyncedLines({ lines }: { lines: NonNullable<Lyrics["synced"]> }) {
         onWheel={() => {
           userScroll.current = Date.now();
           setScrolledAway(true);
-          window.clearTimeout(scrollTimer.current);
-          scrollTimer.current = window.setTimeout(() => setScrolledAway(false), 4000);
         }}
         className="space-y-1 px-4 pb-24 pt-2"
       >
