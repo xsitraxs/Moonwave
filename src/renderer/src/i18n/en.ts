@@ -127,6 +127,7 @@ export const en = {
   hotkeysHint: "Press ? anywhere to open this list.",
   hkSeek: "Seek ±5 s",
   hkSearch: "Search",
+  hkCommandPalette: "Command palette",
   hkOpenLink: "Open SoundCloud link from clipboard",
   hkClose: "Close dialogs and the full player",
   hkHelp: "This list",
