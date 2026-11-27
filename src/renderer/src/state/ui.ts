@@ -54,7 +54,7 @@ interface UiStore {
   /** the keyboard shortcuts cheat sheet */
   hotkeysOpen: boolean;
   setHotkeysOpen(open: boolean): void;
-  /** quick command palette (Ctrl+P / Ctrl+Shift+P) */
+  /** quick command palette (Ctrl+P) */
   commandPaletteOpen: boolean;
   setCommandPaletteOpen(open: boolean): void;
   miniPlayer: boolean;

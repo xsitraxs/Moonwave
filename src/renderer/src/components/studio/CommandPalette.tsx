@@ -45,7 +45,7 @@ export default function CommandPalette() {
       { id: "nav-dj", label: t.dj, keywords: "dj диджей mix", icon: "dj", run: go("dj", { name: "dj" }) },
       { id: "nav-inbox", label: t.inbox, keywords: "inbox сообщения friends друзья", icon: "inbox", run: go("inbox", { name: "inbox" }) },
       { id: "nav-workshop", label: t.workshop, keywords: "workshop мастерская themes темы", icon: "brush", run: go("workshop", { name: "workshop" }) },
-      { id: "nav-import", label: "Import / VK", keywords: "import vk импорт", icon: "plus", run: go("import", { name: "import" }) },
+      { id: "nav-import", label: t.importTitle, keywords: "import vk spotify yandex youtube импорт", icon: "plus", run: go("import", { name: "import" }) },
       { id: "nav-settings", label: t.settings, keywords: "settings настройки preferences proxy", icon: "settings", run: go("settings", { name: "settings" }) },
       {
         id: "act-queue",
@@ -167,6 +167,9 @@ export default function CommandPalette() {
                   <button
                     key={item.id}
                     type="button"
+                    ref={(el) => {
+                      if (idx === active) el?.scrollIntoView({ block: "nearest" });
+                    }}
                     onMouseEnter={() => setActive(idx)}
                     onClick={() => execute(item)}
                     className={`flex w-full items-center gap-3 rounded-[9px] px-3 py-2 text-left text-sm transition-colors ${

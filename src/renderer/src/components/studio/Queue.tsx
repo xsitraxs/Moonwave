@@ -277,18 +277,23 @@ export function QueuePanel({ showCurrent = true }: { showCurrent?: boolean }) {
   const hasUpcoming = usePlayer((s) => s.queue.length > s.index + 1);
   const toast = useUi((s) => s.showToast);
   const clearWithUndo = () => {
-    const { queue, index, source, autoFrom } = usePlayer.getState();
+    const { queue, index, pending, source, autoFrom } = usePlayer.getState();
     const upcoming = queue.slice(index + 1);
+    const currentId = queue[index]?.id;
     player.clearUpcoming();
-    if (!upcoming.length) return;
+    if (!upcoming.length && !pending.length) return;
     toast(t.clearQueue, {
       label: t.restore,
       onClick: () => {
-        usePlayer.setState((s) => ({
-          queue: [...s.queue.slice(0, s.index + 1), ...upcoming],
-          source,
-          autoFrom,
-        }));
+        usePlayer.setState((s) => {
+          if (s.queue[s.index]?.id !== currentId) return s;
+          return {
+            queue: [...s.queue.slice(0, s.index + 1), ...upcoming],
+            pending,
+            source,
+            autoFrom,
+          };
+        });
       },
     });
   };

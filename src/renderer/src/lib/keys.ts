@@ -51,10 +51,12 @@ export function initKeys() {
     if (e.defaultPrevented || e.altKey || e.metaKey) return;
     if (document.querySelector("[data-onboarding-dialog]")) return;
     const ctrl = e.ctrlKey;
-    if (ctrl && e.code === "KeyP" && !useUi.getState().miniPlayer) {
+    if (ctrl && e.code === "KeyP" && !e.repeat && !useUi.getState().miniPlayer) {
       e.preventDefault();
       const ui = useUi.getState();
-      ui.setCommandPaletteOpen(!ui.commandPaletteOpen);
+      const next = !ui.commandPaletteOpen;
+      if (next && ui.hotkeysOpen) ui.setHotkeysOpen(false);
+      ui.setCommandPaletteOpen(next);
       return;
     }
     if (useUi.getState().hotkeysOpen || useUi.getState().commandPaletteOpen) return;
