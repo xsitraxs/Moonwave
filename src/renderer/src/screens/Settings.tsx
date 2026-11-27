@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { DISCORD_CLIENT_ID, PREFS_DEFAULTS, RELEASES_URL, REPO_URL, type AppInfo, type HotkeyAction, type NetCheck } from "@shared/ipc";
 import Appearance from "@/components/settings/Appearance";
 import Equalizer from "@/components/settings/Equalizer";
@@ -333,9 +333,79 @@ export default function Settings() {
     ["showWindow", t.hkShowWindow],
   ];
 
+  const [query, setQuery] = useState("");
+  const searchIndex = useMemo(
+    () => [
+      { tab: "playback" as Tab, tabLabel: t.secPlayback, label: t.localLikes, keywords: "likes лайки local" },
+      { tab: "playback" as Tab, tabLabel: t.secPlayback, label: t.substitute, keywords: "substitute замена alternative стрим" },
+      { tab: "playback" as Tab, tabLabel: t.secPlayback, label: t.autopilot, keywords: "autopilot автопилот autoplay" },
+      { tab: "playback" as Tab, tabLabel: t.secPlayback, label: t.crossfade, keywords: "crossfade кроссфейд fade переход" },
+      { tab: "playback" as Tab, tabLabel: t.secPlayback, label: t.streamQuality, keywords: "quality качество bitrate stream" },
+      { tab: "playback" as Tab, tabLabel: t.secPlayback, label: t.secSound, keywords: "sound equalizer эквалайзер output device аудио звук lyrics текст" },
+      { tab: "look" as Tab, tabLabel: t.secAppearance, label: t.secAppearance, keywords: "theme тема appearance внешний вид background wallpaper steam обои accent цвет" },
+      { tab: "look" as Tab, tabLabel: t.secAppearance, label: t.language, keywords: "language язык russian english ru en" },
+      { tab: "app" as Tab, tabLabel: t.settingsApp, label: t.secWindow, keywords: "window окно tray трей autostart автозапуск discord rpc" },
+      { tab: "app" as Tab, tabLabel: t.settingsApp, label: t.secHotkeys, keywords: "hotkeys shortcuts клавиши глобальные" },
+      { tab: "app" as Tab, tabLabel: t.settingsApp, label: t.secMemory, keywords: "memory cache кэш память data папка" },
+      { tab: "app" as Tab, tabLabel: t.settingsApp, label: t.secUpdates, keywords: "updates обновления version версия" },
+      { tab: "hidden" as Tab, tabLabel: t.secHidden, label: t.secHidden, keywords: "hidden скрытые keywords слова фильтры block" },
+      { tab: "friends" as Tab, tabLabel: t.messengerSettings, label: t.messengerSettings, keywords: "friends друзья messenger сообщения rooms комнаты" },
+      { tab: "network" as Tab, tabLabel: t.secNetwork, label: t.secNetwork, keywords: "network сеть proxy прокси socks http diagnostics диагностика" },
+      { tab: "account" as Tab, tabLabel: t.secAccount, label: t.secAccount, keywords: "account аккаунт backup бэкап export import logout выход about" },
+    ],
+    [t],
+  );
+  const matches = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return [];
+    return searchIndex.filter((item) => item.label.toLowerCase().includes(q) || item.tabLabel.toLowerCase().includes(q) || item.keywords.includes(q));
+  }, [query, searchIndex]);
+
   return (
     <Screen label={t.settings}>
       <ScreenTitle meta={`${t.version} ${__APP_VERSION__}`}>{t.settings.toLowerCase()}</ScreenTitle>
+
+      <div className="relative mb-4">
+        <div className="flex items-center gap-2 rounded-[10px] border border-[var(--s-line2)] bg-white/[0.04] px-3 py-2 focus-within:border-[var(--accent)]">
+          <Icon name="search" size={15} className="shrink-0 text-muted" />
+          <input
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder={`${t.search}...`}
+            aria-label={t.search}
+            className="w-full bg-transparent text-sm text-text outline-none placeholder:text-muted"
+          />
+          {query && (
+            <button type="button" onClick={() => setQuery("")} aria-label={t.close} className="text-muted hover:text-text">
+              <Icon name="close" size={14} />
+            </button>
+          )}
+        </div>
+        {query.trim() && (
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {matches.length === 0 ? (
+              <span className="text-xs text-muted">—</span>
+            ) : (
+              matches.map((m) => (
+                <button
+                  key={`${m.tab}-${m.label}`}
+                  type="button"
+                  onClick={() => {
+                    setTab(m.tab);
+                    setQuery("");
+                  }}
+                  className="inline-flex items-center gap-1.5 rounded-[8px] border border-[var(--s-line2)] bg-white/[0.06] px-2.5 py-1 text-xs text-text transition-colors hover:bg-white/[0.12]"
+                >
+                  <span className="text-muted">{m.tabLabel}</span>
+                  <span className="opacity-40">/</span>
+                  <span>{m.label}</span>
+                </button>
+              ))
+            )}
+          </div>
+        )}
+      </div>
 
       <Tabs options={tabs} value={tab} onChange={setTab} label={t.settings} className="mb-6" />
 

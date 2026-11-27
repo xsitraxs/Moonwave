@@ -7,7 +7,7 @@ import { PaperButton } from "@/components/ui/Buttons";
 import Icon from "@/components/ui/Icon";
 import Tabs from "@/components/ui/Tabs";
 import { Screen, ScreenTitle } from "@/components/ui/Screen";
-import { EmptyState, ErrorState, Loading } from "@/components/ui/States";
+import { CardGridSkeleton, EmptyState, ErrorState, Loading } from "@/components/ui/States";
 import { useT } from "@/i18n";
 import { useAuth } from "@/state/auth";
 import { copyMine, exportPlaylists, importPlaylists } from "@/lib/playlists";
@@ -29,7 +29,7 @@ export function PlaylistsView({ userId }: { userId: number | "me" }) {
     [all, filter],
   );
 
-  if (q.isPending) return <Loading />;
+  if (q.isPending) return <CardGridSkeleton />;
   if (q.isError && !all.length) return <ErrorState error={q.error} onRetry={() => void q.refetch()} />;
   if (!all.length) return <EmptyState caption={t.emptyPlaylists} />;
   const filters: [Filter, string][] = [
