@@ -155,14 +155,29 @@ export default function CommandPalette() {
 
   useEffect(() => {
     if (!open) return;
+    const previous = document.activeElement as HTMLElement | null;
     setQuery("");
     setActive(0);
     if (!queryClient.getQueryData(["local-tracks"])) {
       void queryClient.prefetchQuery({ queryKey: ["local-tracks"], queryFn: () => call("local:list") });
     }
     const id = requestAnimationFrame(() => inputRef.current?.focus());
-    return () => cancelAnimationFrame(id);
-  }, [open]);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setOpen(false);
+      } else if (e.key === "Tab") {
+        e.preventDefault();
+        inputRef.current?.focus();
+      }
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => {
+      cancelAnimationFrame(id);
+      window.removeEventListener("keydown", onKey, true);
+      previous?.focus();
+    };
+  }, [open, setOpen]);
 
   useEffect(() => {
     setActive(0);

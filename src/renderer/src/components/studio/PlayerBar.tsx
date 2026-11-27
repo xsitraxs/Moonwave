@@ -1,4 +1,4 @@
-import { memo, useEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { isLocalTrack, artwork, type Track } from "@shared/types";
 import { DjVotes, DjWhyLine } from "@/components/dj/bits";
 import { errorText, useT } from "@/i18n";
@@ -108,15 +108,15 @@ function AddTo({ track }: { track: Track }) {
   );
 }
 
-const Elapsed = memo(function Elapsed() {
+function Elapsed() {
   const position = usePosition((s) => s.position);
   return <span className="min-w-10 shrink-0 text-right text-[12px] tabular-nums text-[var(--s-dim)]">{duration(position * 1000)}</span>;
-});
+}
 
-const Remaining = memo(function Remaining({ totalMs }: { totalMs: number }) {
+function Remaining({ totalMs }: { totalMs: number }) {
   const t = useT();
+  const position = usePosition((s) => s.position);
   const [showRemaining, setShowRemaining] = useState(false);
-  const position = usePosition((s) => (showRemaining ? s.position : 0));
   const remaining = Math.max(0, totalMs / 1000 - position);
   const label = showRemaining ? `-${duration(remaining * 1000)}` : duration(totalMs);
   return (
@@ -130,7 +130,7 @@ const Remaining = memo(function Remaining({ totalMs }: { totalMs: number }) {
       {label}
     </button>
   );
-});
+}
 
 /** Where the sound goes: the system default or one of the audio outputs. */
 function Device() {

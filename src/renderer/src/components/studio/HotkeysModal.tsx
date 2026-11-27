@@ -47,7 +47,6 @@ export default function HotkeysModal() {
     { keys: ["←", "→"], label: t.hkSeek },
     { keys: ["Ctrl", "F"], label: t.hkSearch },
     { keys: ["Ctrl", "K"], label: t.hkSearch },
-    { keys: ["Ctrl", "P"], label: t.hkCommandPalette },
     { keys: ["Ctrl", "L"], label: t.hkOpenLink },
     { keys: ["?"], label: t.hkHelp },
     { keys: ["Esc"], label: t.hkClose },

@@ -1,5 +1,5 @@
 import { animate, AnimatePresence, motion, useMotionValue, useReducedMotion } from "framer-motion";
-import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { artwork, isLocalTrack, type Lyrics, type Track } from "@shared/types";
 import { analyser, currentTime } from "@/audio/engine";
 import { DjVotes, DjWhyLine } from "@/components/dj/bits";
@@ -34,7 +34,7 @@ const BANDS = 48;
  * The big cover with thin spectrum lines standing out of its outline: the lows at the bottom, the highs at the top,
  * mirrored left and right; the loud ones take the accent, a faint light breathes behind.
  */
-const Halo = memo(function Halo({ track, size }: { track: Track; size: number }) {
+function Halo({ track, size }: { track: Track; size: number }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const reach = Math.round(size * 0.25);
   const gap = Math.round(size * 0.04);
@@ -110,15 +110,15 @@ const Halo = memo(function Halo({ track, size }: { track: Track; size: number })
       </div>
     </div>
   );
-});
+}
 
-const Elapsed = memo(function Elapsed() {
+function Elapsed() {
   const position = usePosition((s) => s.position);
   return <span className="font-type text-xs tabular-nums text-muted">{duration(position * 1000)}</span>;
-});
+}
 
 /** Studio, full screen: the volume under the transport. */
-const FullVolume = memo(function FullVolume({ width }: { width: number }) {
+function FullVolume({ width }: { width: number }) {
   const t = useT();
   const volume = usePlayer((s) => s.volume);
   const muted = usePlayer((s) => s.muted);
@@ -142,7 +142,7 @@ const FullVolume = memo(function FullVolume({ width }: { width: number }) {
       />
     </div>
   );
-});
+}
 
 function StudioPlay() {
   const t = useT();
@@ -156,7 +156,7 @@ function StudioPlay() {
 }
 
 /** Cover, title, waveform and transport, sized to the space they have. */
-const Stage = memo(function Stage({ track, sound, studio = false }: { track: Track; sound: Track | null; studio?: boolean }) {
+function Stage({ track, sound, studio = false }: { track: Track; sound: Track | null; studio?: boolean }) {
   const t = useT();
   const go = useNav((s) => s.go);
   const close = useUi((s) => s.closeFull);
@@ -241,7 +241,7 @@ const Stage = memo(function Stage({ track, sound, studio = false }: { track: Tra
       )}
     </div>
   );
-});
+}
 
 /** how far (0..1) each word of a line has been sung: the line's time is shared out by the length of its words */
 function sweep(words: string[], start: number, next: number, now: number) {
@@ -262,7 +262,7 @@ function sweep(words: string[], start: number, next: number, now: number) {
  * times only), the lines around it soften with distance. It follows the song unless you scrolled in the last 4 s; a
  * click on a line jumps there.
  */
-const SweepLines = memo(function SweepLines({ lines }: { lines: NonNullable<Lyrics["synced"]> }) {
+function SweepLines({ lines }: { lines: NonNullable<Lyrics["synced"]> }) {
   const t = useT();
   const studioWords = useSettings((s) => s.prefs.look.design === "studio");
   const still = useReducedMotion() ?? false;
@@ -364,10 +364,10 @@ const SweepLines = memo(function SweepLines({ lines }: { lines: NonNullable<Lyri
       <div className="h-[55%]" />
     </div>
   );
-});
+}
 
 /** The right side: synced words, plain words (until they are synced, when Auto-sync is on), or nothing. */
-const Words = memo(function Words({ track }: { track: Track }) {
+function Words({ track }: { track: Track }) {
   const q = useShownLyrics(track);
   const l = q.data;
   if (q.isPending) return <LyricsSkeleton />;
@@ -379,7 +379,7 @@ const Words = memo(function Words({ track }: { track: Track }) {
       </div>
     );
   return null;
-});
+}
 
 function hasWords(l: Lyrics | null | undefined) {
   return !!(l?.synced?.length || l?.plain);

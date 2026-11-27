@@ -167,58 +167,26 @@ function SyncedLines({ lines }: { lines: NonNullable<Lyrics["synced"]> }) {
     return () => off();
   }, [lines]);
 
-  const [scrolledAway, setScrolledAway] = useState(false);
-  const t = useT();
-
-  const jumpToCurrent = () => {
-    userScroll.current = 0;
-    setScrolledAway(false);
-    if (at < 0) return;
-    const row = box.current?.children[at] as HTMLElement | undefined;
-    row?.scrollIntoView({ block: "center", behavior: still ? "instant" : "smooth" });
-  };
-
   useEffect(() => {
     if (at < 0 || Date.now() - userScroll.current < 4000) return;
-    setScrolledAway(false);
     const row = box.current?.children[at] as HTMLElement | undefined;
     row?.scrollIntoView({ block: "center", behavior: fast || still ? "instant" : "smooth" });
   }, [at, fast, still]);
 
   return (
-    <div className="relative">
-      <ol
-        ref={box}
-        onWheel={() => {
-          userScroll.current = Date.now();
-          setScrolledAway(true);
-        }}
-        className="space-y-1 px-4 pb-24 pt-2"
-      >
-        {lines.map((l, i) => (
-          <li key={`${l.t}-${i}`}>
-            <button
-              type="button"
-              onClick={() => player.seek(l.t)}
-              className={`w-full cursor-pointer rounded-md px-2 py-1 text-left text-[1.05rem] leading-snug transition-colors motion-color hover:bg-[var(--row-hover)] ${i === at ? "font-semibold text-glow" : i < at ? "text-muted/70" : "text-text/85"}`}
-            >
-              {l.text || "♪"}
-            </button>
-          </li>
-        ))}
-      </ol>
-      {scrolledAway && at >= 0 && (
-        <div className="pointer-events-none sticky bottom-4 flex justify-center">
+    <ol ref={box} onWheel={() => (userScroll.current = Date.now())} className="space-y-1 px-4 pb-24 pt-2">
+      {lines.map((l, i) => (
+        <li key={`${l.t}-${i}`}>
           <button
             type="button"
-            onClick={jumpToCurrent}
-            className="pointer-events-auto rounded-full border border-[var(--s-line2)] bg-[var(--s-bg2)]/90 px-3.5 py-1.5 text-xs font-medium text-text shadow-lg backdrop-blur-md transition-colors hover:bg-[var(--s-bg2)]"
+            onClick={() => player.seek(l.t)}
+            className={`w-full rounded-md px-2 py-1 text-left text-[1.05rem] leading-snug transition-colors motion-color hover:bg-[var(--row-hover)] ${i === at ? "font-semibold text-glow" : i < at ? "text-muted/70" : "text-text/85"}`}
           >
-            {t.lyricsBackToCurrent}
+            {l.text || "♪"}
           </button>
-        </div>
-      )}
-    </div>
+        </li>
+      ))}
+    </ol>
   );
 }
 

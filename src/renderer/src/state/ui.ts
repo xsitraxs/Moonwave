@@ -45,18 +45,14 @@ interface UiStore {
   noteSkipped(track: Track): void;
   clearSkipped(): void;
   /** a short message at the bottom ("Link copied") */
-  toast: { id: number; text: string; action?: { label: string; onClick: () => void } } | null;
-  showToast(text: string, action?: { label: string; onClick: () => void }): void;
-  dismissToast(): void;
+  toast: { id: number; text: string } | null;
+  showToast(text: string): void;
   /** studio: the sidebar collapsed to icons only (remembered on this PC) */
   sidebarCollapsed: boolean;
   toggleSidebar(): void;
   /** the keyboard shortcuts cheat sheet */
   hotkeysOpen: boolean;
   setHotkeysOpen(open: boolean): void;
-  /** quick command palette (Ctrl+P) */
-  commandPaletteOpen: boolean;
-  setCommandPaletteOpen(open: boolean): void;
   miniPlayer: boolean;
   setMiniPlayer(open: boolean): void;
 }
@@ -167,14 +163,10 @@ export const useUi = create<UiStore>((set, get) => ({
     set({ skipped: null });
   },
   toast: null,
-  showToast: (text, action) => {
+  showToast: (text) => {
     window.clearTimeout(toastTimer);
-    set({ toast: { id: Date.now(), text, action } });
-    toastTimer = window.setTimeout(() => set({ toast: null }), action ? 5000 : 2200);
-  },
-  dismissToast: () => {
-    window.clearTimeout(toastTimer);
-    set({ toast: null });
+    set({ toast: { id: Date.now(), text } });
+    toastTimer = window.setTimeout(() => set({ toast: null }), 2200);
   },
   sidebarCollapsed: storedSidebar === "1",
   toggleSidebar: () =>
@@ -184,8 +176,6 @@ export const useUi = create<UiStore>((set, get) => ({
     }),
   hotkeysOpen: false,
   setHotkeysOpen: (hotkeysOpen) => set({ hotkeysOpen }),
-  commandPaletteOpen: false,
-  setCommandPaletteOpen: (commandPaletteOpen) => set({ commandPaletteOpen }),
   miniPlayer: false,
   setMiniPlayer: (miniPlayer) => set({ miniPlayer }),
 }));

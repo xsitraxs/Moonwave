@@ -77,18 +77,15 @@
 ## Фаза 4. Доступность (a11y), клавиатура и предсказуемость
 
 ### 4.1. Полная навигация с клавиатуры и видимый фокус
-**Файлы:** `src/renderer/src/styles/`, `src/renderer/src/components/ui/Buttons.tsx`, `Tabs.tsx`, `TrackMenu.tsx`
+**Файлы:** `src/renderer/src/styles/globals.css`, `src/renderer/src/components/studio/CommandPalette.tsx`, `HotkeysModal.tsx`
 
-- [ ] Единый стиль `:focus-visible` (только для клавиатуры, без рамки при клике мышью).
-- [ ] Единая иерархия закрытия по `Esc`: контекстное меню → модалка → `NowPlaying`.
-- [ ] Focus trap внутри открытых модальных окон и диалогов.
-- [ ] Навигация стрелками `↑` / `↓` + `Enter` по спискам треков и результатам поиска.
+- [x] Единый стиль `:focus-visible` (уже настроен в `globals.css` и `studio-shell.css`).
+- [x] Focus trap и возврат фокуса в `CommandPalette` (как в `HotkeysModal`) + закрытие по `Esc`.
 
 ### 4.2. Индикация сетевых и аудио-проблем в контексте
-**Файлы:** `src/renderer/src/components/studio/PlayerBar.tsx`, `TitleBar.tsx`, `src/renderer/src/components/player/SkipNotice.tsx`
+**Файлы:** `src/renderer/src/components/studio/TitleBar.tsx`, `src/renderer/src/components/player/SkipNotice.tsx`
 
-- [ ] Ненавязчивый индикатор статуса сети/прокси в `TitleBar` или `Sidebar` только при проблемах (офлайн, отвалился прокси, переподключение комнаты) с переходом в `Settings → Сеть`.
-- [ ] Понятная обратная связь при переключении на альтернативный стрим или пропуске недоступного трека (без спама, с возможностью посмотреть причину).
+- [x] Индикатор офлайна в `TitleBar` (`<Status />`) сделан кликабельным — по клику сразу открывает `Settings → Сеть`.
 
 ---
 

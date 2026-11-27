@@ -6,7 +6,7 @@ import ListFilter, { useListFilter } from "@/components/tracks/ListFilter";
 import TrackList from "@/components/tracks/TrackList";
 import { PaperButton } from "@/components/ui/Buttons";
 import { Screen, ScreenTitle } from "@/components/ui/Screen";
-import { EmptyState, ErrorState, Loading, TrackListSkeleton } from "@/components/ui/States";
+import { EmptyState, ErrorState, Loading } from "@/components/ui/States";
 import { useT } from "@/i18n";
 import { useAuth } from "@/state/auth";
 import { useDj } from "@/state/dj";
@@ -25,7 +25,7 @@ export function LikesList({ userId, label }: { userId: number | "me"; label: str
   const source = useMemo<QueueSource>(() => ({ kind: "likes", userId, cursor }), [userId, cursor]);
   const f = useListFilter(`likes:${userId}`, tracks, source, { hasMore: !!q.hasNextPage, loadingMore: q.isFetchingNextPage, loadMore: () => void q.fetchNextPage() });
 
-  if (q.isPending) return <TrackListSkeleton />;
+  if (q.isPending) return <Loading />;
   if (q.isError && !tracks.length) return <ErrorState error={q.error} onRetry={() => void q.refetch()} />;
   if (!tracks.length) return <EmptyState caption={t.emptyLikes} />;
   return (

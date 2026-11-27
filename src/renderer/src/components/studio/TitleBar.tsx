@@ -184,6 +184,7 @@ function SearchBox() {
 
 function Status() {
   const t = useT();
+  const open = useNav((s) => s.open);
   const [online, setOnline] = useState(navigator.onLine);
   useEffect(() => {
     const up = () => setOnline(true);
@@ -197,10 +198,19 @@ function Status() {
   }, []);
   if (online) return null;
   return (
-    <span className="s-stat s-glass bad" role="status">
+    <button
+      type="button"
+      onClick={() => {
+        setViewValue(JSON.stringify({ name: "settings" }), "settings:tab", "network");
+        open("settings", { name: "settings" });
+      }}
+      className="s-stat s-glass bad cursor-pointer"
+      role="status"
+      title={t.secNetwork}
+    >
       <i />
       {t.offline}
-    </span>
+    </button>
   );
 }
 

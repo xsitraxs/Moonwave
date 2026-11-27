@@ -3,7 +3,7 @@ import type { QueueSource } from "@shared/types";
 import { useFeed } from "@/api/queries";
 import TrackList from "@/components/tracks/TrackList";
 import { Screen, ScreenTitle } from "@/components/ui/Screen";
-import { EmptyState, ErrorState, Loading, TrackListSkeleton } from "@/components/ui/States";
+import { EmptyState, ErrorState, Loading } from "@/components/ui/States";
 import { useT } from "@/i18n";
 import { useAuth } from "@/state/auth";
 import Login from "./Login";
@@ -24,7 +24,7 @@ export default function Feed() {
     <Screen label={t.feed}>
       <ScreenTitle meta={t.feedHint}>{t.feed.toLowerCase()}</ScreenTitle>
       {q.isPending ? (
-        <TrackListSkeleton />
+        <Loading />
       ) : q.isError && !tracks.length ? (
         <ErrorState error={q.error} onRetry={() => void q.refetch()} />
       ) : !tracks.length ? (
