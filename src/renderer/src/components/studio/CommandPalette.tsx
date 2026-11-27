@@ -1,17 +1,21 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useMemo, useRef, useState } from "react";
+import type { Track } from "@shared/types";
+import { queryClient } from "@/api/queries";
 import { useT } from "@/i18n";
 import { setMiniPlayer } from "@/lib/miniPlayer";
 import { enterFast, exit } from "@/lib/motion";
 import { useNav } from "@/state/nav";
 import { player, usePlayer } from "@/state/player";
 import { useRoomSheet } from "@/state/room";
+import { useSettings } from "@/state/settings";
 import { useUi } from "@/state/ui";
 import Icon, { type IconName } from "../ui/Icon";
 
 interface CommandItem {
   id: string;
   label: string;
+  sub?: string;
   keywords: string;
   icon: IconName;
   shortcut?: string;
@@ -25,6 +29,8 @@ export default function CommandPalette() {
   const setOpen = useUi((s) => s.setCommandPaletteOpen);
   const navOpen = useNav((s) => s.open);
   const hasTrack = usePlayer((s) => s.index >= 0);
+  const pinnedPlaylists = useSettings((s) => s.pinnedPlaylists);
+  const history = useSettings((s) => s.history);
 
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
@@ -89,8 +95,63 @@ export default function CommandPalette() {
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return commands;
-    return commands.filter((c) => c.label.toLowerCase().includes(q) || c.keywords.toLowerCase().includes(q));
-  }, [commands, query]);
+    const base = commands.filter((c) => c.label.toLowerCase().includes(q) || c.keywords.toLowerCase().includes(q));
+    const extra: CommandItem[] = [];
+
+    for (const p of pinnedPlaylists) {
+      if (p.title.toLowerCase().includes(q)) {
+        extra.push({
+          id: `pl-${p.id}`,
+          label: p.title,
+          sub: t.playlists,
+          keywords: "",
+          icon: "playlists",
+          run: () => navOpen("playlists", { name: "playlist", id: p.id }),
+        });
+      }
+      if (extra.length >= 6) break;
+    }
+
+    const seen = new Set<string>();
+    let histCount = 0;
+    for (let i = 0; i < history.length && histCount < 6; i++) {
+      const tr = history[i]!;
+      if (seen.has(tr.id)) continue;
+      if (tr.title.toLowerCase().includes(q) || tr.artist.toLowerCase().includes(q)) {
+        seen.add(tr.id);
+        histCount++;
+        extra.push({
+          id: `hist-${tr.id}`,
+          label: tr.title,
+          sub: `${tr.artist} · ${t.history}`,
+          keywords: "",
+          icon: "history",
+          run: () => player.playFrom(history, i, { kind: "static" }),
+        });
+      }
+    }
+
+    const localTracks = queryClient.getQueryData<Track[]>(["local-tracks"]) ?? [];
+    let localCount = 0;
+    for (let i = 0; i < localTracks.length && localCount < 6; i++) {
+      const tr = localTracks[i]!;
+      if (seen.has(tr.id)) continue;
+      if (tr.title.toLowerCase().includes(q) || tr.artist.toLowerCase().includes(q)) {
+        seen.add(tr.id);
+        localCount++;
+        extra.push({
+          id: `local-${tr.id}`,
+          label: tr.title,
+          sub: `${tr.artist} · ${t.localMusic}`,
+          keywords: "",
+          icon: "list",
+          run: () => player.playFrom(localTracks, i, { kind: "static" }),
+        });
+      }
+    }
+
+    return [...base, ...extra];
+  }, [commands, history, navOpen, pinnedPlaylists, query, t.history, t.localMusic, t.playlists]);
 
   useEffect(() => {
     if (!open) return;
@@ -177,7 +238,10 @@ export default function CommandPalette() {
                     }`}
                   >
                     <Icon name={item.icon} size={16} className="shrink-0 opacity-80" />
-                    <span className="flex-1 truncate">{item.label}</span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate">{item.label}</span>
+                      {item.sub && <span className="block truncate text-[11px] text-[var(--s-dim)]">{item.sub}</span>}
+                    </span>
                     {item.shortcut && (
                       <kbd className="rounded border border-[var(--s-line2)] bg-white/[0.05] px-1.5 py-0.5 font-mono text-[11px] text-muted">
                         {item.shortcut}
