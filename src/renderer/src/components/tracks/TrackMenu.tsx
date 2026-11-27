@@ -2,6 +2,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
 import { queryClient } from "@/api/queries";
 import { useT } from "@/i18n";
+import { rateDjTrack } from "@/lib/djVoteAction";
 import { enterFast, exit } from "@/lib/motion";
 import { canEdit, removeFromPlaylist } from "@/lib/playlists";
 import { call } from "@/lib/sky";
@@ -71,6 +72,7 @@ export default function TrackMenu() {
   const roomHost = useRoom((s) => (s.room ? s.room.host === s.me : null));
   const djActive = useDj((s) => s.active);
   const djReasons = useDj((s) => s.reasons);
+  const djVote = useDj((s) => (track ? s.votes[track.id] ?? null : null));
 
   /** For a protected track: try another found upload, open the one that plays, or switch substitution for it. */
   const substituteItems = (tr: Track): { icon: IconName; label: string; run: () => void }[] => {
@@ -132,7 +134,7 @@ export default function TrackMenu() {
           run: () => void call("local:remove", track.id).then(() => queryClient.invalidateQueries({ queryKey: ["local-tracks"] })),
         },
       ];
-  const items: { icon: IconName; label: string; run: () => void; danger?: boolean }[] = !track
+  const items: { icon: IconName; label: string; run: () => void; danger?: boolean; selected?: boolean }[] = !track
     ? []
     : isLocalTrack(track.id)
       ? localItems
@@ -141,8 +143,8 @@ export default function TrackMenu() {
         // a running session's suggestion: steer it, or take it out of the session
         ...(djActive && djReasons[track.id]
           ? [
-              { icon: "plus" as IconName, label: t.djVoteMore, run: () => dj.vote(track.id, useDj.getState().votes[track.id] === "more" ? null : "more") },
-              { icon: "minimize" as IconName, label: t.djVoteLess, run: () => dj.vote(track.id, useDj.getState().votes[track.id] === "less" ? null : "less") },
+              { icon: "plus" as IconName, label: t.djVoteMore, selected: djVote === "more", run: () => rateDjTrack(track.id, "more", t) },
+              { icon: "minimize" as IconName, label: t.djVoteLess, selected: djVote === "less", run: () => rateDjTrack(track.id, "less", t) },
               { icon: "close" as IconName, label: t.djDismiss, run: () => dj.dismiss(track.id) },
             ]
           : []),
@@ -205,15 +207,17 @@ export default function TrackMenu() {
             <button
               key={item.label}
               type="button"
-              role="menuitem"
+              role={item.selected === undefined ? "menuitem" : "menuitemcheckbox"}
+              aria-checked={item.selected}
               onClick={() => {
                 close();
                 item.run();
               }}
-              className={`flex w-full items-center gap-2.5 px-3 py-1.5 text-left text-sm outline-none hover:bg-[var(--row-hover)] focus-visible:bg-[var(--row-hover)] focus-visible:shadow-none ${item.danger ? "text-muted hover:text-blood" : "text-text"}`}
+              className={`flex w-full items-center gap-2.5 px-3 py-1.5 text-left text-sm outline-none hover:bg-[var(--row-hover)] focus-visible:bg-[var(--row-hover)] focus-visible:shadow-none ${item.danger ? "text-muted hover:text-blood" : "text-text"} ${item.selected ? "bg-[var(--row-hover)]" : ""}`}
             >
               <Icon name={item.icon} size={16} />
               <span className="truncate">{item.label}</span>
+              {item.selected && <Icon name="check" size={14} className="ml-auto shrink-0 text-glow" />}
             </button>
           ))}
         </motion.div>

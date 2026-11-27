@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { DjSeed } from "./djRank.ts";
-import { buildDjExclude, buildRoundSeeds, chainSeedId, decideDjNext, DJ_REFILL_BELOW, feedbackArtists, isRoundFailed, needsRefillAfterStart, type DjQueueView, type DjSessionView } from "./djRefill.ts";
+import { buildDjExclude, buildRoundSeeds, chainSeedId, decideDjNext, DJ_REFILL_BELOW, excludeDjRound, feedbackArtists, isRoundFailed, needsRefillAfterStart, type DjQueueView, type DjSessionView } from "./djRefill.ts";
 
 // queue: [manual, seed, dj×6, manual-tail]; index points at the seed; the session started on generation 7
 const SEED = 100;
@@ -52,6 +52,17 @@ test("a flight in progress, or repeated failures: wait", () => {
 
 test("exclude list dedupes", () => {
   assert.deepEqual(buildDjExclude([[1, 2], [2, 3], [], [1]]), [1, 2, 3]);
+});
+
+test("a new DJ session can pick from the old tail it will replace, but a refill cannot", () => {
+  // stopping and restarting on the same likes used to return an empty round when the old picks filled the queue
+  const queue = [50, 100, 201, 202]; // played, current, old suggestions
+  assert.deepEqual(excludeDjRound("start", queue, 1, [70], [300]), [50, 100, 70, 300]);
+  assert.deepEqual(excludeDjRound("refill", queue, 1, [70], [300]), [50, 100, 201, 202, 70, 300]);
+});
+
+test("a start on an empty player replaces the whole queue but still avoids history", () => {
+  assert.deepEqual(excludeDjRound("start", [201, 202], -1, [201, 70], [300]), [201, 70, 300]);
 });
 
 test("votes become artist ratings, unknown artists drop out", () => {

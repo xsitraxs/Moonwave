@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { isLocalTrack, type Page, type Track } from "@shared/types";
 import { collectDjCandidates, DJ_COLLECT_DEFAULTS } from "@/lib/djCollect";
 import { DJ_RANK_DEFAULTS, rankDjCandidates, type DjArtistVia, type DjPick, type DjSeed, type DjWhy } from "@/lib/djRank";
-import { buildDjExclude, buildRoundSeeds, chainSeedId, decideDjNext, DJ_DRY_ROUNDS_TO_STOP, feedbackArtists, isRoundFailed, needsRefillAfterStart, type DjVote } from "@/lib/djRefill";
+import { buildRoundSeeds, chainSeedId, decideDjNext, DJ_DRY_ROUNDS_TO_STOP, excludeDjRound, feedbackArtists, isRoundFailed, needsRefillAfterStart, type DjVote } from "@/lib/djRefill";
 import { DJ_MIN_SEEDS, pickLikeSeeds, pickTrackSeeds } from "@/lib/djSources";
 import { call } from "@/lib/sky";
 import { canPlay, currentTrack, inRoom, player, queueGeneration, usePlayer } from "./player";
@@ -12,13 +12,16 @@ import { useSettings } from "./settings";
 /**
  * Moonwave DJ: one explicit session at a time, grown from its origin seeds (a track, likes, an artist, a playlist, a genre or mood wave). The
  * session owns the *suggestions* — fetching, ranking, appending, refilling — while the player keeps owning
- * playback, the manual queue, repeat, shuffle and the autopilot. Nothing here rewrites what the person queued
- * by hand.
+ * playback, the queue, repeat, shuffle and the autopilot. The session never rewrites the queue behind the person's
+ * back: the one hand-over is the start they asked for, and after it the session only appends.
  *
- * How the suggestions ride the queue: on start the session holds the autopilot's filler and drops its old tail
- * (player.setAutopilotSuspended/dropAutoTail), then appends its picks in bulk (player.appendMany), flagged like
- * hand-added tracks so shuffles keep them. The honest boundary is not a queue index but the `reasons` map
- * (track id → why it was picked): manual tracks have no entry, DJ tracks do, whatever the order becomes.
+ * How the suggestions ride the queue: on start the session holds the autopilot's filler, drops its old tail
+ * (player.setAutopilotSuspended/dropAutoTail) and — once the first round is in — takes over what came after the
+ * current track (player.takeOverUpcoming): that is the hand-over the person asked for, so the DJ is heard at once
+ * instead of after a queue they had built. The current track and what already played stay; later rounds only append
+ * (player.appendMany), and the picks are flagged like hand-added tracks so shuffles keep them. The honest boundary is
+ * not a queue index but the `reasons` map (track id → why it was picked): manual tracks have no entry, DJ tracks do,
+ * whatever the order becomes.
  * When the session ends the autopilot resumes as the natural fallback; no writer races, because every queue
  * update reads and writes synchronously.
  *
@@ -126,11 +129,11 @@ function trackTitle(trackId: number): string | null {
   return queue.find((t) => t.id === trackId)?.title ?? useSettings.getState().history.find((t) => t.id === trackId)?.title ?? null;
 }
 
-/** What the next round must not recommend: queue + history + dismissed. */
-function excludeNow(): number[] {
-  const { queue } = usePlayer.getState();
+/** A first round replaces the queue's tail; later rounds append behind it. */
+function excludeNow(kind: "start" | "refill"): number[] {
+  const { queue, index } = usePlayer.getState();
   const { history } = useSettings.getState();
-  return buildDjExclude([queue.map((t) => t.id), history.map((t) => t.id), [...dismissed]]);
+  return excludeDjRound(kind, queue.map((t) => t.id), index, history.map((t) => t.id), [...dismissed]);
 }
 
 interface RoundOutcome {
@@ -138,7 +141,7 @@ interface RoundOutcome {
   failed: boolean;
 }
 
-async function runRound(roundSeeds: readonly DjSeed[], signal: AbortSignal): Promise<RoundOutcome> {
+async function runRound(roundSeeds: readonly DjSeed[], signal: AbortSignal, kind: "start" | "refill"): Promise<RoundOutcome> {
   const { candidates, failedSeeds } = await collectDjCandidates(roundSeeds, (id) => call("data:related", id), { signal, ...DJ_COLLECT_DEFAULTS });
   // one seed's failure never sinks the rest: only all-failed is a failed round (a lone seed behaves as before)
   if (isRoundFailed(failedSeeds, roundSeeds.map((s) => s.id))) return { picks: [], failed: true };
@@ -158,7 +161,7 @@ async function runRound(roundSeeds: readonly DjSeed[], signal: AbortSignal): Pro
               ? { mood: { ids: seedIds, name: s.origin.name } }
               : undefined;
   // the player's own gate, same as the autopilot's append: hidden and proven-dead stay out, fresh drm stays in
-  const picks = rankDjCandidates(candidates, { seeds: roundSeeds, groups, exclude: excludeNow(), ...DJ_RANK_DEFAULTS, feedback: feedbackArtists(s.votes, artistOf), feedbackOn: s.feedbackOn }).filter((p) => canPlay(p.track));
+  const picks = rankDjCandidates(candidates, { seeds: roundSeeds, groups, exclude: excludeNow(kind), ...DJ_RANK_DEFAULTS, feedback: feedbackArtists(s.votes, artistOf), feedbackOn: s.feedbackOn }).filter((p) => canPlay(p.track));
   return { picks, failed: false };
 }
 
@@ -217,7 +220,11 @@ function writeOutcome(kind: "start" | "refill", outcome: RoundOutcome) {
       expectedQueueGen = queueGeneration();
       recordPicks(outcome.picks);
     } else {
-      appendPicks(outcome.picks);
+      // the person asked for the DJ: the queue after the current track is the session's from now on, so it is heard
+      // at once and not after everything that happened to be queued there
+      player.takeOverUpcoming(outcome.picks.map((p) => p.track));
+      expectedQueueGen = queueGeneration();
+      recordPicks(outcome.picks);
     }
     set({ status: "ready" });
     return;
@@ -251,7 +258,7 @@ async function runFlight(roundSeeds: readonly DjSeed[], myGen: number, kind: "st
   }, flightTimeoutMs(roundSeeds.length));
   timer = timerId;
   try {
-    const outcome = await runRound(roundSeeds, controller.signal);
+    const outcome = await runRound(roundSeeds, controller.signal, kind);
     if (myGen !== gen) return;
     // the queue turned over mid-flight while busy held the tick: step aside instead of appending elsewhere
     if (queueGeneration() !== expectedQueueGen) {
@@ -329,8 +336,8 @@ function startFromSeed(seed: DjSeed) {
   }
   resetMachinery();
   busy = true;
-  // the takeover: hold the autopilot's filler and drop its old tail first — it prefetched the same related
-  // tracks, and leaving them would exclude every candidate (busy is already set, so the tick stays quiet)
+  // the takeover: hold the autopilot's filler and drop its old tail first; the first round will replace the
+  // remaining unplayed tail, so only the current/played tracks and history are excluded (busy holds the tick quiet)
   player.setAutopilotSuspended(true);
   player.dropAutoTail();
   expectedQueueGen = queueGeneration();

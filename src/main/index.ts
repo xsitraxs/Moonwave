@@ -744,7 +744,9 @@ function registerIpc() {
   handle("update:download", () => updater.download());
   handle("update:install", () => {
     quitting = true;
-  if (waitingForBrowser()) stopBrowserSignIn();
+    // installing quits the app: a sign-in still waiting would leave its helper page pointing at a spent state. Ending
+    // it is what before-quit does too; stopBrowserSignIn() does nothing when nobody is waiting.
+    if (waitingForBrowser()) stopBrowserSignIn();
     updater.install();
   });
 

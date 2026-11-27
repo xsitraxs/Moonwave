@@ -8,6 +8,7 @@ import { queryClient } from "@/api/queries";
 import { getActivity, subscribeActivity } from "@/lib/activity";
 import { isHidden } from "@/lib/hidden";
 import { call } from "@/lib/sky";
+import { handOverTail, needsTopUp, nextPlayableIndex, shuffled } from "./queue";
 import { useSettings } from "./settings";
 import { useUi } from "./ui";
 
@@ -139,15 +140,6 @@ export const useCurrentTrack = () => usePlayer((s) => s.queue[s.index] ?? null);
 
 const set = usePlayer.setState;
 const get = usePlayer.getState;
-
-function shuffled<T>(list: T[]): T[] {
-  const a = [...list];
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j]!, a[i]!];
-  }
-  return a;
-}
 
 /** Tracks added by hand ("play next", "add to queue"): they stay put when the queue is rebuilt. */
 const manual = new WeakSet<Track>();
@@ -347,7 +339,7 @@ function topUp(force = false): Promise<void> {
   // a forced call (nothing left to play) waits for the fill already running — returning at once used to end the queue
   // right while the autopilot's next tracks were on their way — and fills again only if that brought nothing
   if (topUpRun) return force ? topUpRun.then(() => (nextIndex(get().index, false) < 0 ? topUp(true) : undefined)) : topUpRun;
-  if (!force && get().queue.length - get().index > AHEAD) return Promise.resolve();
+  if (!force && !needsTopUp(get().queue.length, get().index, AHEAD)) return Promise.resolve();
   topUpRun = fill().finally(() => {
     topUpRun = null;
   });
@@ -357,7 +349,7 @@ function topUp(force = false): Promise<void> {
 async function fill() {
   const gen = rebuild;
   try {
-    for (let guard = 0; guard < 6 && get().queue.length - get().index <= AHEAD; guard++) {
+    for (let guard = 0; guard < 6 && needsTopUp(get().queue.length, get().index, AHEAD); guard++) {
       const s = get();
       if (s.pending.length) {
         const take = s.pending.slice(0, FILL);
@@ -404,12 +396,7 @@ async function fill() {
 }
 
 /** Next playable index after `from` (wrapping when allowed), or -1. */
-function nextIndex(from: number, wrap: boolean) {
-  const { queue } = get();
-  for (let i = from + 1; i < queue.length; i++) if (playable(queue[i])) return i;
-  if (wrap) for (let i = 0; i <= from && i < queue.length; i++) if (playable(queue[i])) return i;
-  return -1;
-}
+const nextIndex = (from: number, wrap: boolean) => nextPlayableIndex(get().queue, from, wrap, playable);
 
 // ---- engine → store -----------------------------------------------------------------------------------------------
 
@@ -753,6 +740,22 @@ export const player = {
     q.splice(at, 0, ...items);
     set({ queue: q, autoFrom: autoFrom >= 0 ? autoFrom + items.length : -1 });
     if (!opts?.silent && q.length > index + 1) useUi.getState().openSideQueue();
+  },
+  /**
+   * The DJ's turn-over: everything after the current track becomes `tracks`, so the session is heard at once instead
+   * of after whatever was queued there. The hand-queued tail and the autopilot's go; the current track and what
+   * already played stay. The queue is nobody else's any more: the list it came from is forgotten (`source` static,
+   * nothing `pending`), or its next page would grow the tail behind the session's back. Refills append as usual.
+   */
+  takeOverUpcoming(tracks: Track[]) {
+    if (remote || !tracks.length) return;
+    const { queue, index } = get();
+    if (index < 0) return;
+    const items = tracks.map((t) => ({ ...t }));
+    for (const t of items) manual.add(t);
+    rebuild++; // a whole-list shuffle still on its way must not land on the session's tail
+    queueGen++; // the queue turned over: the session's own expectation is updated by its caller
+    set({ queue: handOverTail(queue, index, items), original: null, pending: [], source: { kind: "static" }, autoFrom: -1 });
   },
   /**
    * Drops the autopilot's tail (the DJ's takeover clears what the filler added). Only non-manual tracks from the

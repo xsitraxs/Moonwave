@@ -6,6 +6,8 @@
   "engines": { "node": ">=24" },
   "scripts": {
     "start": "node src/main.ts",
-    "test": "node test/smoke.ts"
+    "test": "node test/smoke.ts",
+    "test:smoke": "node test/smoke.ts",
+    "test:rooms": "node test/rooms-live.ts"
   }
 }

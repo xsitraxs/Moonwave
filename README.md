@@ -11,7 +11,7 @@
 <br/>
 
 <a href="https://github.com/xsitraxs/Moonwave/releases/latest"><img src=".github/assets/badges/download.svg" alt="Скачать Moonwave" height="28" /></a>
-<a href="https://github.com/xsitraxs/Moonwave/releases/tag/v2.6.0"><img src=".github/assets/badges/version.svg" alt="Версия 2.6.0" /></a>
+<a href="https://github.com/xsitraxs/Moonwave/releases/tag/v2.6.1"><img src=".github/assets/badges/version.svg" alt="Версия 2.6.1" /></a>
 
 <img src=".github/assets/badges/windows.svg" alt="Windows 10 / 11" />
 <img src=".github/assets/badges/macos.svg" alt="macOS 13+" />
@@ -22,7 +22,8 @@
 [Установка](#установка) •
 [Переход с sc player](#переход-с-sc-player) •
 [Полезно знать](#полезно-знать) •
-[Скоро](#скоро)
+[Скоро](#скоро) •
+[Разработка](#разработка)
 
 <br/>
 
@@ -197,6 +198,42 @@ Moonwave ставится **отдельным приложением**, ряд�
 
 ---
 
+## Разработка
+
+Нужен **Node.js 24 или новее** (`.nvmrc` закрепляет 24) и npm. Клонируйте репозиторий и поставьте зависимости:
+
+```bash
+git clone https://github.com/xsitraxs/Moonwave.git
+cd Moonwave
+npm install
+```
+
+| Команда | Что делает |
+|---|---|
+| `npm run dev` | запускает приложение с горячей перезагрузкой (нужен рабочий стол) |
+| `npm test` | юнит-тесты приложения и скриптов: все `src/**/*.test.ts` и `scripts/**/*.test.mjs` |
+| `npm run typecheck` | проверка типов main/preload (`tsconfig.node.json`) и renderer (`tsconfig.web.json`) |
+| `npm run lint` | ESLint по всему репозиторию |
+| `npm run build` | `typecheck` и сборка в `out/` через electron-vite (установщики — отдельно, `npm run dist`) |
+
+**Сервер** (`server/api`) — отдельный проект без зависимостей, Node запускает его TypeScript сам:
+
+```bash
+cd server/api
+DATA_DIR=./data-dev node src/main.ts     # API на http://127.0.0.1:8080
+node test/smoke.ts                       # весь API по работающему серверу
+node test/rooms-live.ts                  # комнаты прослушивания: поднимает и останавливает свой сервер
+```
+
+Из корня репозитория: `npm run test:server` (юнит-тесты сервера) и `npm run typecheck:server`. Подробности о
+развёртывании, переменных окружения и модерации — в [server/README.md](server/README.md).
+
+Перед pull request прогоните `npm test`, `npm run typecheck`, `npm run test:server`, `npm run typecheck:server` и
+`npm run lint` — то же самое делает CI. Как устроен проект и что мы ждём от изменений — в
+[CONTRIBUTING.md](CONTRIBUTING.md).
+
+---
+
 ## Благодарности
 
 - **[waterlil](https://github.com/waterlilo)** и участники [sc player](https://github.com/waterlilo/sc-player) —
@@ -266,6 +303,14 @@ start (on macOS and Linux you sign in to SoundCloud again). Remove sc player onc
 configured in the public releases. The source also supports an optional SoundCloud proxy: official builds do not
 include its configuration; in a privately configured build, "Auto" may route SoundCloud traffic through that server
 when the direct connection fails.
+
+**Development:** Node.js 24 or newer and npm — `npm install`, then `npm run dev` (hot reload; needs a desktop),
+`npm test` (unit tests for the app and the scripts), `npm run typecheck`, `npm run lint`, `npm run build` (typecheck and
+an electron-vite build into `out/`). The server in `server/api` is a separate, dependency-free project: `cd server/api`,
+`DATA_DIR=./data-dev node src/main.ts` starts it, `node test/smoke.ts` and `node test/rooms-live.ts` check it end to end,
+and from the root `npm run test:server` / `npm run typecheck:server` run its unit tests and typecheck. CI runs all of
+these on every pull request. See [CONTRIBUTING.md](CONTRIBUTING.md) for how the project is laid out and what a change
+should come with.
 
 **License:** GPL-3.0 — Copyright © 2026 waterlil and the contributors. The name *sc player* and its logo belong to the
 original app (GPL-3.0 §7e) and are not used here.

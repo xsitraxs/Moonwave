@@ -6,6 +6,7 @@ import { MAX_REBUILDS, REBUILD_BUDGET_MS, ROUTE_SILENCE_MS, canRouteAudio, chain
 import type { GraphicsStatus } from "@shared/audioHealth";
 import type { ErrorCode, StreamInfo, Track } from "@shared/types";
 import { call, errorCode } from "@/lib/sky";
+import { crossfadeDue, fadeLength, fadeLevels, prefetchDue } from "./fades";
 
 /**
  * Playback. SoundCloud streams AAC over HLS (hls.js feeds it through Media Source Extensions); a progressive MP3
@@ -575,7 +576,7 @@ function endFade() {
 function maybeCrossfade() {
   if (!crossfade || fade || preparing || active.audio.paused) return;
   const left = active.audio.duration - active.audio.currentTime;
-  if (!Number.isFinite(left) || left > crossfade || left < 0.5) return;
+  if (!crossfadeDue(left, crossfade)) return;
   const next = events?.peekNext();
   if (!next) return;
   preparing = true;
@@ -592,8 +593,7 @@ function maybeCrossfade() {
     }
     // measured now, not when the load began: fetching the next stream takes a second or two, and a fade planned on the
     // old figure outlasted the outgoing track, which then stopped mid-fade with the new one still half as loud
-    const remaining = from.audio.duration - from.audio.currentTime;
-    const length = Number.isFinite(remaining) ? Math.max(0.5, Math.min(crossfade, remaining)) : 0.5;
+    const length = fadeLength(from.audio.duration - from.audio.currentTime, crossfade);
     // the next track is now the current one; the old deck fades out underneath
     active = to;
     events?.advanced(next.track);
@@ -605,12 +605,12 @@ function maybeCrossfade() {
       startedAt,
       length,
       timer: window.setInterval(() => {
-        const k = Math.min(1, (performance.now() - startedAt) / (length * 1000));
-        from.level = 1 - k;
-        to.level = k;
+        const levels = fadeLevels(performance.now() - startedAt, length);
+        from.level = levels.from;
+        to.level = levels.to;
         from.applyLevel();
         to.applyLevel();
-        if (k >= 1) endFade();
+        if (levels.to >= 1) endFade();
       }, 50),
     };
   });
@@ -633,7 +633,7 @@ function maybePrefetch() {
   // the crossfade has already taken (or is fetching) the next stream: asking now would fetch the same URL twice
   if (preparing || fade) return;
   const left = active.audio.duration - active.audio.currentTime;
-  if (!Number.isFinite(left) || left > PREFETCH_BEFORE_S + crossfade || active.audio.paused) return;
+  if (!prefetchDue(left, PREFETCH_BEFORE_S + crossfade) || active.audio.paused) return;
   const next = events?.peekNext();
   if (!next || ahead?.streamId === next.streamId) return;
   // a failure here costs nothing: the change asks again the usual way
