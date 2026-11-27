@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { analyser } from "@/audio/engine";
 import { getActivity, subscribeActivity } from "@/lib/activity";
+import { accentRgbNow } from "@/lib/look";
 import { usePlayer } from "@/state/player";
 
 const BANDS = 48;
@@ -81,7 +82,7 @@ export default function CoverRing({ size }: { size: number }) {
       buf ??= new Uint8Array(node.frequencyBinCount);
       spectrum(node, buf, levels);
       g.clearRect(0, 0, cv.width, cv.height);
-      const accent = getComputedStyle(document.documentElement).getPropertyValue("--accent-rgb").trim() || "200, 180, 240";
+      const accent = accentRgbNow();
       g.lineWidth = 1.4 * scale;
       for (let i = 0; i < LINES; i++) {
         const m = Math.abs(((i / LINES) * 2 + 1) % 2 - 1);

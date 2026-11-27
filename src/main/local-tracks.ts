@@ -1,7 +1,6 @@
 import { existsSync, mkdirSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { basename, extname, join } from "node:path";
 import { app, dialog, protocol, shell, type BrowserWindow } from "electron";
-import { parseFile } from "music-metadata";
 import type { MusicProvider } from "@shared/provider";
 import { isLocalTrack, LOCAL_TRACK_BASE, type StreamInfo, type Track, type TrackDetails } from "@shared/types";
 import { ScError } from "./soundcloud";
@@ -62,6 +61,8 @@ export const localLibrary = (): Track[] => [...store().get().files].sort((a, b) 
 const pathKey = (path: string) => process.platform === "win32" ? path.toLowerCase() : path;
 
 async function addPaths(paths: string[]): Promise<number> {
+  // music-metadata is over a megabyte of parsers: loaded when local files are actually added, not at start
+  const { parseFile } = await import("music-metadata");
   const s = store().get();
   const have = new Set(s.files.map((f) => pathKey(f.path)));
   const added: LocalFile[] = [];

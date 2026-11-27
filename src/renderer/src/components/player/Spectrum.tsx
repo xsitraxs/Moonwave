@@ -4,13 +4,13 @@ import type { SpectrumLook } from "@shared/ipc";
 import { analyser } from "@/audio/engine";
 import { useT } from "@/i18n";
 import { enterFast, exit } from "@/lib/motion";
+import { accentRgbNow } from "@/lib/look";
 import { usePlayingLoop } from "@/lib/playingLoop";
 import { useSettings } from "@/state/settings";
 import { spectrum } from "./CoverRing";
 import Icon from "../ui/Icon";
 
 const BANDS = 48;
-const accentRgb = () => getComputedStyle(document.documentElement).getPropertyValue("--accent-rgb").trim() || "200, 180, 240";
 
 /**
  * The sound along the bottom of the full screen player: bars, thin lines or columns of dots, the lows in the middle
@@ -40,7 +40,7 @@ export function BottomSpectrum({ look }: { look: SpectrumLook }) {
     } else levels.current.fill(0);
     const lv = levels.current;
     g.clearRect(0, 0, w, h);
-    const rgb = look.color === "white" ? "255, 255, 255" : accentRgb();
+    const rgb = look.color === "white" ? "255, 255, 255" : accentRgbNow();
     const step = (look.style === "lines" ? 7 : 14) * dpr;
     const n = Math.max(8, Math.floor(w / step));
     const bar = look.style === "lines" ? 2 * dpr : step * 0.62;
