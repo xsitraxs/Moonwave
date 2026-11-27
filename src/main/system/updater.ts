@@ -1,10 +1,11 @@
 import { app, type BrowserWindow } from "electron";
-import electronUpdater from "electron-updater";
 import { UPDATE_REPO, type UpdateStatus } from "@shared/ipc";
 import { log } from "./log";
 import { isPortableRelease } from "./updater-check";
 
-const { autoUpdater } = electronUpdater;
+/** electron-updater and its dependencies (js-yaml, fs-extra …) are half the main bundle: loaded on the first update check, not at start. */
+let updater: Promise<(typeof import("electron-updater"))["autoUpdater"]> | null = null;
+const auto = () => (updater ??= import("electron-updater").then((m) => m.autoUpdater));
 const EVERY = 6 * 3600 * 1000;
 
 /**
@@ -30,28 +31,30 @@ export function initUpdater(win: () => BrowserWindow | null, enabled: () => bool
     if (w && !w.isDestroyed()) w.webContents.send("update:status", s);
   };
   if (!app.isPackaged) return;
-  // the feed itself, not resources/app-update.yml: the portable .exe has no such file, so it never heard of a new
-  // version ("update: ENOENT … app-update.yml"). Same as package.json → build.publish.
-  autoUpdater.setFeedURL({ provider: "github", owner: UPDATE_REPO.owner, repo: UPDATE_REPO.repo });
-  autoUpdater.autoDownload = false;
-  autoUpdater.autoInstallOnAppQuit = true;
-  autoUpdater.on("checking-for-update", () => setStatus({ state: "checking" }));
-  autoUpdater.on("update-not-available", () => setStatus({ state: "none" }));
-  autoUpdater.on("update-available", (info) => setStatus({ state: "available", version: info.version, portable: portable() }));
-  autoUpdater.on("download-progress", (p) => {
-    if (status.state === "available" || status.state === "downloading") setStatus({ state: "downloading", version: status.version, percent: Math.round(p.percent) });
+  void auto().then((up) => {
+    // the feed itself, not resources/app-update.yml: the portable .exe has no such file, so it never heard of a new
+    // version ("update: ENOENT … app-update.yml"). Same as package.json → build.publish.
+    up.setFeedURL({ provider: "github", owner: UPDATE_REPO.owner, repo: UPDATE_REPO.repo });
+    up.autoDownload = false;
+    up.autoInstallOnAppQuit = true;
+    up.on("checking-for-update", () => setStatus({ state: "checking" }));
+    up.on("update-not-available", () => setStatus({ state: "none" }));
+    up.on("update-available", (info) => setStatus({ state: "available", version: info.version, portable: portable() }));
+    up.on("download-progress", (p) => {
+      if (status.state === "available" || status.state === "downloading") setStatus({ state: "downloading", version: status.version, percent: Math.round(p.percent) });
+    });
+    up.on("update-downloaded", (info) => setStatus({ state: "ready", version: info.version }));
+    up.on("error", (err) => {
+      // the first line only: electron-updater appends the response headers and a stack
+      log("main", `update: ${err.message.split("\n")[0]}`);
+      setStatus({ state: "error", message: err.message });
+    });
+    const tick = () => {
+      if (enabled()) void check();
+    };
+    setTimeout(tick, 8000);
+    setInterval(tick, EVERY);
   });
-  autoUpdater.on("update-downloaded", (info) => setStatus({ state: "ready", version: info.version }));
-  autoUpdater.on("error", (err) => {
-    // the first line only: electron-updater appends the response headers and a stack
-    log("main", `update: ${err.message.split("\n")[0]}`);
-    setStatus({ state: "error", message: err.message });
-  });
-  const auto = () => {
-    if (enabled()) void check();
-  };
-  setTimeout(auto, 8000);
-  setInterval(auto, EVERY);
 }
 
 export const updateStatus = () => status;
@@ -60,7 +63,7 @@ export async function check(): Promise<UpdateStatus> {
   if (!app.isPackaged) return { state: "none" };
   if (status.state === "downloading" || status.state === "ready") return status;
   try {
-    await autoUpdater.checkForUpdates();
+    await (await auto()).checkForUpdates();
   } catch (err) {
     setStatus({ state: "error", message: (err as Error).message });
   }
@@ -68,9 +71,9 @@ export async function check(): Promise<UpdateStatus> {
 }
 
 export function download() {
-  if (status.state === "available" && !portable()) void autoUpdater.downloadUpdate();
+  if (status.state === "available" && !portable()) void auto().then((up) => up.downloadUpdate());
 }
 
 export function install() {
-  if (status.state === "ready") autoUpdater.quitAndInstall(false, true);
+  if (status.state === "ready") void auto().then((up) => up.quitAndInstall(false, true));
 }

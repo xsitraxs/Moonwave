@@ -5,6 +5,7 @@ import { analyser, currentTime } from "@/audio/engine";
 import { DjVotes, DjWhyLine } from "@/components/dj/bits";
 import { useT } from "@/i18n";
 import { enter, exit, slowMove } from "@/lib/motion";
+import { accentRgbNow } from "@/lib/look";
 import { usePlayingLoop } from "@/lib/playingLoop";
 import { duration } from "@/lib/format";
 import { player, useCurrentTrack, usePlayer, usePosition, useStreamTrack } from "@/state/player";
@@ -58,7 +59,7 @@ function Halo({ track, size }: { track: Track; size: number }) {
       spectrum(node, buf.current, levels.current);
       const lv = levels.current;
       g.clearRect(0, 0, cv.width, cv.height);
-      const accent = getComputedStyle(document.documentElement).getPropertyValue("--accent-rgb").trim() || "200, 180, 240";
+      const accent = accentRgbNow();
       const bass = (lv[1]! + lv[2]! + lv[3]!) / 3;
       const c = (pad + size / 2) * s;
       const bloom = g.createRadialGradient(c, c, size * 0.28 * s, c, c, size * 0.9 * s);
@@ -269,6 +270,9 @@ function SweepLines({ lines }: { lines: NonNullable<Lyrics["synced"]> }) {
   const userScroll = useRef(0);
   const [at, setAt] = useState(-1);
   const words = useMemo(() => lines.map((l) => l.text.split(/\s+/).filter(Boolean)), [lines]);
+  // the current line's word spans, kept between ticks: a querySelector every frame adds up at 15–30 a second; the
+  // rows are rebuilt only with new lyrics (checked by lines) — a replaced node is caught by the connection check
+  const spansOf = useRef<{ lines: NonNullable<Lyrics["synced"]>; at: number; spans: NodeListOf<HTMLElement> } | null>(null);
 
   const paint = () => {
     const now = currentTime() + 0.2;
@@ -277,8 +281,13 @@ function SweepLines({ lines }: { lines: NonNullable<Lyrics["synced"]> }) {
     else break;
     setAt(cur);
     if (cur < 0) return;
-    const row = box.current?.querySelector<HTMLElement>(`[data-line="${cur}"]`);
-    const spans = row?.querySelectorAll<HTMLElement>(".w");
+    const hit = spansOf.current;
+    let spans = hit && hit.lines === lines && hit.at === cur && (!hit.spans.length || hit.spans[0]?.isConnected) ? hit.spans : null;
+    if (!spans) {
+      const row = box.current?.querySelector<HTMLElement>(`[data-line="${cur}"]`);
+      spans = row?.querySelectorAll<HTMLElement>(".w") ?? null;
+      if (spans) spansOf.current = { lines, at: cur, spans };
+    }
     if (!spans?.length) return;
     const timed = lines[cur]!.words;
     // the source's own word times when it has them (a small lead only), else shared out by word length

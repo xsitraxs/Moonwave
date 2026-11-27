@@ -1,4 +1,6 @@
-import { ALL_FORMATS, BufferTarget, CanvasSink, Conversion, Input, Mp4OutputFormat, Output, UrlSource } from "mediabunny";
+/** mediabunny is a third of the page bundle: `import()` here loads it only when a video is actually converted
+ * (Workshop, Settings) — the module system caches the load, and destructuring inline lets the bundler keep only
+ * the parts these functions use. */
 
 /**
  * Videos made into backgrounds here, with the browser's own encoder (WebCodecs, on the graphics card when it can):
@@ -20,11 +22,14 @@ const SAFETY = 0.9;
 
 export type Progress = (done: number) => void;
 
-const open = (url: string) => new Input({ formats: ALL_FORMATS, source: new UrlSource(url) });
+const open = async (url: string) => {
+  const { ALL_FORMATS, Input, UrlSource } = await import("mediabunny");
+  return new Input({ formats: ALL_FORMATS, source: new UrlSource(url) });
+};
 
 /** How long the video is and how tall its picture. */
 export async function probe(url: string): Promise<{ duration: number; height: number }> {
-  const input = open(url);
+  const input = await open(url);
   try {
     const video = await input.getPrimaryVideoTrack();
     if (!video) throw new Error("There's no video in this file");
@@ -36,7 +41,8 @@ export async function probe(url: string): Promise<{ duration: number; height: nu
 
 /** One pass: H.264, at most 2K tall and 60 fps, no sound (a background is silent), cut at `end` seconds when given. */
 async function encode(url: string, o: { bitrate: number; end?: number }, onProgress: Progress): Promise<Uint8Array> {
-  const input = open(url);
+  const { BufferTarget, Conversion, Mp4OutputFormat, Output } = await import("mediabunny");
+  const input = await open(url);
   try {
     const video = await input.getPrimaryVideoTrack();
     if (!video) throw new Error("There's no video in this file");
@@ -78,7 +84,8 @@ function greys(canvas: HTMLCanvasElement | OffscreenCanvas): Float32Array {
 
 /** The time between `from` and `to` whose frame looks most like the first: where the video can loop back smoothly. */
 async function loopPoint(url: string, from: number, to: number): Promise<number> {
-  const input = open(url);
+  const { CanvasSink } = await import("mediabunny");
+  const input = await open(url);
   try {
     const video = (await input.getPrimaryVideoTrack())!;
     const sink = new CanvasSink(video, { width: 48, height: 27, fit: "fill" });

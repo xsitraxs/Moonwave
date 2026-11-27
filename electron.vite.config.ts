@@ -47,6 +47,20 @@ function csp(): Plugin {
   };
 }
 
+/**
+ * Fontsource ships every face as woff2 + woff; Chromium (Electron) reads the woff2 and never the woff, so the older
+ * copies (~430 KB across the installer) are dropped from the build instead of packaged.
+ */
+function dropWoff(): Plugin {
+  return {
+    name: "moonwave-drop-woff",
+    apply: "build",
+    generateBundle(_options, bundle) {
+      for (const name of Object.keys(bundle)) if (name.endsWith(".woff")) delete bundle[name];
+    },
+  };
+}
+
 function shortVersion() {
   const { version } = JSON.parse(readFileSync("package.json", "utf8")) as { version: string };
   const [major, minor = "0", patch = "0"] = version.split(".");
@@ -94,7 +108,7 @@ export default defineConfig({
   },
   renderer: {
     resolve: { alias: { ...shared, "@": resolve("src/renderer/src"), "@assets": resolve("assets") } },
-    plugins: [react(), tailwindcss(), csp()],
+    plugins: [react(), tailwindcss(), csp(), dropWoff()],
     // the app version for the UI, as the short release name (v1, v1.1)
     define: { __APP_VERSION__: JSON.stringify(shortVersion()) },
     // electron-vite leaves the page unminified by default; a smaller bundle parses faster on a cold start

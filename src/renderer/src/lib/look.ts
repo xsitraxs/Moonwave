@@ -131,12 +131,24 @@ function relLuminance([r, g, b]: RGB): number {
   return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
 }
 
+let accentRgb = "";
+/**
+ * The accent as "r, g, b" for the canvases that draw with it (cover ring, spectrum, the full screen's rays): reading
+ * the CSS variable costs a style lookup and those canvases ask every frame, so the value is kept here — `apply` is
+ * the only writer of `--accent-rgb`, and it keeps this in step.
+ */
+export function accentRgbNow(): string {
+  if (!accentRgb) accentRgb = getComputedStyle(document.documentElement).getPropertyValue("--accent-rgb").trim() || "200, 180, 240";
+  return accentRgb;
+}
+
 function apply(p: Palette) {
   current = p;
   const root = document.documentElement.style;
   const [r, g, b] = p.accent.map(Math.round) as RGB;
   root.setProperty("--accent", `rgb(${r} ${g} ${b})`);
   root.setProperty("--accent-rgb", `${r}, ${g}, ${b}`);
+  accentRgb = `${r}, ${g}, ${b}`;
   // ensure >= 4.5:1 contrast for icons/labels sitting directly on the accent Play button
   const lum = relLuminance([r, g, b]);
   const onAccent = lum > 0.28 ? "#0b0b0d" : "#f7f7fa";

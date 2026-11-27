@@ -5,7 +5,7 @@ import { bufferedEnd, currentTime } from "@/audio/engine";
 import { useT } from "@/i18n";
 import { getActivity, subscribeActivity } from "@/lib/activity";
 import { duration as fmt } from "@/lib/format";
-import { onPalette } from "@/lib/look";
+import { accentRgbNow, onPalette } from "@/lib/look";
 import { player, usePlayer, usePosition } from "@/state/player";
 import { useSettings } from "@/state/settings";
 
@@ -136,7 +136,7 @@ export default function Waveform({ track, height = 44, big = false, white = fals
       // the studio design: the accent from the cover and grey bars ahead; the night: yellow and violet
       const studio = document.documentElement.dataset.design === "studio";
       // --accent itself is still easing to the new colour when a palette arrives; its plain rgb copy is not
-      const accentRgb = white ? "255, 255, 255" : studio ? cssColor("--accent-rgb") : "242, 220, 26";
+      const accentRgb = white ? "255, 255, 255" : studio ? accentRgbNow() : "242, 220, 26";
       glow = white || studio ? `rgb(${accentRgb})` : cssColor("--glow");
       shadow = `rgba(${accentRgb}, 0.8)`;
       paintBars(played.getContext("2d")!, peaks, w, h, dpr, { color: glow, alpha: 1, halo: `rgba(${accentRgb}, ${white ? 0.25 : studio ? 0.35 : 0.45})` }, track.id, bar, gap);
