@@ -1,6 +1,7 @@
 // Generates demo.wav (soft synthwave with A-minor pads) and lyrics.json
 // (word-timed lines; one line-timed-only line; background vocals; two instrumental gaps).
 import { writeFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 
 const SR = 22050;
 const DUR = 96;
@@ -73,7 +74,7 @@ hdr.write("RIFF", 0); hdr.writeUInt32LE(36 + pcm.length, 4); hdr.write("WAVE", 8
 hdr.write("fmt ", 12); hdr.writeUInt32LE(16, 16); hdr.writeUInt16LE(1, 20); hdr.writeUInt16LE(1, 22);
 hdr.writeUInt32LE(SR, 24); hdr.writeUInt32LE(SR * 2, 28); hdr.writeUInt16LE(2, 32); hdr.writeUInt16LE(16, 34);
 hdr.write("data", 36); hdr.writeUInt32LE(pcm.length, 40);
-const DIR = new URL(".", import.meta.url).pathname;
+const DIR = fileURLToPath(new URL(".", import.meta.url));
 writeFileSync(DIR + "demo.wav", Buffer.concat([hdr, pcm]));
 
 // ---- lyrics ----
@@ -85,14 +86,15 @@ const raw = [
   LINE(22.5, "а мы летим в завтрашний день", 4.1),
   LINE(27.0, "mile after mile of neon light", 4.2),
   LINE(31.5, "we don't know where this ride goes", 4.3, { lineOnly: true }),
-  // instrumental break 36.0–40.5
+  // instrumental breaks: an empty line, the way TTML/LRC marks one — it renders as ♪ (or "Инструментал" in Studio)
+  LINE(36.0, "", 0),
   LINE(40.5, "город давно уснул в зеркалах", 4.2),
   LINE(45.0, "только вокзал машет рукой", 4.1),
   LINE(49.5, "и радио шепчет на старой волне", 4.4, { bg: "ла-ла-ла" }),
   LINE(54.0, "мы дети ночного поезда", 4.0),
   LINE(58.5, "stay with me till the morning comes", 4.4),
   LINE(63.0, "когда рассвет откроет глаза", 4.2),
-  // instrumental break 67.5–72.0
+  LINE(67.5, "", 0),
   LINE(72.0, "и всё начнётся сначала", 4.0),
   LINE(76.5, "mile after mile, but the night is ours", 4.5),
   LINE(81.0, "мы вернёмся домой на рассвете", 4.2),
@@ -117,7 +119,7 @@ const spread = (l) => {
 };
 const synced = raw.map((l) => {
   const line = { t: l.t, text: l.bg ? `${l.text} (${l.bg})` : l.text };
-  if (!l.lineOnly) line.words = spread(l);
+  if (!l.lineOnly && l.text) line.words = spread(l);
   return line;
 });
 const plain = synced.map((l) => l.text).join("\n");

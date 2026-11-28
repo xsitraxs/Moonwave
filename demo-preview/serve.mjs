@@ -1,9 +1,10 @@
 // Static server for the demo preview: / -> /index.html?sc-debug, /demo.wav, /lyrics.json, everything else from app/
 import { createServer } from "node:http";
+import { fileURLToPath } from "node:url";
 import { readFileSync, existsSync, statSync } from "node:fs";
 import { join, normalize, extname } from "node:path";
 
-const DIR = new URL(".", import.meta.url).pathname;
+const DIR = fileURLToPath(new URL(".", import.meta.url));
 const ROOT = DIR + "app";
 const TYPES = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".mjs": "text/javascript", ".css": "text/css; charset=utf-8", ".json": "application/json", ".svg": "image/svg+xml", ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp", ".woff2": "font/woff2", ".woff": "font/woff", ".ttf": "font/ttf", ".wav": "audio/wav", ".map": "application/json", ".ico": "image/x-icon" };
 

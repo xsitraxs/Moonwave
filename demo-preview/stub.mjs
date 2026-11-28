@@ -2,10 +2,11 @@
 // same-origin scripts only, never inline ones). Run `npm run build` first, then `node demo-preview/stub.mjs`,
 // then serve with `node demo-preview/serve.mjs` (defaults to port 4173).
 import { readFileSync, writeFileSync, mkdirSync, cpSync, rmSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 
-const DIR = new URL(".", import.meta.url).pathname;
-const built = new URL("../out/renderer/", import.meta.url).pathname;
+const DIR = fileURLToPath(new URL(".", import.meta.url));
+const built = fileURLToPath(new URL("../out/renderer/", import.meta.url));
 const app = DIR + "app";
 const lyrics = JSON.parse(readFileSync(DIR + "lyrics.json", "utf8"));
 
@@ -77,7 +78,7 @@ const routes = {
   "likes:set": () => null,
   "follows:list": () => [],
   "local:list": () => [],
-  "room:state": () => null,
+  "room:state": () => ({ room: null, me: "", offset: 0, connected: false, closed: false }),
   "room:follow": () => null,
   "room:leave": () => null,
   "social:status": () => ({ available: true, profile: null }),

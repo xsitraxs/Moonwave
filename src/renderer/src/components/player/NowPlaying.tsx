@@ -405,6 +405,8 @@ const SweepLines = memo(function SweepLines({ lines }: { lines: NonNullable<Lyri
           markAway(true);
         }}
         onKeyDown={(e) => {
+          // Space would "click" a focused row (seeking to it); here it only pauses the follow
+          if (e.code === "Space") e.preventDefault();
           // arrow keys and friends scroll this list natively, without a wheel event: they pause the follow too
           if (["ArrowUp", "ArrowDown", "PageUp", "PageDown", "Home", "End"].includes(e.key) || e.code === "Space") {
             userScroll.current = Date.now();

@@ -301,6 +301,7 @@ function TapSync({ trackId, lines, onCancel, onDone }: { trackId: number; lines:
   const [started, setStarted] = useState(times.length > 0);
   useEffect(() => void keepDraft(trackId, { times }), [trackId, times]);
   const box = useRef<HTMLOListElement>(null);
+  const tappedAt = useRef(0); // set only on the pointer path; used to swallow a leaked click from the same tap
   const done = times.length >= lines.length;
 
   const start = useCallback(() => {
@@ -320,12 +321,11 @@ function TapSync({ trackId, lines, onCancel, onDone }: { trackId: number; lines:
     setTimes((x) => (x.length >= lines.length ? x : [...x, Math.max(0, x[x.length - 1] ?? 0, currentTime() - TAP_LEAD)]));
   }, [started, lines, start]);
   const undo = useCallback(() => {
-    setTimes((x) => {
-      const last = x[x.length - 1];
-      if (last !== undefined) player.seek(Math.max(0, x[x.length - 2] ?? 0, last - 3));
-      return x.slice(0, -1);
-    });
-  }, []);
+    // seek first, outside setState: an updater may run during another component's render, and seek() updates the player
+    const last = times[times.length - 1];
+    if (last !== undefined) player.seek(Math.max(0, times[times.length - 2] ?? 0, last - 3));
+    setTimes(times.slice(0, -1));
+  }, [times]);
 
   // the window's own keys (Space pauses) wait while tapping
   useEffect(() => {
@@ -379,7 +379,20 @@ function TapSync({ trackId, lines, onCancel, onDone }: { trackId: number; lines:
             {t.lyricsOwnSave}
           </button>
         ) : (
-          <button type="button" onPointerDown={(e) => (e.preventDefault(), tap())} className="s-btn pri min-w-24">
+          <button
+            type="button"
+            onPointerDown={(e) => {
+              e.preventDefault();
+              tappedAt.current = Date.now();
+              tap();
+            }}
+            onClick={() => {
+              // the pointer path preventDefault()s pointerdown, so this click only arrives from the keyboard, AT or tests; if one leaks through for the same tap, ignore it
+              if (Date.now() - tappedAt.current < 500) return;
+              tap();
+            }}
+            className="s-btn pri min-w-24"
+          >
             {started ? t.tap : t.tapStart}
           </button>
         )}
@@ -553,7 +566,10 @@ export function ManualSearch({ track, onDone }: { track: Track; onDone: () => vo
         <label className="field sketch sketch-thin paper-fill flex min-w-0 flex-1 rounded-md">
           <input value={text} onChange={(e) => setText(e.target.value)} aria-label={t.lyricsSearch} placeholder={t.lyricsSearchHint} className="min-w-0 flex-1 bg-transparent px-2.5 py-1.5 text-sm text-text placeholder:text-muted/70" />
         </label>
-        <button type="submit" disabled={busy} className="rounded-md px-2 text-muted hover:text-text" aria-label={t.lyricsSearch}>
+        {/* not disabled while busy: Enter implicitly submits a form through its default button, and disabling it
+            while a search is in flight made a second, quicker search impossible — the seq guard drops stale answers,
+            so let the newest one in */}
+        <button type="submit" aria-busy={busy} className={`rounded-md px-2 text-muted hover:text-text ${busy ? "opacity-60" : ""}`} aria-label={t.lyricsSearch}>
           <Icon name="search" size={18} />
         </button>
       </form>
