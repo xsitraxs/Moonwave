@@ -1,11 +1,12 @@
+import { useQuery } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Track } from "@shared/types";
-import { queryClient } from "@/api/queries";
 import { useT } from "@/i18n";
 import { setMiniPlayer } from "@/lib/miniPlayer";
 import { enterFast, exit } from "@/lib/motion";
-import { useNav } from "@/state/nav";
+import { call } from "@/lib/sky";
+import { useNav, type Section } from "@/state/nav";
 import { player, usePlayer } from "@/state/player";
 import { useRoomSheet } from "@/state/room";
 import { useSettings } from "@/state/settings";
@@ -28,16 +29,37 @@ export default function CommandPalette() {
   const open = useUi((s) => s.commandPaletteOpen);
   const setOpen = useUi((s) => s.setCommandPaletteOpen);
   const navOpen = useNav((s) => s.open);
+  const navGo = useNav((s) => s.go);
   const hasTrack = usePlayer((s) => s.index >= 0);
   const pinnedPlaylists = useSettings((s) => s.pinnedPlaylists);
   const history = useSettings((s) => s.history);
 
+  const [wasOpen, setWasOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
+  if (open !== wasOpen) {
+    setWasOpen(open);
+    if (open) {
+      setQuery("");
+      setActive(0);
+    }
+  }
+
+  const dialogRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const activeItemRef = useRef<HTMLButtonElement>(null);
+  const scrollActive = useRef(false);
+
+  const { data: localTracks = [] } = useQuery<Track[]>({
+    queryKey: ["local-tracks"],
+    queryFn: () => call("local:list"),
+    enabled: open,
+    staleTime: 60_000,
+  });
 
   const commands = useMemo<CommandItem[]>(() => {
-    const go = (key: string, route: Parameters<typeof navOpen>[1]) => () => navOpen(key, route);
+    const go = (key: Section | null, route: Parameters<typeof navOpen>[1]) => () =>
+      key ? navOpen(key, route) : navGo(route);
     const list: CommandItem[] = [
       { id: "nav-home", label: t.home, keywords: "home главная", icon: "home", run: go("home", { name: "home" }) },
       { id: "nav-likes", label: t.likedTracks, keywords: "likes лайки favorites", icon: "heart", run: go("likes", { name: "likes" }) },
@@ -51,7 +73,7 @@ export default function CommandPalette() {
       { id: "nav-dj", label: t.dj, keywords: "dj диджей mix", icon: "dj", run: go("dj", { name: "dj" }) },
       { id: "nav-inbox", label: t.inbox, keywords: "inbox сообщения friends друзья", icon: "inbox", run: go("inbox", { name: "inbox" }) },
       { id: "nav-workshop", label: t.workshop, keywords: "workshop мастерская themes темы", icon: "brush", run: go("workshop", { name: "workshop" }) },
-      { id: "nav-import", label: t.importTitle, keywords: "import vk spotify yandex youtube импорт", icon: "plus", run: go("import", { name: "import" }) },
+      { id: "nav-import", label: t.importTitle, keywords: "import vk spotify yandex youtube импорт", icon: "plus", run: go(null, { name: "import" }) },
       { id: "nav-settings", label: t.settings, keywords: "settings настройки preferences proxy", icon: "settings", run: go("settings", { name: "settings" }) },
       {
         id: "act-queue",
@@ -90,7 +112,7 @@ export default function CommandPalette() {
       );
     }
     return list;
-  }, [hasTrack, navOpen, t]);
+  }, [hasTrack, navGo, navOpen, t]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -106,13 +128,13 @@ export default function CommandPalette() {
           sub: t.playlists,
           keywords: "",
           icon: "playlists",
-          run: () => navOpen("playlists", { name: "playlist", id: p.id }),
+          run: () => navGo({ name: "playlist", id: p.id }),
         });
       }
       if (extra.length >= 6) break;
     }
 
-    const seen = new Set<string>();
+    const seen = new Set<number>();
     let histCount = 0;
     for (let i = 0; i < history.length && histCount < 6; i++) {
       const tr = history[i]!;
@@ -131,7 +153,6 @@ export default function CommandPalette() {
       }
     }
 
-    const localTracks = queryClient.getQueryData<Track[]>(["local-tracks"]) ?? [];
     let localCount = 0;
     for (let i = 0; i < localTracks.length && localCount < 6; i++) {
       const tr = localTracks[i]!;
@@ -151,37 +172,9 @@ export default function CommandPalette() {
     }
 
     return [...base, ...extra];
-  }, [commands, history, navOpen, pinnedPlaylists, query, t.history, t.localMusic, t.playlists]);
+  }, [commands, history, localTracks, navGo, pinnedPlaylists, query, t.history, t.localMusic, t.playlists]);
 
-  useEffect(() => {
-    if (!open) return;
-    const previous = document.activeElement as HTMLElement | null;
-    setQuery("");
-    setActive(0);
-    if (!queryClient.getQueryData(["local-tracks"])) {
-      void queryClient.prefetchQuery({ queryKey: ["local-tracks"], queryFn: () => call("local:list") });
-    }
-    const id = requestAnimationFrame(() => inputRef.current?.focus());
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        e.preventDefault();
-        setOpen(false);
-      } else if (e.key === "Tab") {
-        e.preventDefault();
-        inputRef.current?.focus();
-      }
-    };
-    window.addEventListener("keydown", onKey, true);
-    return () => {
-      cancelAnimationFrame(id);
-      window.removeEventListener("keydown", onKey, true);
-      previous?.focus();
-    };
-  }, [open, setOpen]);
-
-  useEffect(() => {
-    setActive(0);
-  }, [query]);
+  const safeActive = filtered.length ? Math.min(active, filtered.length - 1) : 0;
 
   const execute = (item: CommandItem | undefined) => {
     if (!item) return;
@@ -189,26 +182,79 @@ export default function CommandPalette() {
     item.run();
   };
 
+  const stateRef = useRef({ filtered, safeActive, execute });
+  useEffect(() => {
+    stateRef.current = { filtered, safeActive, execute };
+  });
+
+  useEffect(() => {
+    if (!open) return;
+    const dialogEl = dialogRef.current;
+    const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const id = requestAnimationFrame(() => inputRef.current?.focus());
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        setOpen(false);
+      } else if (e.key === "Tab") {
+        e.preventDefault();
+        inputRef.current?.focus();
+      } else if (e.key === "ArrowDown") {
+        e.preventDefault();
+        scrollActive.current = true;
+        const len = stateRef.current.filtered.length;
+        setActive((i) => (len ? (Math.min(i, len - 1) + 1) % len : 0));
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        scrollActive.current = true;
+        const len = stateRef.current.filtered.length;
+        setActive((i) => (len ? (Math.min(i, len - 1) - 1 + len) % len : 0));
+      } else if (e.key === "Enter" && !e.isComposing) {
+        e.preventDefault();
+        const { filtered: items, safeActive: idx, execute: run } = stateRef.current;
+        run(items[idx]);
+      }
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => {
+      cancelAnimationFrame(id);
+      window.removeEventListener("keydown", onKey, true);
+      const cur = document.activeElement;
+      if (previous?.isConnected && (!cur || cur === document.body || dialogEl?.contains(cur))) {
+        previous.focus();
+      }
+    };
+  }, [open, setOpen]);
+
+  useEffect(() => {
+    if (!open || !scrollActive.current) return;
+    scrollActive.current = false;
+    activeItemRef.current?.scrollIntoView({ block: "nearest" });
+  }, [open, safeActive]);
+
   return (
     <AnimatePresence>
       {open && (
         <motion.div
+          ref={dialogRef}
           role="dialog"
           aria-modal="true"
           aria-label="Command palette"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          transition={exit}
+          transition={exit()}
           onMouseDown={(e) => e.target === e.currentTarget && setOpen(false)}
-          className="fixed inset-0 z-50 flex items-start justify-center bg-black/55 pt-[14vh] backdrop-blur-sm"
+          className="fixed inset-0 z-[85] flex items-start justify-center bg-black/55 pt-[14vh] backdrop-blur-sm"
         >
           <motion.div
             initial={{ opacity: 0, y: -8, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -6, scale: 0.98 }}
-            transition={enterFast}
-            className="w-full max-w-[500px] overflow-hidden rounded-[14px] border border-[var(--s-line2)] bg-[var(--s-bg2)] shadow-2xl"
+            transition={enterFast()}
+            className="w-full max-w-[500px] overflow-hidden rounded-[14px] border border-[var(--s-line2)] bg-[var(--bg-2)]/95 shadow-2xl backdrop-blur-xl"
+            data-keys-own
           >
             <div className="flex items-center gap-2.5 border-b border-[var(--s-line)] px-4 py-3">
               <Icon name="search" size={16} className="shrink-0 text-muted" />
@@ -216,21 +262,9 @@ export default function CommandPalette() {
                 ref={inputRef}
                 type="text"
                 value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Escape") {
-                    e.preventDefault();
-                    setOpen(false);
-                  } else if (e.key === "ArrowDown") {
-                    e.preventDefault();
-                    setActive((i) => (filtered.length ? (i + 1) % filtered.length : 0));
-                  } else if (e.key === "ArrowUp") {
-                    e.preventDefault();
-                    setActive((i) => (filtered.length ? (i - 1 + filtered.length) % filtered.length : 0));
-                  } else if (e.key === "Enter") {
-                    e.preventDefault();
-                    execute(filtered[active]);
-                  }
+                onChange={(e) => {
+                  setQuery(e.target.value);
+                  setActive(0);
                 }}
                 placeholder={`${t.search}...`}
                 className="w-full bg-transparent text-sm text-text outline-none placeholder:text-muted"
@@ -246,13 +280,11 @@ export default function CommandPalette() {
                   <button
                     key={item.id}
                     type="button"
-                    ref={(el) => {
-                      if (idx === active) el?.scrollIntoView({ block: "nearest" });
-                    }}
+                    ref={idx === safeActive ? activeItemRef : undefined}
                     onMouseEnter={() => setActive(idx)}
                     onClick={() => execute(item)}
                     className={`flex w-full items-center gap-3 rounded-[9px] px-3 py-2 text-left text-sm transition-colors ${
-                      idx === active ? "bg-white/[0.1] text-text" : "text-muted hover:bg-white/[0.05] hover:text-text"
+                      idx === safeActive ? "bg-white/[0.1] text-text" : "text-muted hover:bg-white/[0.05] hover:text-text"
                     }`}
                   >
                     <Icon name={item.icon} size={16} className="shrink-0 opacity-80" />

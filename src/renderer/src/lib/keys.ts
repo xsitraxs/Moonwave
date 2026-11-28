@@ -51,7 +51,7 @@ export function initKeys() {
     if (e.defaultPrevented || e.altKey || e.metaKey) return;
     if (document.querySelector("[data-onboarding-dialog]")) return;
     const ctrl = e.ctrlKey;
-    if (ctrl && e.code === "KeyP" && !e.repeat && !useUi.getState().miniPlayer) {
+    if (ctrl && !e.shiftKey && e.code === "KeyP" && !e.repeat && !useUi.getState().miniPlayer) {
       e.preventDefault();
       const ui = useUi.getState();
       const next = !ui.commandPaletteOpen;

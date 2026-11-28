@@ -269,6 +269,7 @@ const SweepLines = memo(function SweepLines({ lines }: { lines: NonNullable<Lyri
   const box = useRef<HTMLDivElement>(null);
   const userScroll = useRef(0);
   const [at, setAt] = useState(-1);
+  const [scrolledAway, setScrolledAway] = useState(false);
   const words = useMemo(() => lines.map((l) => l.text.split(/\s+/).filter(Boolean)), [lines]);
   // the current line's word spans, kept between ticks: a querySelector every frame adds up at 15–30 a second; the
   // rows are rebuilt only with new lyrics (checked by lines) — a replaced node is caught by the connection check
@@ -280,6 +281,7 @@ const SweepLines = memo(function SweepLines({ lines }: { lines: NonNullable<Lyri
     for (let i = 0; i < lines.length; i++) if (lines[i]!.t <= now) cur = i;
     else break;
     setAt(cur);
+    if (cur >= 0 && Date.now() - userScroll.current >= 4000) setScrolledAway(false);
     if (cur < 0) return;
     const hit = spansOf.current;
     let spans = hit && hit.lines === lines && hit.at === cur && (!hit.spans.length || hit.spans[0]?.isConnected) ? hit.spans : null;
@@ -319,6 +321,15 @@ const SweepLines = memo(function SweepLines({ lines }: { lines: NonNullable<Lyri
     return gaps.length > 4 && gaps[gaps.length >> 1]! < 1.5;
   }, [lines]);
 
+  const jumpToCurrent = () => {
+    userScroll.current = 0;
+    setScrolledAway(false);
+    const el = box.current;
+    if (!el || at < 0) return;
+    const row = el.querySelector<HTMLElement>(`[data-line="${at}"]`);
+    if (row) el.scrollTo({ top: row.offsetTop - el.clientHeight * 0.4 + row.offsetHeight / 2, behavior: fast || still ? "instant" : "smooth" });
+  };
+
   useEffect(() => {
     const el = box.current;
     if (!el || Date.now() - userScroll.current < 4000) return;
@@ -327,41 +338,63 @@ const SweepLines = memo(function SweepLines({ lines }: { lines: NonNullable<Lyri
   }, [at, fast, still]);
 
   return (
-    <div ref={box} onWheel={() => (userScroll.current = Date.now())} className={`np-lines relative h-full overflow-y-auto pr-10${fast ? " fast" : ""}`} data-keys-own>
-      <div className="h-[40%]" />
-      {lines.map((l, i) => {
-        const d = Math.abs(i - at);
-        return (
+    <div className="relative h-full min-h-0 w-full">
+      <div
+        ref={box}
+        onWheel={() => {
+          userScroll.current = Date.now();
+          setScrolledAway(true);
+        }}
+        className={`np-lines relative h-full overflow-y-auto pr-10${fast ? " fast" : ""}`}
+        data-keys-own
+      >
+        <div className="h-[40%]" />
+        {lines.map((l, i) => {
+          const d = Math.abs(i - at);
+          return (
+            <button
+              key={`${l.t}-${i}`}
+              type="button"
+              data-line={i}
+              onClick={() => {
+                userScroll.current = 0;
+                setScrolledAway(false);
+                player.seek(l.t);
+              }}
+              className={`np-line ${i === at ? "on" : d === 1 ? "near" : d > 2 ? "far" : ""}`}
+            >
+              {l.words?.length ? (
+                l.words.map((w, j) => (
+                  <span key={j} className={w.bg ? "w bg" : "w"}>
+                    {w.text}
+                  </span>
+                ))
+              ) : words[i]!.length ? (
+                words[i]!.map((w, j) => (
+                  <span key={j}>
+                    {j > 0 && " "}
+                    <span className="w">{w}</span>
+                  </span>
+                ))
+              ) : (
+                <span className="np-gap">{studioWords ? t.instrumentalShort : "♪"}</span>
+              )}
+            </button>
+          );
+        })}
+        <div className="h-[55%]" />
+      </div>
+      {scrolledAway && at >= 0 && (
+        <div className="pointer-events-none absolute inset-x-0 bottom-4 flex justify-center">
           <button
-            key={`${l.t}-${i}`}
             type="button"
-            data-line={i}
-            onClick={() => {
-              userScroll.current = 0;
-              player.seek(l.t);
-            }}
-            className={`np-line ${i === at ? "on" : d === 1 ? "near" : d > 2 ? "far" : ""}`}
+            onClick={jumpToCurrent}
+            className="pointer-events-auto rounded-full border border-[var(--s-line2)] bg-[var(--bg-2)]/95 px-3.5 py-1.5 text-xs font-medium text-text shadow-lg backdrop-blur-md transition-colors hover:bg-[var(--bg-2)]"
           >
-            {l.words?.length ? (
-              l.words.map((w, j) => (
-                <span key={j} className={w.bg ? "w bg" : "w"}>
-                  {w.text}
-                </span>
-              ))
-            ) : words[i]!.length ? (
-              words[i]!.map((w, j) => (
-                <span key={j}>
-                  {j > 0 && " "}
-                  <span className="w">{w}</span>
-                </span>
-              ))
-            ) : (
-              <span className="np-gap">{studioWords ? t.instrumentalShort : "♪"}</span>
-            )}
+            {t.lyricsBackToCurrent}
           </button>
-        );
-      })}
-      <div className="h-[55%]" />
+        </div>
+      )}
     </div>
   );
 });

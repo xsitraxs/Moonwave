@@ -154,6 +154,9 @@ function SyncedLines({ lines }: { lines: NonNullable<Lyrics["synced"]> }) {
     return gaps.length > 4 && gaps[gaps.length >> 1]! < 1.5;
   }, [lines]);
 
+  const [scrolledAway, setScrolledAway] = useState(false);
+  const t = useT();
+
   // the position ticks 4 times a second, but the panel only re-renders when the lit line actually changes
   useEffect(() => {
     const off = usePosition.subscribe((state) => {
@@ -163,12 +166,10 @@ function SyncedLines({ lines }: { lines: NonNullable<Lyrics["synced"]> }) {
         else break;
       }
       setAt(cur);
+      if (cur >= 0 && Date.now() - userScroll.current >= 4000) setScrolledAway(false);
     });
     return () => off();
   }, [lines]);
-
-  const [scrolledAway, setScrolledAway] = useState(false);
-  const t = useT();
 
   const jumpToCurrent = () => {
     userScroll.current = 0;
@@ -180,7 +181,6 @@ function SyncedLines({ lines }: { lines: NonNullable<Lyrics["synced"]> }) {
 
   useEffect(() => {
     if (at < 0 || Date.now() - userScroll.current < 4000) return;
-    setScrolledAway(false);
     const row = box.current?.children[at] as HTMLElement | undefined;
     row?.scrollIntoView({ block: "center", behavior: fast || still ? "instant" : "smooth" });
   }, [at, fast, still]);
@@ -199,7 +199,11 @@ function SyncedLines({ lines }: { lines: NonNullable<Lyrics["synced"]> }) {
           <li key={`${l.t}-${i}`}>
             <button
               type="button"
-              onClick={() => player.seek(l.t)}
+              onClick={() => {
+                userScroll.current = 0;
+                setScrolledAway(false);
+                player.seek(l.t);
+              }}
               className={`w-full cursor-pointer rounded-md px-2 py-1 text-left text-[1.05rem] leading-snug transition-colors motion-color hover:bg-[var(--row-hover)] ${i === at ? "font-semibold text-glow" : i < at ? "text-muted/70" : "text-text/85"}`}
             >
               {l.text || "♪"}
@@ -212,7 +216,7 @@ function SyncedLines({ lines }: { lines: NonNullable<Lyrics["synced"]> }) {
           <button
             type="button"
             onClick={jumpToCurrent}
-            className="pointer-events-auto rounded-full border border-[var(--s-line2)] bg-[var(--s-bg2)]/90 px-3.5 py-1.5 text-xs font-medium text-text shadow-lg backdrop-blur-md transition-colors hover:bg-[var(--s-bg2)]"
+            className="pointer-events-auto rounded-full border border-[var(--s-line2)] bg-[var(--bg-2)]/95 px-3.5 py-1.5 text-xs font-medium text-text shadow-lg backdrop-blur-md transition-colors hover:bg-[var(--bg-2)]"
           >
             {t.lyricsBackToCurrent}
           </button>
