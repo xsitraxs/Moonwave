@@ -7,6 +7,8 @@ import type { Lyrics, LyricsHit, SyncRequest, Track } from "@shared/types";
 import { useT } from "@/i18n";
 import { duration } from "@/lib/format";
 import { currentTime } from "@/audio/engine";
+import { getActivity } from "@/lib/activity";
+import { fastLines, lineIndexAt } from "@/lib/lyricsTiming";
 import { syncLyrics, useLyricsSync } from "@/lib/lyricsSync";
 import { call } from "@/lib/sky";
 import { holdTrack, player, useCurrentTrack, usePlayer, usePosition, useStreamTrack } from "@/state/player";
@@ -112,14 +114,18 @@ export function useShownLyrics(track: Track | null) {
     retry: false,
   });
   useSyncNext(on && ready && !!req && !sync.isFetching, model);
-  let data = l;
   const r = req ? sync.data : null;
-  if (l && r && "lines" in r) data = { ...l, synced: r.lines, aligned: true };
   // moving lines by under a second is how exactly the sound is measured, not a different upload
-  else if (l?.synced && r && "shift" in r && largestMove(r, (sound?.durationMs ?? 0) / 1000) >= 1) {
-    const at = (t: number) => r.scale * t + r.shift;
-    data = { ...l, fitted: r, synced: l.synced.map((x) => ({ ...x, t: at(x.t), ...(x.words ? { words: x.words.map((w) => ({ ...w, t: at(w.t), end: at(w.end) })) } : {}) })) };
-  }
+  const data = useMemo<Lyrics | null | undefined>(() => {
+    if (!l) return l;
+    if (r && "lines" in r) return { ...l, synced: r.lines, aligned: true };
+    if (l.synced && r && "shift" in r && largestMove(r, (sound?.durationMs ?? 0) / 1000) >= 1) {
+      const at = (t: number) => r.scale * t + r.shift;
+      return { ...l, fitted: r, synced: l.synced.map((x) => ({ ...x, t: at(x.t), ...(x.words ? { words: x.words.map((w) => ({ ...w, t: at(w.t), end: at(w.end) })) } : {}) })) };
+    }
+    return l;
+    // `l` and `r` are react-query's answers: stable between changes, so this doesn't rebuild the lines each render
+  }, [l, r, sound?.durationMs]);
   return { ...q, data, syncing: !!req && sync.isFetching };
 }
 
@@ -147,43 +153,67 @@ function SyncedLines({ lines }: { lines: NonNullable<Lyrics["synced"]> }) {
   const still = useReducedMotion() ?? false;
   const box = useRef<HTMLOListElement>(null);
   const userScroll = useRef(0);
-  const [at, setAt] = useState(-1);
+  // the first scroll after new lyrics land is a jump, not a glide from wherever the last track was left
+  const snapFor = useRef<NonNullable<Lyrics["synced"]> | null>(null);
+  const [at, setAt] = useState(() => lineIndexAt(lines, currentTime() + 0.25));
+  const atRef = useRef(at);
+  const awayRef = useRef(false);
   // lines coming quicker than every 1.5 s (fast rap): smooth scrolling would queue up behind the voice
-  const fast = useMemo(() => {
-    const gaps = lines.slice(1).map((l, i) => l.t - lines[i]!.t).filter((g) => g > 0).sort((a, b) => a - b);
-    return gaps.length > 4 && gaps[gaps.length >> 1]! < 1.5;
-  }, [lines]);
+  const fast = useMemo(() => fastLines(lines), [lines]);
 
   const [scrolledAway, setScrolledAway] = useState(false);
   const t = useT();
 
-  // the position ticks 4 times a second, but the panel only re-renders when the lit line actually changes
+  const markAt = (cur: number) => {
+    if (atRef.current === cur) return;
+    atRef.current = cur;
+    setAt(cur);
+  };
+  const markAway = (away: boolean) => {
+    if (awayRef.current === away) return;
+    awayRef.current = away;
+    setScrolledAway(away);
+  };
+
+  // the engine time, not the position state (which ticks 4 times a second): fresh enough to sit on the beat, but
+  // the panel still re-renders only when the lit line actually changes. A seek paused still reaches the position
+  // subscription at once.
   useEffect(() => {
-    const off = usePosition.subscribe((state) => {
-      let cur = -1;
-      for (let i = 0; i < lines.length; i++) {
-        if (lines[i]!.t <= state.position + 0.25) cur = i;
-        else break;
-      }
-      setAt(cur);
-      if (cur >= 0 && Date.now() - userScroll.current >= 4000) setScrolledAway(false);
-    });
-    return () => off();
+    const apply = () => {
+      const cur = lineIndexAt(lines, currentTime() + 0.25);
+      markAt(cur);
+      if (cur >= 0 && Date.now() - userScroll.current >= 4000) markAway(false);
+    };
+    apply();
+    const timer = window.setInterval(() => {
+      if (getActivity() !== "hidden") apply();
+    }, 150);
+    const off = usePosition.subscribe(apply);
+    return () => {
+      window.clearInterval(timer);
+      off();
+    };
   }, [lines]);
 
   const jumpToCurrent = () => {
     userScroll.current = 0;
-    setScrolledAway(false);
+    markAway(false);
     if (at < 0) return;
     const row = box.current?.children[at] as HTMLElement | undefined;
-    row?.scrollIntoView({ block: "center", behavior: still ? "instant" : "smooth" });
+    row?.scrollIntoView({ block: "center", behavior: fast || still ? "instant" : "smooth" });
   };
 
   useEffect(() => {
     if (at < 0 || Date.now() - userScroll.current < 4000) return;
     const row = box.current?.children[at] as HTMLElement | undefined;
-    row?.scrollIntoView({ block: "center", behavior: fast || still ? "instant" : "smooth" });
-  }, [at, fast, still]);
+    if (!row) return;
+    if (snapFor.current !== lines) {
+      row.scrollIntoView({ block: "center", behavior: "instant" });
+      snapFor.current = lines;
+      return;
+    }
+    row.scrollIntoView({ block: "center", behavior: fast || still ? "instant" : "smooth" });
+  }, [at, fast, still, lines]);
 
   return (
     <div className="relative">
@@ -191,7 +221,14 @@ function SyncedLines({ lines }: { lines: NonNullable<Lyrics["synced"]> }) {
         ref={box}
         onWheel={() => {
           userScroll.current = Date.now();
-          setScrolledAway(true);
+          markAway(true);
+        }}
+        onKeyDown={(e) => {
+          // arrow keys and friends scroll this list natively, without a wheel event: they pause the follow too
+          if (["ArrowUp", "ArrowDown", "PageUp", "PageDown", "Home", "End"].includes(e.key)) {
+            userScroll.current = Date.now();
+            markAway(true);
+          }
         }}
         className="space-y-1 px-4 pb-24 pt-2"
       >
@@ -199,9 +236,10 @@ function SyncedLines({ lines }: { lines: NonNullable<Lyrics["synced"]> }) {
           <li key={`${l.t}-${i}`}>
             <button
               type="button"
+              aria-current={i === at ? "true" : undefined}
               onClick={() => {
                 userScroll.current = 0;
-                setScrolledAway(false);
+                markAway(false);
                 player.seek(l.t);
               }}
               className={`w-full cursor-pointer rounded-md px-2 py-1 text-left text-[1.05rem] leading-snug transition-colors motion-color hover:bg-[var(--row-hover)] ${i === at ? "font-semibold text-glow" : i < at ? "text-muted/70" : "text-text/85"}`}
@@ -263,6 +301,7 @@ function TapSync({ trackId, lines, onCancel, onDone }: { trackId: number; lines:
   const [started, setStarted] = useState(times.length > 0);
   useEffect(() => void keepDraft(trackId, { times }), [trackId, times]);
   const box = useRef<HTMLOListElement>(null);
+  const tappedAt = useRef(0); // set only on the pointer path; used to swallow a leaked click from the same tap
   const done = times.length >= lines.length;
 
   const start = useCallback(() => {
@@ -271,18 +310,22 @@ function TapSync({ trackId, lines, onCancel, onDone }: { trackId: number; lines:
     player.seek(0);
     void player.play();
   }, []);
+  // starting over drops every mark, so it asks first when there is something to lose
+  const restart = useCallback(async () => {
+    if (times.length > 0 && !(await ask(t.tapRestartConfirm, t.tapRestart))) return;
+    start();
+  }, [times.length, t, start]);
   const tap = useCallback(() => {
     if (!started) return start();
     // never before the line above: the lines keep their order
     setTimes((x) => (x.length >= lines.length ? x : [...x, Math.max(0, x[x.length - 1] ?? 0, currentTime() - TAP_LEAD)]));
   }, [started, lines, start]);
   const undo = useCallback(() => {
-    setTimes((x) => {
-      const last = x[x.length - 1];
-      if (last !== undefined) player.seek(Math.max(0, x[x.length - 2] ?? 0, last - 3));
-      return x.slice(0, -1);
-    });
-  }, []);
+    // seek first, outside setState: an updater may run during another component's render, and seek() updates the player
+    const last = times[times.length - 1];
+    if (last !== undefined) player.seek(Math.max(0, times[times.length - 2] ?? 0, last - 3));
+    setTimes(times.slice(0, -1));
+  }, [times]);
 
   // the window's own keys (Space pauses) wait while tapping
   useEffect(() => {
@@ -326,17 +369,30 @@ function TapSync({ trackId, lines, onCancel, onDone }: { trackId: number; lines:
             {t.tapUndo}
           </button>
         )}
+        {started && (
+          <button type="button" onClick={() => void restart()} className="s-btn">
+            {t.tapRestart}
+          </button>
+        )}
         {done ? (
-          <>
-            <button type="button" onClick={start} className="s-btn">
-              {t.tapRestart}
-            </button>
-            <button type="button" onClick={() => onDone(lines.map((l, i) => `${lrcTime(times[i]!)} ${l}`).join("\n"))} className="s-btn pri">
-              {t.lyricsOwnSave}
-            </button>
-          </>
+          <button type="button" onClick={() => onDone(lines.map((l, i) => `${lrcTime(times[i]!)} ${l}`).join("\n"))} className="s-btn pri">
+            {t.lyricsOwnSave}
+          </button>
         ) : (
-          <button type="button" onPointerDown={(e) => (e.preventDefault(), tap())} className="s-btn pri min-w-24">
+          <button
+            type="button"
+            onPointerDown={(e) => {
+              e.preventDefault();
+              tappedAt.current = Date.now();
+              tap();
+            }}
+            onClick={() => {
+              // the pointer path preventDefault()s pointerdown, so this click only arrives from the keyboard, AT or tests; if one leaks through for the same tap, ignore it
+              if (Date.now() - tappedAt.current < 500) return;
+              tap();
+            }}
+            className="s-btn pri min-w-24"
+          >
             {started ? t.tap : t.tapStart}
           </button>
         )}
@@ -471,18 +527,24 @@ export function ManualSearch({ track, onDone }: { track: Track; onDone: () => vo
   const [hits, setHits] = useState<LyricsHit[] | null>(null);
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
+  // the answer to a search that is no longer the newest is dropped, not shown
+  const seq = useRef(0);
 
   const search = async (e?: FormEvent) => {
     e?.preventDefault();
-    if (!text.trim()) return;
+    const query = text.trim();
+    if (!query) return;
+    const id = ++seq.current;
     setBusy(true);
     setFailed(false);
+    setHits(null);
     try {
-      setHits(await call("lyrics:search", text.trim()));
+      const found = await call("lyrics:search", query);
+      if (seq.current === id) setHits(found);
     } catch {
-      setFailed(true);
+      if (seq.current === id) setFailed(true);
     } finally {
-      setBusy(false);
+      if (seq.current === id) setBusy(false);
     }
   };
 
@@ -504,12 +566,23 @@ export function ManualSearch({ track, onDone }: { track: Track; onDone: () => vo
         <label className="field sketch sketch-thin paper-fill flex min-w-0 flex-1 rounded-md">
           <input value={text} onChange={(e) => setText(e.target.value)} aria-label={t.lyricsSearch} placeholder={t.lyricsSearchHint} className="min-w-0 flex-1 bg-transparent px-2.5 py-1.5 text-sm text-text placeholder:text-muted/70" />
         </label>
-        <button type="submit" disabled={busy} className="rounded-md px-2 text-muted hover:text-text" aria-label={t.lyricsSearch}>
+        {/* not disabled while busy: Enter implicitly submits a form through its default button, and disabling it
+            while a search is in flight made a second, quicker search impossible — the seq guard drops stale answers,
+            so let the newest one in */}
+        <button type="submit" aria-busy={busy} className={`rounded-md px-2 text-muted hover:text-text ${busy ? "opacity-60" : ""}`} aria-label={t.lyricsSearch}>
           <Icon name="search" size={18} />
         </button>
       </form>
-      {failed && <p className="mt-3 text-sm text-muted">{t.lyricsOffline}</p>}
-      {hits?.length === 0 && <p className="mt-3 text-sm text-muted">{t.nothingFound}</p>}
+      {failed && (
+        <p role="status" className="mt-3 text-sm text-muted">
+          {t.lyricsOffline}
+        </p>
+      )}
+      {hits?.length === 0 && (
+        <p role="status" className="mt-3 text-sm text-muted">
+          {t.nothingFound}
+        </p>
+      )}
       <ul className="mt-2">
         {hits?.map((h) => (
           <li key={h.id}>

@@ -310,6 +310,7 @@ export const en = {
   tap: "Tap",
   tapUndo: "Back",
   tapRestart: "Start over",
+  tapRestartConfirm: "Starting over loses the marks you already set. Start again?",
   tapProgress: (i: number, n: number) => `Line ${i} of ${n}`,
   tapDone: (n: number) => `All ${n} lines timed`,
   lyricsNone: "No lyrics found for this track. Try searching by hand.",

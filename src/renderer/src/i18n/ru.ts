@@ -332,6 +332,7 @@ export const ru: Dict = {
   tap: "Тап",
   tapUndo: "Назад",
   tapRestart: "Заново",
+  tapRestartConfirm: "«Заново» удалит уже проставленные метки. Начать заново?",
   tapProgress: (i: number, k: number) => `Строка ${i} из ${k}`,
   tapDone: (k: number) => `Размечены все строки: ${k}`,
   lyricsNone: "Текст для этого трека не найден. Попробуйте поискать вручную.",
