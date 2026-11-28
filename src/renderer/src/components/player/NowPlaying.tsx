@@ -8,6 +8,8 @@ import { enter, exit, slowMove } from "@/lib/motion";
 import { accentRgbNow } from "@/lib/look";
 import { usePlayingLoop } from "@/lib/playingLoop";
 import { duration } from "@/lib/format";
+import { getActivity, subscribeActivity } from "@/lib/activity";
+import { fastLines, lineIndexAt, sweep, wordProgress } from "@/lib/lyricsTiming";
 import { player, useCurrentTrack, usePlayer, usePosition, useStreamTrack } from "@/state/player";
 import { useNav } from "@/state/nav";
 import { useRoom } from "@/state/room";
@@ -243,19 +245,10 @@ const Stage = memo(function Stage({ track, sound, studio = false }: { track: Tra
   );
 });
 
-/** how far (0..1) each word of a line has been sung: the line's time is shared out by the length of its words */
-function sweep(words: string[], start: number, next: number, now: number) {
-  const total = words.reduce((n, w) => n + w.length + 1, 0);
-  const span = Math.min((next - start) * 0.9, Math.max(1.2, total * 0.075));
-  const p = (now - start) / span;
-  let at = 0;
-  return words.map((w) => {
-    const a = at / total;
-    const b = (at + w.length) / total;
-    at += w.length + 1;
-    return Math.max(0, Math.min(1, (p - a) / (b - a)));
-  });
-}
+/** the line being sung lights a hair early, so the words are ready when the voice arrives */
+const WORDS_LEAD = 0.2;
+/** with a source's own word times, only a small lead bolted onto the one above */
+const WORD_LEAD = 0.15;
 
 /**
  * Synced words, big: the line being sung lights up word by word (timed by word length — the words come with line
@@ -268,74 +261,140 @@ const SweepLines = memo(function SweepLines({ lines }: { lines: NonNullable<Lyri
   const still = useReducedMotion() ?? false;
   const box = useRef<HTMLDivElement>(null);
   const userScroll = useRef(0);
-  const [at, setAt] = useState(-1);
+  const [at, setAt] = useState(() => lineIndexAt(lines, currentTime() + WORDS_LEAD));
+  // the lit line and the "scrolled away" hint as refs too: the paint loop runs on every frame and must not schedule
+  // a React update when nothing changed
+  const atRef = useRef(at);
+  const awayRef = useRef(false);
   const [scrolledAway, setScrolledAway] = useState(false);
   const words = useMemo(() => lines.map((l) => l.text.split(/\s+/).filter(Boolean)), [lines]);
-  // the current line's word spans, kept between ticks: a querySelector every frame adds up at 15–30 a second; the
-  // rows are rebuilt only with new lyrics (checked by lines) — a replaced node is caught by the connection check
-  const spansOf = useRef<{ lines: NonNullable<Lyrics["synced"]>; at: number; spans: NodeListOf<HTMLElement> } | null>(null);
+  // the current line's word spans, kept between ticks: a querySelector every frame adds up at 60 a second; the rows
+  // are rebuilt only with new lyrics (checked by lines) and a replaced node is caught by the connection check; a line
+  // without words (an instrumental break) is remembered as such instead of re-asked every frame
+  const spansOf = useRef<{ lines: NonNullable<Lyrics["synced"]>; at: number; spans: NodeListOf<HTMLElement> | null } | null>(null);
+  // the --k last written per span: re-writing the same value on every frame forces style recalcs for nothing
+  const lastK = useRef<number[] | null>(null);
+  // the first scroll after new lyrics land is a jump, not a glide from wherever the last track was left
+  const snapFor = useRef<NonNullable<Lyrics["synced"]> | null>(null);
+  const fast = useMemo(() => fastLines(lines), [lines]);
+
+  const markAt = (cur: number) => {
+    if (atRef.current === cur) return;
+    atRef.current = cur;
+    setAt(cur);
+  };
+  const markAway = (away: boolean) => {
+    if (awayRef.current === away) return;
+    awayRef.current = away;
+    setScrolledAway(away);
+  };
 
   const paint = () => {
-    const now = currentTime() + 0.2;
-    let cur = -1;
-    for (let i = 0; i < lines.length; i++) if (lines[i]!.t <= now) cur = i;
-    else break;
-    setAt(cur);
-    if (cur >= 0 && Date.now() - userScroll.current >= 4000) setScrolledAway(false);
-    if (cur < 0) return;
-    const hit = spansOf.current;
-    let spans = hit && hit.lines === lines && hit.at === cur && (!hit.spans.length || hit.spans[0]?.isConnected) ? hit.spans : null;
-    if (!spans) {
-      const row = box.current?.querySelector<HTMLElement>(`[data-line="${cur}"]`);
-      spans = row?.querySelectorAll<HTMLElement>(".w") ?? null;
-      if (spans) spansOf.current = { lines, at: cur, spans };
+    const now = currentTime() + WORDS_LEAD;
+    const cur = lineIndexAt(lines, now);
+    markAt(cur);
+    if (cur >= 0 && Date.now() - userScroll.current >= 4000) markAway(false);
+    if (cur < 0) {
+      lastK.current = null;
+      return;
     }
-    if (!spans?.length) return;
+    const cache = spansOf.current;
+    let spans: NodeListOf<HTMLElement> | null;
+    if (cache && cache.lines === lines && cache.at === cur && (cache.spans === null || cache.spans[0]!.isConnected)) {
+      spans = cache.spans;
+    } else {
+      const row = box.current?.querySelector<HTMLElement>(`[data-line="${cur}"]`);
+      const found = row?.querySelectorAll<HTMLElement>(".w");
+      spans = found?.length ? found : null;
+      spansOf.current = { lines, at: cur, spans };
+      lastK.current = null;
+    }
+    if (!spans) return;
     const timed = lines[cur]!.words;
     // the source's own word times when it has them (a small lead only), else shared out by word length
-    const k = timed
-      ? timed.map((w) => Math.max(0, Math.min(1, (now - 0.15 - w.t) / Math.max(0.05, w.end - w.t))))
+    let k = timed?.length
+      ? timed.map((w) => wordProgress(w.t, w.end, now - WORD_LEAD))
       : sweep(words[cur]!, lines[cur]!.t, lines[cur + 1]?.t ?? lines[cur]!.t + 5, now);
-    spans.forEach((s, i) => s.style.setProperty("--k", `${(k[i] ?? 0) * 100}%`));
+    // reduced motion: words light up whole, not in a continuous wipe
+    if (still) k = k.map((v) => (v >= 0.5 ? 1 : 0));
+    const last = lastK.current;
+    for (let i = 0; i < spans.length; i++) {
+      const v = k[i] ?? 0;
+      if (last && Math.abs(last[i]! - v) < 0.004) continue;
+      spans[i]!.style.setProperty("--k", `${(v * 100).toFixed(2)}%`);
+    }
+    lastK.current = k;
   };
-  // 15 times a second while the window is visible behind another one (a second screen): fast rap changes lines more
-  // often than the player's time updates come
-  usePlayingLoop(paint, paint, [lines], 66);
-  // paused, a seek still moves the light; new times show at once
-  useEffect(
-    () => {
-      const first = requestAnimationFrame(paint);
-      const off = usePosition.subscribe(() => usePlayer.getState().status !== "playing" && paint());
-      return () => {
-        cancelAnimationFrame(first);
-        off();
-      };
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [lines],
-  );
 
-  // lines coming quicker than every 1.5 s (fast rap): the easing would keep them behind the voice
-  const fast = useMemo(() => {
-    const gaps = lines.slice(1).map((l, i) => l.t - lines[i]!.t).filter((g) => g > 0).sort((a, b) => a - b);
-    return gaps.length > 4 && gaps[gaps.length >> 1]! < 1.5;
-  }, [lines]);
+  // while the song plays the light moves with it: every frame (reduced motion: 4 times a second) with the window in
+  // front, 15 times a second behind another one, and not at all when paused or hidden — then a seek still repaints
+  // via the subscription below
+  useEffect(() => {
+    let raf = 0;
+    let slow = 0;
+    const stop = () => {
+      if (raf) cancelAnimationFrame(raf);
+      raf = 0;
+      if (slow) window.clearInterval(slow);
+      slow = 0;
+    };
+    const sync = () => {
+      stop();
+      if (usePlayer.getState().status !== "playing") return;
+      const activity = getActivity();
+      if (activity === "active" && !still) {
+        const tick = () => {
+          paint();
+          raf = requestAnimationFrame(tick);
+        };
+        raf = requestAnimationFrame(tick);
+      } else if (activity === "active" || activity === "blurred") {
+        slow = window.setInterval(paint, still ? 250 : 66);
+      }
+    };
+    sync();
+    const offActivity = subscribeActivity(sync);
+    const offPlayer = usePlayer.subscribe((s, prev) => s.status !== prev.status && sync());
+    return () => {
+      stop();
+      offActivity();
+      offPlayer();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lines, still]);
+  // paused, a seek still moves the light; new times show at once
+  useEffect(() => {
+    const first = requestAnimationFrame(paint);
+    const off = usePosition.subscribe(() => usePlayer.getState().status !== "playing" && paint());
+    return () => {
+      cancelAnimationFrame(first);
+      off();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lines, still]);
 
   const jumpToCurrent = () => {
     userScroll.current = 0;
-    setScrolledAway(false);
-    const el = box.current;
-    if (!el || at < 0) return;
-    const row = el.querySelector<HTMLElement>(`[data-line="${at}"]`);
-    if (row) el.scrollTo({ top: row.offsetTop - el.clientHeight * 0.4 + row.offsetHeight / 2, behavior: fast || still ? "instant" : "smooth" });
+    markAway(false);
+    if (at < 0) return;
+    const row = box.current?.querySelector<HTMLElement>(`[data-line="${at}"]`);
+    if (row) box.current!.scrollTo({ top: row.offsetTop - box.current!.clientHeight * 0.4 + row.offsetHeight / 2, behavior: fast || still ? "instant" : "smooth" });
   };
 
   useEffect(() => {
     const el = box.current;
-    if (!el || Date.now() - userScroll.current < 4000) return;
-    const row = el.querySelector<HTMLElement>(`[data-line="${Math.max(0, at)}"]`);
-    if (row) el.scrollTo({ top: row.offsetTop - el.clientHeight * 0.4 + row.offsetHeight / 2, behavior: fast || still ? "instant" : "smooth" });
-  }, [at, fast, still]);
+    if (!el || at < 0 || Date.now() - userScroll.current < 4000) return;
+    const row = el.querySelector<HTMLElement>(`[data-line="${at}"]`);
+    if (!row) return;
+    const top = row.offsetTop - el.clientHeight * 0.4 + row.offsetHeight / 2;
+    // joining mid-song (or aligned timings just landing): start on the line, don't glide from the top
+    if (snapFor.current !== lines) {
+      el.scrollTop = top;
+      snapFor.current = lines;
+      return;
+    }
+    el.scrollTo({ top, behavior: fast || still ? "instant" : "smooth" });
+  }, [at, fast, still, lines]);
 
   return (
     <div className="relative h-full min-h-0 w-full">
@@ -343,7 +402,14 @@ const SweepLines = memo(function SweepLines({ lines }: { lines: NonNullable<Lyri
         ref={box}
         onWheel={() => {
           userScroll.current = Date.now();
-          setScrolledAway(true);
+          markAway(true);
+        }}
+        onKeyDown={(e) => {
+          // arrow keys and friends scroll this list natively, without a wheel event: they pause the follow too
+          if (["ArrowUp", "ArrowDown", "PageUp", "PageDown", "Home", "End"].includes(e.key) || e.code === "Space") {
+            userScroll.current = Date.now();
+            markAway(true);
+          }
         }}
         className={`np-lines relative h-full overflow-y-auto pr-10${fast ? " fast" : ""}`}
         data-keys-own
@@ -356,9 +422,10 @@ const SweepLines = memo(function SweepLines({ lines }: { lines: NonNullable<Lyri
               key={`${l.t}-${i}`}
               type="button"
               data-line={i}
+              aria-current={i === at ? "true" : undefined}
               onClick={() => {
                 userScroll.current = 0;
-                setScrolledAway(false);
+                markAway(false);
                 player.seek(l.t);
               }}
               className={`np-line ${i === at ? "on" : d === 1 ? "near" : d > 2 ? "far" : ""}`}

@@ -4,7 +4,8 @@ import globals from "globals";
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
-  { ignores: ["out/**", "dist/**", "node_modules/**"] },
+  // demo-preview is generated tooling, not app source
+  { ignores: ["out/**", "dist/**", "node_modules/**", "demo-preview/**"] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {

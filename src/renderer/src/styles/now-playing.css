@@ -3,6 +3,7 @@
 /* the lines fade out at the top and bottom edges; no scrollbar */
 .np-lines {
   mask-image: linear-gradient(to bottom, transparent 0, #000 22%, #000 70%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 22%, #000 70%, transparent 100%);
   scrollbar-width: none;
 }
 .np-lines::-webkit-scrollbar {
@@ -18,12 +19,17 @@
   font-weight: 600;
   letter-spacing: -0.02em;
   line-height: 1.22;
-  color: rgba(255, 255, 255, 0.3);
-  text-shadow: 0 1px 12px rgba(0, 0, 0, 0.25);
+  /* readable on any cover or backdrop: a tight dark base shadow plus a wide soft one behind it */
+  color: rgba(255, 255, 255, 0.34);
+  text-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.75),
+    0 2px 22px rgba(0, 0, 0, 0.5);
+  transform-origin: left center;
   transition:
     color var(--motion-slow-move),
     filter var(--motion-slow-move),
-    opacity var(--motion-slow-move);
+    opacity var(--motion-slow-move),
+    transform var(--motion-slow-move);
 }
 /* fast rap: lines change in a blink, not with a 240 ms fade */
 .np-lines.fast .np-line {
@@ -34,15 +40,18 @@
 }
 .np-line.far {
   filter: blur(1.4px);
-  color: rgba(255, 255, 255, 0.18);
+  color: rgba(255, 255, 255, 0.22);
 }
 .np-line:hover {
   filter: none;
-  color: rgba(255, 255, 255, 0.6);
+  color: rgba(255, 255, 255, 0.65);
 }
-/* the line being sung: each word fills from the left as it is sung (--k is set per word, 0%..100%) */
+/* the line being sung: a hair larger, its words fill from the left as they are sung (--k is set per word, 0%..100%) */
+.np-line.on {
+  transform: scale(1.02);
+}
 .np-line.on .w {
-  background-image: linear-gradient(90deg, #f6f6f8 var(--k, 0%), rgba(255, 255, 255, 0.3) var(--k, 0%));
+  background-image: linear-gradient(90deg, #f6f6f8 var(--k, 0%), rgba(255, 255, 255, 0.34) var(--k, 0%));
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -55,6 +64,20 @@
 }
 .np-line.on .np-gap {
   color: rgba(var(--accent-rgb, 230, 230, 240), 0.9);
+}
+/* an instrumental break, sung now: the mark breathes (paused with every other animation when the window is hidden) */
+@media (prefers-reduced-motion: no-preference) {
+  .np-line.on .np-gap {
+    animation: np-breath 1.6s ease-in-out infinite alternate;
+  }
+}
+@keyframes np-breath {
+  from {
+    opacity: 0.55;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 /* studio: the full screen player covers the whole window, title bar too (it has its own) */
@@ -83,8 +106,12 @@
   }
 }
 
-/* a background vocal (an echo, an ad-lib) in word-timed lyrics */
+/* a background vocal (an echo, an ad-lib) in word-timed lyrics: it sings in the accent colour, a shade under the voice */
 .np-line .w.bg {
   font-size: 0.78em;
-  opacity: 0.8;
+  opacity: 0.85;
+  font-style: italic;
+}
+.np-line.on .w.bg {
+  background-image: linear-gradient(90deg, rgba(var(--accent-rgb, 230, 230, 240), 0.92) var(--k, 0%), rgba(255, 255, 255, 0.34) var(--k, 0%));
 }

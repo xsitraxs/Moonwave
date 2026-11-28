@@ -26,3 +26,6 @@ server.local.json
 *.db-*
 settings.json
 secrets.bin
+
+# the demo preview's generated copy of out/renderer (node demo-preview/stub.mjs)
+/demo-preview/app/
