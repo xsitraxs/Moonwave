@@ -154,6 +154,9 @@ function SyncedLines({ lines }: { lines: NonNullable<Lyrics["synced"]> }) {
     return gaps.length > 4 && gaps[gaps.length >> 1]! < 1.5;
   }, [lines]);
 
+  const [scrolledAway, setScrolledAway] = useState(false);
+  const t = useT();
+
   // the position ticks 4 times a second, but the panel only re-renders when the lit line actually changes
   useEffect(() => {
     const off = usePosition.subscribe((state) => {
@@ -163,9 +166,18 @@ function SyncedLines({ lines }: { lines: NonNullable<Lyrics["synced"]> }) {
         else break;
       }
       setAt(cur);
+      if (cur >= 0 && Date.now() - userScroll.current >= 4000) setScrolledAway(false);
     });
     return () => off();
   }, [lines]);
+
+  const jumpToCurrent = () => {
+    userScroll.current = 0;
+    setScrolledAway(false);
+    if (at < 0) return;
+    const row = box.current?.children[at] as HTMLElement | undefined;
+    row?.scrollIntoView({ block: "center", behavior: still ? "instant" : "smooth" });
+  };
 
   useEffect(() => {
     if (at < 0 || Date.now() - userScroll.current < 4000) return;
@@ -174,19 +186,43 @@ function SyncedLines({ lines }: { lines: NonNullable<Lyrics["synced"]> }) {
   }, [at, fast, still]);
 
   return (
-    <ol ref={box} onWheel={() => (userScroll.current = Date.now())} className="space-y-1 px-4 pb-24 pt-2">
-      {lines.map((l, i) => (
-        <li key={`${l.t}-${i}`}>
+    <div className="relative">
+      <ol
+        ref={box}
+        onWheel={() => {
+          userScroll.current = Date.now();
+          setScrolledAway(true);
+        }}
+        className="space-y-1 px-4 pb-24 pt-2"
+      >
+        {lines.map((l, i) => (
+          <li key={`${l.t}-${i}`}>
+            <button
+              type="button"
+              onClick={() => {
+                userScroll.current = 0;
+                setScrolledAway(false);
+                player.seek(l.t);
+              }}
+              className={`w-full cursor-pointer rounded-md px-2 py-1 text-left text-[1.05rem] leading-snug transition-colors motion-color hover:bg-[var(--row-hover)] ${i === at ? "font-semibold text-glow" : i < at ? "text-muted/70" : "text-text/85"}`}
+            >
+              {l.text || "♪"}
+            </button>
+          </li>
+        ))}
+      </ol>
+      {scrolledAway && at >= 0 && (
+        <div className="pointer-events-none sticky bottom-4 flex justify-center">
           <button
             type="button"
-            onClick={() => player.seek(l.t)}
-            className={`w-full rounded-md px-2 py-1 text-left text-[1.05rem] leading-snug transition-colors motion-color hover:bg-[var(--row-hover)] ${i === at ? "font-semibold text-glow" : i < at ? "text-muted/70" : "text-text/85"}`}
+            onClick={jumpToCurrent}
+            className="pointer-events-auto rounded-full border border-[var(--s-line2)] bg-[var(--bg-2)]/95 px-3.5 py-1.5 text-xs font-medium text-text shadow-lg backdrop-blur-md transition-colors hover:bg-[var(--bg-2)]"
           >
-            {l.text || "♪"}
+            {t.lyricsBackToCurrent}
           </button>
-        </li>
-      ))}
-    </ol>
+        </div>
+      )}
+    </div>
   );
 }
 

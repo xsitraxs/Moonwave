@@ -49,8 +49,17 @@ async function openClipboardLink() {
 export function initKeys() {
   window.addEventListener("keydown", (e) => {
     if (e.defaultPrevented || e.altKey || e.metaKey) return;
-    if (useUi.getState().hotkeysOpen || document.querySelector("[data-onboarding-dialog]")) return;
+    if (document.querySelector("[data-onboarding-dialog]")) return;
     const ctrl = e.ctrlKey;
+    if (ctrl && !e.shiftKey && e.code === "KeyP" && !e.repeat && !useUi.getState().miniPlayer) {
+      e.preventDefault();
+      const ui = useUi.getState();
+      const next = !ui.commandPaletteOpen;
+      if (next && ui.hotkeysOpen) ui.setHotkeysOpen(false);
+      ui.setCommandPaletteOpen(next);
+      return;
+    }
+    if (useUi.getState().hotkeysOpen || useUi.getState().commandPaletteOpen) return;
     if (ctrl && !e.shiftKey && (e.code === "KeyF" || e.code === "KeyL")) {
       e.preventDefault();
       if (e.code === "KeyF") focusSearch();

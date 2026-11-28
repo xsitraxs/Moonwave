@@ -143,6 +143,8 @@ export const ru: Dict = {
   hotkeysHint: "Нажмите ? в любом месте, чтобы открыть этот список.",
   hkSeek: "Перемотка ±5 с",
   hkSearch: "Поиск",
+  hkCommandPalette: "Палитра команд",
+  lyricsBackToCurrent: "К текущей строке",
   hkOpenLink: "Открыть ссылку SoundCloud из буфера",
   hkClose: "Закрыть диалоги и полноэкранный плеер",
   hkHelp: "Этот список",

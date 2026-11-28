@@ -88,6 +88,9 @@ function Item({ track, index, alt, dragging, over, drag }: { track: Track; index
       className={`s-qi group relative cursor-default ${djSuggested ? "s-qi-auto" : ""} ${dragging ? "opacity-40" : ""}`}
     >
       {over && <span aria-hidden="true" className="absolute inset-x-2 -top-px h-0.5 rounded bg-[var(--accent)]" />}
+      <span aria-hidden="true" className="-ml-1 mr-0.5 hidden shrink-0 cursor-grab text-[var(--s-dim)] opacity-60 group-hover:inline-flex">
+        <Icon name="grip" size={12} />
+      </span>
       <button type="button" tabIndex={-1} aria-label={`${t.play}: ${track.title}`} onClick={() => player.jumpTo(index)} className="relative shrink-0 overflow-hidden rounded-[4px]">
         <Cover url={track.artworkUrl} size={28} />
         <span aria-hidden="true" className="absolute inset-0 grid place-items-center bg-black/50 text-white opacity-0 transition-opacity group-hover:opacity-100">
@@ -273,6 +276,27 @@ export function QueuePanel({ showCurrent = true }: { showCurrent?: boolean }) {
   const djActive = useDj((s) => s.active);
   const hasUpcoming = usePlayer((s) => s.queue.length > s.index + 1);
   const toast = useUi((s) => s.showToast);
+  const clearWithUndo = () => {
+    const { queue, index, pending, source, autoFrom } = usePlayer.getState();
+    const upcoming = queue.slice(index + 1);
+    const currentId = queue[index]?.id;
+    player.clearUpcoming();
+    if (!upcoming.length && !pending.length) return;
+    toast(t.clearQueue, {
+      label: t.restore,
+      onClick: () => {
+        usePlayer.setState((s) => {
+          if (s.queue[s.index]?.id !== currentId) return s;
+          return {
+            queue: [...s.queue.slice(0, s.index + 1), ...upcoming],
+            pending,
+            source,
+            autoFrom,
+          };
+        });
+      },
+    });
+  };
   // what plays now and what comes after it, as a playlist of your own
   const saveQueue = async () => {
     const { queue, index } = usePlayer.getState();
@@ -300,7 +324,7 @@ export function QueuePanel({ showCurrent = true }: { showCurrent?: boolean }) {
       </div>
       {tab === "next" && hasUpcoming && (
         <div className="mx-1 -mt-1 mb-2 flex items-center gap-3">
-          <button type="button" onClick={player.clearUpcoming} className="text-[12px] text-[var(--s-dim)] hover:text-text">
+          <button type="button" onClick={clearWithUndo} className="text-[12px] text-[var(--s-dim)] hover:text-text">
             {t.clearQueue}
           </button>
           <button type="button" onClick={() => void saveQueue()} title={t.saveQueueHint} className="text-[12px] text-[var(--s-dim)] hover:text-text">

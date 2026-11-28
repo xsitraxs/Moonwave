@@ -35,3 +35,45 @@ export function Loading() {
   const t = useT();
   return <p className="py-10 text-center font-type text-sm text-muted">{t.loadingMore}</p>;
 }
+
+/** Subtle fallback while a lazy-loaded screen chunk resolves (local disk is usually instant). */
+export function ScreenFallback() {
+  return (
+    <div className="flex h-full items-center justify-center" aria-busy="true">
+      <div className="h-5 w-5 animate-spin rounded-full border-2 border-[var(--s-line2)] border-t-[var(--accent)] opacity-70" />
+    </div>
+  );
+}
+
+/** Skeleton rows for track lists while the first page loads. */
+export function TrackListSkeleton({ rows = 8 }: { rows?: number }) {
+  return (
+    <div className="space-y-2 py-2" aria-busy="true">
+      {Array.from({ length: rows }, (_, i) => (
+        <div key={i} className="flex items-center gap-3 rounded-lg px-2 py-1.5">
+          <div className="h-10 w-10 shrink-0 animate-pulse rounded-md bg-white/[0.07]" />
+          <div className="min-w-0 flex-1 space-y-2">
+            <div className="h-3.5 animate-pulse rounded bg-white/[0.08]" style={{ width: `${42 + ((i * 19) % 35)}%` }} />
+            <div className="h-3 animate-pulse rounded bg-white/[0.05]" style={{ width: `${24 + ((i * 13) % 24)}%` }} />
+          </div>
+          <div className="h-3 w-10 shrink-0 animate-pulse rounded bg-white/[0.05]" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** Skeleton cards for playlist/album grids while loading. */
+export function CardGridSkeleton({ cards = 8 }: { cards?: number }) {
+  return (
+    <div className="grid grid-cols-2 gap-4 py-2 sm:grid-cols-3 md:grid-cols-4" aria-busy="true">
+      {Array.from({ length: cards }, (_, i) => (
+        <div key={i} className="space-y-2.5">
+          <div className="aspect-square w-full animate-pulse rounded-lg bg-white/[0.07]" />
+          <div className="h-3.5 w-3/4 animate-pulse rounded bg-white/[0.08]" />
+          <div className="h-3 w-1/2 animate-pulse rounded bg-white/[0.05]" />
+        </div>
+      ))}
+    </div>
+  );
+}
